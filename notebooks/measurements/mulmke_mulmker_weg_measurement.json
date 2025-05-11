@@ -1,0 +1,13 @@
+{
+    "method": "injection_remote_earth_electrode",
+    "asset_type": "overhead_line_tower",
+    "voltage_level_kv": 20,
+    "fault_resistance_ohm": 0.0,
+    "operator": "Avacon Netz GmbH",
+    "description": "Cable terminal tower, 300 m next to the substation.",
+    "location": {
+        "name": "Mulmke Kabelaufführungsmast",
+        "latitude": 51.91173, 
+        "longitude": 10.84289
+    }
+}

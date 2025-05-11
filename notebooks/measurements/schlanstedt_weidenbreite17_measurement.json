@@ -1,0 +1,13 @@
+{
+    "method": "injection_remote_earth_electrode",
+    "asset_type": "mv_lv_earthing_system",
+    "voltage_level_kv": 20,
+    "fault_resistance_ohm": 0.0,
+    "operator": "Avacon Netz GmbH",
+    "description": "Measurement of a village with 3 substations. Current injection in the lv cable cabinet.",
+    "location": {
+        "name": "Schlanstedt Weidenbreit 17 Kabelverteilerschrank",
+        "latitude": 52.01122,
+        "longitude": 11.04192
+    }
+}

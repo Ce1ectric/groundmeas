@@ -1,0 +1,6 @@
+# Python environment
+.env/
+.venv/
+notebooks/.venv/
+notebooks/.env/
+

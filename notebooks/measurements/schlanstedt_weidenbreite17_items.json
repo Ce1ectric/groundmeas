@@ -1,0 +1,114 @@
+{ "items": [
+    {
+    "measurement_type": "earthing_impedance",
+    "value": 0.28,
+    "unit": "Ohm",
+    "frequency_hz": 50,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 140
+},
+
+{
+    "measurement_type": "earthing_impedance",
+    "value": 0.13,
+    "unit": "Ohm",
+    "frequency_hz": 15,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 140
+},
+
+{
+    "measurement_type": "earthing_impedance",
+    "value": 0.50,
+    "unit": "Ohm",
+    "frequency_hz": 100,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 140
+},
+
+{
+    "measurement_type": "earthing_impedance",
+    "value": 0.70,
+    "unit": "Ohm",
+    "frequency_hz": 150,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 140
+},
+
+{
+    "measurement_type": "earthing_impedance",
+    "value": 0.89,
+    "unit": "Ohm",
+    "frequency_hz": 200,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 140
+},
+
+{
+    "measurement_type": "earthing_impedance",
+    "value": 1.07,
+    "unit": "Ohm",
+    "frequency_hz": 250,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 140
+},
+
+
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 15
+
+},
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 50
+
+},
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 15
+
+},
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 100
+
+},
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 150
+
+},
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 200
+
+},
+{
+    "measurement_type": "earthing_current",
+    "value": 0.17,
+    "unit": "A",
+    "frequency_hz": 250
+
+}
+
+]
+}
