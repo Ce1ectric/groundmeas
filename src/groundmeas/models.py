@@ -1,9 +1,10 @@
 # src/groundmeas/models.py
 
+import numpy as np
 from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime, timezone
 from typing import Optional, List, Literal
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, event
 
 MeasurementType = Literal[
     "prospective_touch_voltage",
@@ -58,7 +59,10 @@ class Measurement(SQLModel, table=True):
 class MeasurementItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     measurement_type: MeasurementType = Field(sa_column=Column(String, nullable=False))
-    value: float
+    value: Optional[float] = None
+    value_real: Optional[float] = None
+    value_imag: Optional[float] = None
+    value_angle_deg: Optional[float] = None
     unit: str
     description: Optional[str] = None
     frequency_hz: Optional[float] = None
@@ -67,3 +71,28 @@ class MeasurementItem(SQLModel, table=True):
     measurement_distance_m: Optional[float] = None
     measurement_id: Optional[int] = Field(default=None, foreign_key="measurement.id")
     measurement: Optional[Measurement] = Relationship(back_populates="items")
+
+# event listener to calculate the magnitude of a measurement item 
+@event.listens_for(MeasurementItem, "before_insert", propagate=True)
+@event.listens_for(MeasurementItem, "before_update", propagate=True)
+def _compute_magnitude(mapper, connection, target: MeasurementItem):
+    if target.value is None:
+        if target.value_real is not None or target.value_imag is not None:
+            r = target.value_real or 0.0
+            i = target.value_imag or 0.0
+            target.value = (r**2 + i**2) ** 0.5
+            target.value_angle_deg = np.degrees(np.arctan2(i, r))
+        else:
+            # raise a ValueError("Either value or (value_real and value_imag) must be provided.")
+            raise ValueError(
+                f"MeasurementItem(id={getattr(target, 'id', None)}) has no value or real/imag parts")
+    elif target.value_angle_deg is not None:
+        # Convert degrees to radians
+        angle_rad = target.value_angle_deg * np.pi / 180
+        # Calculate the real and imaginary parts
+        r = target.value * np.cos(angle_rad)
+        i = target.value * np.sin(angle_rad)
+        target.value_real = r
+        target.value_imag = i
+        
+            
