@@ -127,16 +127,16 @@ def rho_f_model(
 ) -> Tuple[float, float, float, float, float, float]:
     """
     Fit a model of the form
-        Z(rho, f) = (k1 + i k2) * rho
-                  + (k3 + i k4) * f
-                  + (k5 + i k6) * rho * f
+        Z(rho, f) = (k1) * rho
+                  + (k2 + i k3) * f
+                  + (k4 + i k5) * rho * f
     using multiple measurements at a common soil-resistivity depth.
 
     Args:
         measurement_ids: list of Measurement IDs.
 
     Returns:
-        (k1, k2, k3, k4, k5, k6) as real floats.
+        (k1, k2, k3, k4, k5) as real floats.
 
     Raises:
         ValueError if no common depth or no impedance data.
@@ -176,33 +176,34 @@ def rho_f_model(
     selected_depths = dict(zip(measurement_ids, best_combo))
 
     # 4) build regression data
-    A_rows = []
-    yR = []
-    yX = []
+    A_R_rows, yR = [], []
+    A_X_rows, yX = [], []
+
     for mid in measurement_ids:
-        rho = rho_map[mid][selected_depths[mid]]
-        freqs = rimap.get(mid, {})
-        for f, comp in freqs.items():
-            R = comp.get("real")
-            X = comp.get("imag")
+        rho = rho_map[mid][ selected_depths[mid] ]
+        freq_map = rimap.get(mid, {})
+        for f, comp in freq_map.items():
+            R = comp.get("real"); X = comp.get("imag")
             if R is None or X is None:
                 continue
-            A_rows.append([rho, f, rho * f])
+            A_R_rows.append([rho, f, rho*f])
             yR.append(R)
+            A_X_rows.append([f, rho*f])
             yX.append(X)
 
-    if not A_rows:
+    if not A_R_rows:
         raise ValueError("No overlapping impedance data for fitting.")
 
-    A = np.vstack(A_rows)
-    R_vec = np.array(yR)
-    X_vec = np.array(yX)
+    A_R = np.vstack(A_R_rows)     # shape (N,3): [ρ, f, ρ·f]
+    A_X = np.vstack(A_X_rows)     # shape (N,2): [f, ρ·f]
+    R_vec = np.array(yR)          # (N,)
+    X_vec = np.array(yX)          # (N,)
 
-    # 5) least‐squares for real and imaginary
-    kr, *_ = np.linalg.lstsq(A, R_vec, rcond=None)
-    ki, *_ = np.linalg.lstsq(A, X_vec, rcond=None)
+    # 5) solve least‐squares
+    kR, *_ = np.linalg.lstsq(A_R, R_vec, rcond=None)  # → [k1, k2, k4]
+    kX, *_ = np.linalg.lstsq(A_X, X_vec, rcond=None)  # → [k3, k5]
 
-    k1, k3, k5 = kr
-    k2, k4, k6 = ki
+    k1, k2, k4 = kR
+    k3, k5    = kX
 
-    return float(k1), float(k2), float(k3), float(k4), float(k5), float(k6)
+    return float(k1), float(k2), float(k3), float(k4), float(k5)

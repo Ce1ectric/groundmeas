@@ -91,7 +91,7 @@ def plot_imp_over_f(
 
 def plot_rho_f_model(
     measurement_ids: List[int],
-    rho_f: Tuple[float, float, float, float, float, float],
+    rho_f: Tuple[float, float, float, float, float],
     rho: Union[float, List[float]] = 100,
 ) -> plt.Figure:
     """
@@ -99,7 +99,7 @@ def plot_rho_f_model(
 
     Args:
         measurement_ids: list of Measurement IDs.
-        rho_f: tuple (k1, k2, k3, k4, k5, k6).
+        rho_f: tuple (k1, k2, k3, k4, k5).
         rho: single float or list of rho values. For list, multiple model curves are plotted.
 
     Returns:
@@ -118,7 +118,7 @@ def plot_rho_f_model(
     freqs = sorted(all_freqs)
 
     # Unpack model coefficients
-    k1, k2, k3, k4, k5, k6 = rho_f
+    k1, k2, k3, k4, k5 = rho_f
 
     # Normalize rho parameter to list
     rhos: List[float] = [rho] if isinstance(rho, (int, float)) else list(rho)
@@ -127,9 +127,9 @@ def plot_rho_f_model(
     for rho_val in rhos:
         model_mag = [
             abs(
-                (k1 + 1j * k2) * rho_val
-                + (k3 + 1j * k4) * f
-                + (k5 + 1j * k6) * rho_val * f
+                (k1) * rho_val
+                + (k2 + 1j * k3) * f
+                + (k4 + 1j * k5) * rho_val * f
             )
             for f in freqs
         ]
