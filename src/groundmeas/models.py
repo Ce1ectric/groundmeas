@@ -32,8 +32,9 @@ AssetType = Literal[
     "cable_cabinet",
     "house",
     "pole_mounted_transformer",
-    "mv_lv_earthing_system"
+    "mv_lv_earthing_system",
 ]
+
 
 class Location(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -42,6 +43,7 @@ class Location(SQLModel, table=True):
     longitude: Optional[float] = None
     altitude: Optional[float] = None
     measurements: List["Measurement"] = Relationship(back_populates="location")
+
 
 class Measurement(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -55,6 +57,7 @@ class Measurement(SQLModel, table=True):
     operator: Optional[str] = None
     description: Optional[str] = None
     items: List["MeasurementItem"] = Relationship(back_populates="measurement")
+
 
 class MeasurementItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -72,7 +75,8 @@ class MeasurementItem(SQLModel, table=True):
     measurement_id: Optional[int] = Field(default=None, foreign_key="measurement.id")
     measurement: Optional[Measurement] = Relationship(back_populates="items")
 
-# event listener to calculate the magnitude of a measurement item 
+
+# event listener to calculate the magnitude of a measurement item
 @event.listens_for(MeasurementItem, "before_insert", propagate=True)
 @event.listens_for(MeasurementItem, "before_update", propagate=True)
 def _compute_magnitude(mapper, connection, target: MeasurementItem):
@@ -85,7 +89,8 @@ def _compute_magnitude(mapper, connection, target: MeasurementItem):
         else:
             # raise a ValueError("Either value or (value_real and value_imag) must be provided.")
             raise ValueError(
-                f"MeasurementItem(id={getattr(target, 'id', None)}) has no value or real/imag parts")
+                f"MeasurementItem(id={getattr(target, 'id', None)}) has no value or real/imag parts"
+            )
     elif target.value_angle_deg is not None:
         # Convert degrees to radians
         angle_rad = target.value_angle_deg * np.pi / 180
@@ -94,5 +99,3 @@ def _compute_magnitude(mapper, connection, target: MeasurementItem):
         i = target.value * np.sin(angle_rad)
         target.value_real = r
         target.value_imag = i
-        
-            

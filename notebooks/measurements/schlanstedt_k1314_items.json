@@ -6,7 +6,8 @@
     "frequency_hz": 50,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 75
+    "measurement_distance_m": 75,
+    "value_angle_deg": 63
 },
 
 {
@@ -16,7 +17,8 @@
     "frequency_hz": 15,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 75
+    "measurement_distance_m": 75,
+    "value_angle_deg": 40
 },
 
 {
@@ -26,7 +28,8 @@
     "frequency_hz": 100,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 75
+    "measurement_distance_m": 75,
+    "value_angle_deg": 71
 },
 
 {
@@ -36,7 +39,8 @@
     "frequency_hz": 150,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 75
+    "measurement_distance_m": 75,
+    "value_angle_deg": 74
 },
 
 {
@@ -46,7 +50,8 @@
     "frequency_hz": 200,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 75
+    "measurement_distance_m": 75,
+    "value_angle_deg": 74
 },
 
 {
@@ -56,7 +61,8 @@
     "frequency_hz": 250,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 75
+    "measurement_distance_m": 75,
+    "value_angle_deg": 74
 },
 
 {

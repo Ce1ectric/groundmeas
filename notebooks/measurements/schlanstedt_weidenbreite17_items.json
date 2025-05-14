@@ -6,7 +6,8 @@
     "frequency_hz": 50,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 140
+    "measurement_distance_m": 140,
+    "value_angle_deg": 61
 },
 
 {
@@ -16,7 +17,8 @@
     "frequency_hz": 15,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 140
+    "measurement_distance_m": 140,
+    "value_angle_deg": 36
 },
 
 {
@@ -26,7 +28,8 @@
     "frequency_hz": 100,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 140
+    "measurement_distance_m": 140,
+    "value_angle_deg": 69
 },
 
 {
@@ -36,7 +39,8 @@
     "frequency_hz": 150,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 140
+    "measurement_distance_m": 140,
+    "value_angle_deg": 71
 },
 
 {
@@ -46,7 +50,8 @@
     "frequency_hz": 200,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 140
+    "measurement_distance_m": 140,
+    "value_angle_deg": 72
 },
 
 {
@@ -56,7 +61,8 @@
     "frequency_hz": 250,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 140
+    "measurement_distance_m": 140,
+    "value_angle_deg": 73
 },
 
 
@@ -108,6 +114,16 @@
     "unit": "A",
     "frequency_hz": 250
 
+},
+
+{
+    "measurement_type": "soil_resistivity",
+    "value": 25,
+    "unit": "Ohm_meter",
+    "frequency_hz": 50,
+    "additional_resistance_ohm": 0.0,
+    "input_impedance_ohm": 500e3,
+    "measurement_distance_m": 4
 }
 
 ]

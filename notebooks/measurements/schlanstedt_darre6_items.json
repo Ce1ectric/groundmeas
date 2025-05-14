@@ -6,7 +6,8 @@
     "frequency_hz": 50,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 20
+    "measurement_distance_m": 20,
+    "value_angle_deg": 2
 },
 
 {
@@ -16,7 +17,8 @@
     "frequency_hz": 15,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 20
+    "measurement_distance_m": 20,
+    "value_angle_deg": 2
 },
 
 {
@@ -26,7 +28,8 @@
     "frequency_hz": 100,
     "additional_resistance_ohm": 0.0,
     "input_impedance_ohm": 500e3,
-    "measurement_distance_m": 20
+    "measurement_distance_m": 20,
+    "value_angle_deg": 3
 },
 
 {

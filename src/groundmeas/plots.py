@@ -1,16 +1,13 @@
 # src/groundmeas/plots.py
-"""
-Plotting functions for groundmeas package.
-"""
+
 import matplotlib.pyplot as plt
-from typing import Union, List, Dict, Any, Optional
+from typing import Tuple, Union, List, Dict, Any, Optional
 import warnings
-from .analytics import impedance_over_frequency
+from .analytics import impedance_over_frequency, real_imag_over_frequency
 
 
 def plot_imp_over_f(
-    measurement_ids: Union[int, List[int]],
-    normalize_freq_hz: Optional[float] = None
+    measurement_ids: Union[int, List[int]], normalize_freq_hz: Optional[float] = None
 ) -> plt.Figure:
     """
     Plot earthing impedance versus frequency for one or multiple measurements on a single figure.
@@ -40,7 +37,7 @@ def plot_imp_over_f(
         if not freq_imp:
             warnings.warn(
                 f"No earthing_impedance data for measurement_id={mid}; skipping curve",
-                UserWarning
+                UserWarning,
             )
             continue
 
@@ -58,7 +55,7 @@ def plot_imp_over_f(
             imps = [val / baseline for val in imps]
 
         # Plot the curve
-        ax.plot(freqs, imps, marker='o', linestyle='-', label=f"ID {mid}")
+        ax.plot(freqs, imps, marker="o", linestyle="-", label=f"ID {mid}")
         plotted = True
 
     if not plotted:
@@ -67,23 +64,78 @@ def plot_imp_over_f(
                 f"No earthing_impedance data available for measurement_id={measurement_ids}"
             )
         else:
-            raise ValueError("No earthing_impedance data available for the provided measurement IDs.")
+            raise ValueError(
+                "No earthing_impedance data available for the provided measurement IDs."
+            )
 
     # Labels and title
-    ax.set_xlabel('Frequency (Hz)')
-    ylabel = 'Normalized Impedance' if normalize_freq_hz is not None else 'Impedance (Ω)'
+    ax.set_xlabel("Frequency (Hz)")
+    ylabel = (
+        "Normalized Impedance" if normalize_freq_hz is not None else "Impedance (Ω)"
+    )
     ax.set_ylabel(ylabel)
-    title = 'Impedance vs Frequency'
+    title = "Impedance vs Frequency"
     if normalize_freq_hz is not None:
-        title += f' (Normalized @ {normalize_freq_hz} Hz)'
+        title += f" (Normalized @ {normalize_freq_hz} Hz)"
     ax.set_title(title)
 
     # Grid and scientific tick formatting
-    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-    ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
 
     # Legend
     ax.legend()
     fig.tight_layout()
     return fig
 
+
+def plot_rho_f_model(
+    measurement_ids: List[int],
+    rho_f: Tuple[float, float, float, float, float, float],
+    rho: Union[float, List[float]] = 100,
+) -> plt.Figure:
+    """
+    Plot measured impedance and rho-f model on the same axes.
+
+    Args:
+        measurement_ids: list of Measurement IDs.
+        rho_f: tuple (k1, k2, k3, k4, k5, k6).
+        rho: single float or list of rho values. For list, multiple model curves are plotted.
+
+    Returns:
+        A matplotlib Figure with measured and modeled impedance magnitude vs frequency.
+    """
+    # Plot measured curves
+    fig = plot_imp_over_f(measurement_ids)
+    ax = fig.axes[0]
+
+    # Gather real/imag data
+    rimap = real_imag_over_frequency(measurement_ids)
+    # Union of frequencies
+    all_freqs = set()
+    for freq_map in rimap.values():
+        all_freqs.update(freq_map.keys())
+    freqs = sorted(all_freqs)
+
+    # Unpack model coefficients
+    k1, k2, k3, k4, k5, k6 = rho_f
+
+    # Normalize rho parameter to list
+    rhos: List[float] = [rho] if isinstance(rho, (int, float)) else list(rho)
+
+    # Plot model curves for each rho
+    for rho_val in rhos:
+        model_mag = [
+            abs(
+                (k1 + 1j * k2) * rho_val
+                + (k3 + 1j * k4) * f
+                + (k5 + 1j * k6) * rho_val * f
+            )
+            for f in freqs
+        ]
+        ax.plot(
+            freqs, model_mag, linestyle="--", linewidth=2, label=f"Model (ρ={rho_val})"
+        )
+
+    ax.legend()
+    return fig

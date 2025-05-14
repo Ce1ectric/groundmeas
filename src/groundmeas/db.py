@@ -77,9 +77,7 @@ def create_item(data: Dict[str, Any], measurement_id: int) -> int:
         return item.id  # type: ignore
 
 
-def read_measurements(
-    where: Optional[str] = None
-) -> List[Dict[str, Any]]:
+def read_measurements(where: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Read all Measurement records matching an optional SQL WHERE string.
 
@@ -110,6 +108,7 @@ def read_measurements(
         out.append(d)
         mids.append(m.id)
     return out, mids
+
 
 def read_measurements_by(**filters: Any) -> List[Dict[str, Any]]:
     """
@@ -164,6 +163,7 @@ def read_measurements_by(**filters: Any) -> List[Dict[str, Any]]:
         out.append(d)
     return out, mids
 
+
 def read_items_by(**filters: Any) -> Tuple[List[Dict[str, Any]], List[int]]:
     """
     Read MeasurementItem records by keyword filters with suffix operators __eq, __ne, __lt, __lte, __gt, __gte, __in.
@@ -210,3 +210,71 @@ def read_items_by(**filters: Any) -> Tuple[List[Dict[str, Any]], List[int]]:
         out.append(item.model_dump())
         iids.append(item.id)  # type: ignore
     return out, iids
+
+def update_measurement(measurement_id: int, updates: Dict[str, Any]) -> bool:
+    """
+    Update fields on an existing Measurement.
+
+    Args:
+      measurement_id: the PK of the Measurement to update.
+      updates: dict of Measurement field names → new values.
+
+    Returns:
+      True if the record existed and was updated, False otherwise.
+    """
+    with _get_session() as session:
+        m = session.get(Measurement, measurement_id)
+        if m is None:
+            return False
+        for field, val in updates.items():
+            setattr(m, field, val)
+        session.add(m)
+        session.commit()
+        return True
+
+
+def delete_measurement(measurement_id: int) -> bool:
+    """
+    Delete a Measurement and its related items (cascade).
+
+    Returns True if deleted, False if not found.
+    """
+    with _get_session() as session:
+        m = session.get(Measurement, measurement_id)
+        if m is None:
+            return False
+        session.delete(m)
+        session.commit()
+        return True
+
+
+def update_item(item_id: int, updates: Dict[str, Any]) -> bool:
+    """
+    Update fields on an existing MeasurementItem.
+
+    Returns True if the record existed and was updated, False otherwise.
+    """
+    with _get_session() as session:
+        it = session.get(MeasurementItem, item_id)
+        if it is None:
+            return False
+        for field, val in updates.items():
+            setattr(it, field, val)
+        session.add(it)
+        session.commit()
+        return True
+
+
+def delete_item(item_id: int) -> bool:
+    """
+    Delete a MeasurementItem by its PK.
+
+    Returns True if deleted, False if not found.
+    """
+    with _get_session() as session:
+        it = session.get(MeasurementItem, item_id)
+        if it is None:
+            return False
+        session.delete(it)
+        session.commit()
+        return True
