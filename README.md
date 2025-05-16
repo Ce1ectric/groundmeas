@@ -38,10 +38,17 @@ where $k_1…k_5$ are real coefficients determined by least‑squares across mul
 Requires Python 3.9+ and Poetry:
 
 ```bash
-git clone https://github.com/youruser/groundmeas.git
+git clone https://github.com/Ce1ectric/groundmeas.git
 cd groundmeas
 poetry install
 poetry shell
+```
+
+or using pip locally:
+```bash
+git clone https://github.com/Ce1ectric/groundmeas.git
+cd groundmeas
+pip install .
 ```
 
 Or install via pip: `pip install groundmeas` (once published).
