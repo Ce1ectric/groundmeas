@@ -51,7 +51,7 @@ cd groundmeas
 pip install .
 ```
 
-Or install via pip: `pip install groundmeas` (once published).
+Or install via pip: `pip install groundmeas`.
 
 ---
 
