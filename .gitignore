@@ -4,6 +4,7 @@
 notebooks/.venv/
 notebooks/.env/
 notebooks/
+dist/
 
 # export datatypes
 # all csv

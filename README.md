@@ -35,7 +35,7 @@ where $k_1…k_5$ are real coefficients determined by least‑squares across mul
 
 ## Installation
 
-Requires Python 3.9+ and Poetry:
+Requires Python 3.12+:
 
 ```bash
 git clone https://github.com/Ce1ectric/groundmeas.git
