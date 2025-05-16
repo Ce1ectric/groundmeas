@@ -24,6 +24,7 @@ typer = "^0.15.3"
 pytest = "^8.3.5"
 black = "^25.1.0"
 ipykernel = "^6.29.5"
+pytest-cov = "^6.1.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

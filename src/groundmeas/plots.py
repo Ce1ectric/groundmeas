@@ -126,11 +126,7 @@ def plot_rho_f_model(
     # Plot model curves for each rho
     for rho_val in rhos:
         model_mag = [
-            abs(
-                (k1) * rho_val
-                + (k2 + 1j * k3) * f
-                + (k4 + 1j * k5) * rho_val * f
-            )
+            abs((k1) * rho_val + (k2 + 1j * k3) * f + (k4 + 1j * k5) * rho_val * f)
             for f in freqs
         ]
         ax.plot(

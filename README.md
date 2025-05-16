@@ -7,3 +7,6 @@ A python module to store measurement data from earthing measurements or earth fa
 - function call groundmeas.analytics.rho_f_model(list_of_measurement_ids) -> {a:xx, b:xx, c:xx}, R^2 value
 ## Location all over the world
 - change Location Model to add N,S or E,W for longitude and lattitude
+
+## field validators for the models 
+- implement pydanctic field validators 

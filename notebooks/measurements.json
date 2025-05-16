@@ -1,7 +1,7 @@
 [
   {
     "location_id": 1,
-    "timestamp": "2025-05-14T20:28:56.855926",
+    "timestamp": "2025-05-15T18:21:31.151010",
     "voltage_level_kv": 20.0,
     "fault_resistance_ohm": 0.0,
     "description": "Cable terminal tower, where it seams there is no connection to the earthing system of the neaboring substation.",
@@ -104,7 +104,7 @@
   },
   {
     "location_id": 2,
-    "timestamp": "2025-05-14T20:28:56.863744",
+    "timestamp": "2025-05-15T18:21:31.159177",
     "voltage_level_kv": 20.0,
     "fault_resistance_ohm": 0.0,
     "description": "Measurement of a village with 3 substations. Current injection in the lv cable cabinet.",
@@ -327,7 +327,7 @@
   },
   {
     "location_id": 3,
-    "timestamp": "2025-05-14T20:28:56.875292",
+    "timestamp": "2025-05-15T18:21:31.169712",
     "voltage_level_kv": 20.0,
     "fault_resistance_ohm": 0.0,
     "description": "Measurement of a village with 3 substations. Current injection in the cable terminal tower.",
@@ -610,7 +610,7 @@
   },
   {
     "location_id": 4,
-    "timestamp": "2025-05-14T20:28:56.888455",
+    "timestamp": "2025-05-15T18:21:31.182977",
     "voltage_level_kv": 20.0,
     "fault_resistance_ohm": 0.0,
     "description": "Cable terminal tower, 300 m next to the substation.",
@@ -878,7 +878,7 @@
   },
   {
     "location_id": 5,
-    "timestamp": "2025-05-14T20:28:56.901223",
+    "timestamp": "2025-05-15T18:21:31.195211",
     "voltage_level_kv": 20.0,
     "fault_resistance_ohm": 0.0,
     "description": "Cable terminal tower, 100 m next to the substation.",
@@ -1176,7 +1176,7 @@
   },
   {
     "location_id": 6,
-    "timestamp": "2025-05-14T20:28:56.914613",
+    "timestamp": "2025-05-15T18:21:31.208044",
     "voltage_level_kv": 20.0,
     "fault_resistance_ohm": 0.0,
     "description": "Cable terminal tower, 100 m next to the substation.",

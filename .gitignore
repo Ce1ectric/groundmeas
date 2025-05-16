@@ -3,4 +3,12 @@
 .venv/
 notebooks/.venv/
 notebooks/.env/
+notebooks/
 
+# export datatypes
+# all csv
+*.csv
+# all json
+*.json
+# all xml
+*.xml
