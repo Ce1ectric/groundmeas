@@ -3,7 +3,13 @@
 import matplotlib.pyplot as plt
 from typing import Tuple, Union, List, Dict, Any, Optional
 import warnings
-from .analytics import impedance_over_frequency, real_imag_over_frequency
+import numpy as np
+
+from .analytics import (
+    impedance_over_frequency,
+    real_imag_over_frequency,
+    voltage_vt_epr,
+)
 
 
 def plot_imp_over_f(
@@ -134,4 +140,59 @@ def plot_rho_f_model(
         )
 
     ax.legend()
+    return fig
+
+
+def plot_voltage_vt_epr(
+    measurement_ids: Union[int, List[int]],
+    frequency: float = 50.0
+) -> plt.Figure:
+    """
+    Bar‐plot of EPR and both min/max of prospective and actual touch voltages.
+
+    For each measurement ID you’ll see:
+      • EPR (V) at x–width
+      • Prospective TV max & min overlayed at x
+      • Actual      TV max & min overlayed at x+width
+
+    All voltage bars start at zero so the longer (max) bars show their full length
+    behind the shorter (min) bars.
+    """
+    # 1) get the numbers
+    data = voltage_vt_epr(measurement_ids, frequency=frequency)
+    single = isinstance(measurement_ids, int)
+    ids: List[int] = [measurement_ids] if single else list(measurement_ids)
+    if single:
+        data = {measurement_ids: data}
+
+    # 2) prepare figure
+    fig, ax = plt.subplots()
+    x = np.arange(len(ids))
+    width = 0.25
+
+    # 3) EPR bars
+    epr = [data[mid].get("epr", 0.0) for mid in ids]
+    ax.bar(x - width, epr, width, label="EPR (V/A)", color="C0")
+
+    # 4) Prospective TV (V/A): max behind (semi‐transparent), min on top
+    vtp_max = [data[mid].get("vtp_max", 0.0) for mid in ids]
+    vtp_min = [data[mid].get("vtp_min", 0.0) for mid in ids]
+    ax.bar(x, vtp_max, width, color="C1", alpha=0.6, label="Vtp max")
+    ax.bar(x, vtp_min, width, color="C1", alpha=1.0, label="Vtp min")
+
+    # 5) Actual TV (V/A): max behind, min on top
+    vt_max = [data[mid].get("vt_max", 0.0) for mid in ids]
+    vt_min = [data[mid].get("vt_min", 0.0) for mid in ids]
+    ax.bar(x + width, vt_max, width, color="C2", alpha=0.6, label="Vt max")
+    ax.bar(x + width, vt_min, width, color="C2", alpha=1.0, label="Vt min")
+
+    # 6) formatting
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(mid) for mid in ids])
+    ax.set_xlabel("Measurement ID")
+    ax.set_ylabel("V/A")
+    ax.set_title(f"EPR & Touch Voltages Min/Max @ {frequency} Hz")
+    ax.legend()
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    fig.tight_layout()
     return fig

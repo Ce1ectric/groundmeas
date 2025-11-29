@@ -51,7 +51,7 @@ try:
         rho_f_model,
         shield_currents_for_location,
     )
-    from .plots import plot_imp_over_f, plot_rho_f_model
+    from .plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
 except ImportError as e:
     logger.error("Failed to import groundmeas submodule: %s", e)
     raise
@@ -81,6 +81,7 @@ __all__ = [
     # plotting
     "plot_imp_over_f",
     "plot_rho_f_model",
+    "plot_voltage_vt_epr",
     # metadata
     "__version__",
     "__author__",

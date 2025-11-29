@@ -27,9 +27,20 @@ from .db import (
     create_measurement,
     read_items_by,
     read_measurements_by,
+    update_item,
+    update_measurement,
 )
 from .export import export_measurements_to_json
 from .models import MeasurementType
+from .analytics import (
+    calculate_split_factor,
+    impedance_over_frequency,
+    real_imag_over_frequency,
+    rho_f_model,
+    shield_currents_for_location,
+    voltage_vt_epr,
+)
+from .plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
 
 app = typer.Typer(help="CLI for managing groundmeas data")
 logger = logging.getLogger(__name__)
@@ -88,6 +99,28 @@ def _prompt_choice(
         if val in choices:
             return val
         typer.echo(f"Choose one of: {', '.join(choices)}")
+
+
+def _load_measurement(measurement_id: int) -> dict[str, Any]:
+    recs, _ = read_measurements_by(id=measurement_id)
+    if not recs:
+        raise typer.Exit(f"Measurement id={measurement_id} not found")
+    return recs[0]
+
+
+def _load_item(item_id: int) -> dict[str, Any]:
+    recs, _ = read_items_by(id=item_id)
+    if not recs:
+        raise typer.Exit(f"MeasurementItem id={item_id} not found")
+    return recs[0]
+
+
+def _dump_or_print(data: Any, json_out: Optional[Path]) -> None:
+    if json_out:
+        json_out.write_text(json.dumps(data, indent=2))
+        typer.echo(f"Wrote {json_out}")
+    else:
+        typer.echo(json.dumps(data, indent=2))
 
 
 def _measurement_types() -> List[str]:
@@ -427,6 +460,280 @@ def add_item(
     iid = create_item(item, measurement_id=measurement_id)
     typer.echo(f"Added item id={iid} to measurement id={measurement_id}")
 
+
+@app.command("edit-measurement")
+def edit_measurement(
+    measurement_id: int = typer.Argument(..., help="Measurement ID to edit")
+) -> None:
+    """Edit a measurement with defaults pulled from the database."""
+    rec = _load_measurement(measurement_id)
+    loc = rec.get("location") or {}
+
+    typer.echo(f"Editing measurement id={measurement_id}. Press Enter to keep existing values.")
+
+    existing_locs = _existing_locations()
+    loc_name = _prompt_text("Location name", default=loc.get("name"), completer=_word_choice(existing_locs))
+    lat = _prompt_float("Latitude (optional)", default=loc.get("latitude"))
+    lon = _prompt_float("Longitude (optional)", default=loc.get("longitude"))
+    alt = _prompt_float("Altitude (optional)", default=loc.get("altitude"))
+
+    method = _prompt_choice(
+        "Method",
+        choices=["staged_fault_test", "injection_remote_substation", "injection_earth_electrode"],
+        default=rec.get("method"),
+    )
+    asset = _prompt_choice(
+        "Asset type",
+        choices=[
+            "substation",
+            "overhead_line_tower",
+            "cable",
+            "cable_cabinet",
+            "house",
+            "pole_mounted_transformer",
+            "mv_lv_earthing_system",
+        ],
+        default=rec.get("asset_type"),
+    )
+
+    voltage_choices = _existing_measurement_values("voltage_level_kv")
+    fault_res_choices = _existing_measurement_values("fault_resistance_ohm")
+    operator_choices = _existing_measurement_values("operator")
+
+    voltage = _prompt_float(
+        "Voltage level kV (optional)",
+        default=rec.get("voltage_level_kv"),
+        suggestions=voltage_choices,
+    )
+    fault_res = _prompt_float(
+        "Fault resistance Ω (optional)",
+        default=rec.get("fault_resistance_ohm"),
+        suggestions=fault_res_choices,
+    )
+    description = _prompt_text("Description (optional)", default=rec.get("description") or "")
+    operator_default = rec.get("operator") or (operator_choices[0] if operator_choices else "")
+    operator = _prompt_text(
+        "Operator (optional)",
+        default=operator_default,
+        completer=_word_choice(operator_choices),
+    )
+
+    updates: dict[str, Any] = {
+        "method": method,
+        "asset_type": asset,
+        "voltage_level_kv": voltage,
+        "fault_resistance_ohm": fault_res,
+        "description": description or None,
+        "operator": operator or None,
+        "location": {
+            "name": loc_name,
+            "latitude": lat,
+            "longitude": lon,
+            "altitude": alt,
+        },
+    }
+
+    updated = update_measurement(measurement_id, updates)
+    if not updated:
+        raise typer.Exit(f"Measurement id={measurement_id} not found")
+
+    rec_after = _load_measurement(measurement_id)
+    _print_measurement_summary(measurement_id, rec_after, rec_after.get("items", []))
+
+
+@app.command("edit-item")
+def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edit")) -> None:
+    """Edit a measurement item with defaults from the database."""
+    item = _load_item(item_id)
+    mtypes = _measurement_types()
+    mtype = _prompt_choice("Measurement type", choices=mtypes, default=item.get("measurement_type"))
+
+    freq_choices = _existing_item_values("frequency_hz", mtype)
+    freq = _prompt_float("Frequency Hz (optional)", default=item.get("frequency_hz"), suggestions=freq_choices)
+
+    # decide entry mode based on existing data
+    entry_mode_default = "real_imag" if item.get("value_real") is not None or item.get("value_imag") is not None else "magnitude_angle"
+    entry_mode = _prompt_choice(
+        "Value entry mode",
+        choices=["magnitude_angle", "real_imag"],
+        default=entry_mode_default,
+    )
+
+    angle_choices = _existing_item_values("value_angle_deg", mtype)
+    if entry_mode == "magnitude_angle":
+        val = item.get("value")
+        ang = item.get("value_angle_deg")
+        value = _prompt_float("Value (magnitude)", default=val)
+        angle = _prompt_float("Angle deg (optional)", default=ang, suggestions=angle_choices)
+        item_updates = {"value": value, "value_angle_deg": angle, "value_real": None, "value_imag": None}
+    else:
+        val_r = item.get("value_real")
+        val_i = item.get("value_imag")
+        value_real = _prompt_float("Real part", default=val_r)
+        value_imag = _prompt_float("Imag part", default=val_i)
+        item_updates = {"value_real": value_real, "value_imag": value_imag, "value": None, "value_angle_deg": None}
+
+    dist = None
+    add_res = None
+    if mtype == "soil_resistivity":
+        dist_choices = _existing_item_values("measurement_distance_m", mtype)
+        dist = _prompt_float(
+            "Measurement distance m (optional)",
+            default=item.get("measurement_distance_m"),
+            suggestions=dist_choices,
+        )
+    if mtype in {"earthing_impedance", "earthing_resistance"}:
+        add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
+        add_res = _prompt_float(
+            "Additional series resistance Ω (optional)",
+            default=item.get("additional_resistance_ohm"),
+            suggestions=add_res_choices,
+        )
+
+    suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
+    unit_choices = _existing_item_units(mtype)
+    unit_default = item.get("unit") or (unit_choices[0] if unit_choices else suggested_unit)
+    unit = _prompt_text(
+        "Unit",
+        default=unit_default,
+        completer=_word_choice(unit_choices or [suggested_unit]),
+    )
+    desc = _prompt_text("Item description (optional)", default=item.get("description") or "")
+
+    updates: dict[str, Any] = {
+        "measurement_type": mtype,
+        "frequency_hz": freq,
+        "unit": unit,
+        "description": desc or None,
+        "measurement_distance_m": dist if mtype == "soil_resistivity" else None,
+        "additional_resistance_ohm": add_res if mtype in {"earthing_impedance", "earthing_resistance"} else None,
+    }
+    updates.update(item_updates)
+
+    updated = update_item(item_id, updates)
+    if not updated:
+        raise typer.Exit(f"MeasurementItem id={item_id} not found")
+    typer.echo(f"Updated item id={item_id}")
+
+
+@app.command("impedance-over-frequency")
+def cli_impedance_over_frequency(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Return impedance over frequency for the given measurement IDs."""
+    ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
+    data = impedance_over_frequency(ids)
+    _dump_or_print(data, json_out)
+
+
+@app.command("real-imag-over-frequency")
+def cli_real_imag_over_frequency(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Return real/imag over frequency for the given measurement IDs."""
+    ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
+    data = real_imag_over_frequency(ids)
+    _dump_or_print(data, json_out)
+
+
+@app.command("rho-f-model")
+def cli_rho_f_model(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement IDs to fit"),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write coefficients to JSON"),
+) -> None:
+    """Fit the rho–f model and output coefficients."""
+    coeffs = rho_f_model(measurement_ids)
+    result = {
+        "k1": coeffs[0],
+        "k2": coeffs[1],
+        "k3": coeffs[2],
+        "k4": coeffs[3],
+        "k5": coeffs[4],
+    }
+    _dump_or_print(result, json_out)
+
+
+@app.command("voltage-vt-epr")
+def cli_voltage_vt_epr(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
+    frequency: float = typer.Option(50.0, "--frequency", "-f", help="Frequency in Hz"),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Calculate per-ampere touch voltages and EPR for measurements."""
+    ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
+    data = voltage_vt_epr(ids, frequency=frequency)
+    _dump_or_print(data, json_out)
+
+
+@app.command("shield-currents")
+def cli_shield_currents(
+    location_id: int = typer.Argument(..., help="Location ID to search under"),
+    frequency_hz: Optional[float] = typer.Option(None, "--frequency", "-f", help="Optional frequency filter"),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """List shield_current items available for a location."""
+    data = shield_currents_for_location(location_id=location_id, frequency_hz=frequency_hz)
+    _dump_or_print(data, json_out)
+
+
+@app.command("calculate-split-factor")
+def cli_calculate_split_factor(
+    earth_fault_current_id: int = typer.Option(..., "--earth-fault-id", help="MeasurementItem id for earth_fault_current"),
+    shield_current_ids: List[int] = typer.Option(..., "--shield-id", help="Shield current item id(s)", show_default=False),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Compute split factor and local earthing current."""
+    data = calculate_split_factor(earth_fault_current_id=earth_fault_current_id, shield_current_ids=shield_current_ids)
+    _dump_or_print(data, json_out)
+
+
+@app.command("plot-impedance")
+def cli_plot_impedance(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
+    normalize_freq_hz: Optional[float] = typer.Option(None, "--normalize", help="Normalize by impedance at this frequency"),
+    output: Path = typer.Option(..., "--out", "-o", help="Output image file (e.g., plot.png)"),
+) -> None:
+    """Generate impedance vs frequency plot and save to a file."""
+    fig = plot_imp_over_f(measurement_ids, normalize_freq_hz=normalize_freq_hz)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output)
+    typer.echo(f"Wrote {output}")
+
+
+@app.command("plot-rho-f-model")
+def cli_plot_rho_f_model(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement IDs"),
+    rho_f_coeffs: Optional[List[float]] = typer.Option(
+        None,
+        "--rho-f",
+        help="Coefficients k1 k2 k3 k4 k5 (if omitted, they are fitted).",
+    ),
+    rho: List[float] = typer.Option([100.0], "--rho", help="Rho values to plot (repeatable)"),
+    output: Path = typer.Option(..., "--out", "-o", help="Output image file"),
+) -> None:
+    """Plot measured impedance and rho–f model, save to file."""
+    if rho_f_coeffs and len(rho_f_coeffs) != 5:
+        raise typer.Exit("Provide exactly five coefficients for --rho-f")
+    coeffs = tuple(rho_f_coeffs) if rho_f_coeffs else rho_f_model(measurement_ids)
+    fig = plot_rho_f_model(measurement_ids, coeffs, rho=rho)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output)
+    typer.echo(f"Wrote {output}")
+
+
+@app.command("plot-voltage-vt-epr")
+def cli_plot_voltage_vt_epr(
+    measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
+    frequency: float = typer.Option(50.0, "--frequency", "-f", help="Frequency in Hz"),
+    output: Path = typer.Option(..., "--out", "-o", help="Output image file"),
+) -> None:
+    """Plot EPR and touch voltages, save to file."""
+    fig = plot_voltage_vt_epr(measurement_ids, frequency=frequency)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output)
+    typer.echo(f"Wrote {output}")
 
 @app.command("import-json")
 def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON with measurement data")) -> None:

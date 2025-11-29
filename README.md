@@ -12,7 +12,7 @@ groundmeas provides:
 * **Export utilities** to JSON, CSV, and XML.
 * **Analytics routines** for impedance-over-frequency, real–imaginary processing, rho–f model fitting, and shield-current split factors (`calculate_split_factor`).
 * **Plotting helpers** for impedance vs frequency and model overlays using Matplotlib.
-* **CLI** (`gm-cli`) with interactive entry, DB-backed autocomplete, listing, add-item to existing measurements, default DB config, and JSON import/export.
+* **CLI** (`gm-cli`) with interactive entry, DB-backed autocomplete, listing, add/edit items and measurements, default DB config, and JSON import/export.
 
 It’s designed to help engineers and researchers work with earthing measurement campaigns, automate data pipelines, and quickly gain insights on soil resistivity and grounding impedance behavior.
 
@@ -63,10 +63,22 @@ Or install via pip: `pip install groundmeas`.
 gm-cli --db path/to/data.db add-measurement   # interactive wizard with autocomplete
 gm-cli --db path/to/data.db list-measurements
 gm-cli --db path/to/data.db list-items 1
+gm-cli --db path/to/data.db edit-measurement 1   # edit a measurement with defaults prefilled
 gm-cli --db path/to/data.db import-json notebooks/measurements/foo_measurement.json
 gm-cli --db path/to/data.db export-json out.json
 # Add a single item to an existing measurement
 gm-cli --db path/to/data.db add-item 5
+# Edit an existing item
+gm-cli --db path/to/data.db edit-item 42
+# Analytics from CLI
+gm-cli --db path/to/data.db impedance-over-frequency 1 --json-out imp.json
+gm-cli --db path/to/data.db rho-f-model 1 2 3 --json-out rho.json
+gm-cli --db path/to/data.db voltage-vt-epr 1 2 -f 50 --json-out vt.json
+gm-cli --db path/to/data.db calculate-split-factor --earth-fault-id 10 --shield-id 11 --shield-id 12
+# Plotting from CLI (writes images)
+gm-cli --db path/to/data.db plot-impedance 1 2 --out imp.png
+gm-cli --db path/to/data.db plot-rho-f-model 1 2 3 --out rho.png
+gm-cli --db path/to/data.db plot-voltage-vt-epr 1 2 --out vt.png
 # Save a default DB path (~/.config/groundmeas/config.json) so --db is optional
 gm-cli set-default-db path/to/data.db
 # Enable shell completion (example for zsh)

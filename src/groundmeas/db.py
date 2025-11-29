@@ -326,11 +326,22 @@ def update_measurement(measurement_id: int, updates: Dict[str, Any]) -> bool:
     Raises:
         RuntimeError: on database error.
     """
+    loc_updates = updates.pop("location", None)
     try:
         with _get_session() as session:
             meas = session.get(Measurement, measurement_id)
             if meas is None:
                 return False
+            if loc_updates:
+                if meas.location_id and meas.location:
+                    for field, val in loc_updates.items():
+                        setattr(meas.location, field, val)
+                    session.add(meas.location)
+                else:
+                    new_loc = Location(**loc_updates)
+                    session.add(new_loc)
+                    session.flush()
+                    meas.location_id = new_loc.id
             for field, val in updates.items():
                 setattr(meas, field, val)
             session.add(meas)
