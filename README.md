@@ -10,8 +10,9 @@ groundmeas provides:
 
 * **Database models & CRUD** via SQLModel/SQLAlchemy (`Location`, `Measurement`, `MeasurementItem`).
 * **Export utilities** to JSON, CSV, and XML.
-* **Analytics routines** for impedance-over-frequency, real–imaginary processing, rho–f model fitting, and shield-current split factors.
+* **Analytics routines** for impedance-over-frequency, real–imaginary processing, rho–f model fitting, and shield-current split factors (`calculate_split_factor`).
 * **Plotting helpers** for impedance vs frequency and model overlays using Matplotlib.
+* **CLI** (`gm-cli`) with interactive entry, DB-backed autocomplete, listing, add-item to existing measurements, default DB config, and JSON import/export.
 
 It’s designed to help engineers and researchers work with earthing measurement campaigns, automate data pipelines, and quickly gain insights on soil resistivity and grounding impedance behavior.
 
@@ -56,6 +57,23 @@ Or install via pip: `pip install groundmeas`.
 ---
 
 ## Usage
+### 0. CLI quickstart
+
+```bash
+gm-cli --db path/to/data.db add-measurement   # interactive wizard with autocomplete
+gm-cli --db path/to/data.db list-measurements
+gm-cli --db path/to/data.db list-items 1
+gm-cli --db path/to/data.db import-json notebooks/measurements/foo_measurement.json
+gm-cli --db path/to/data.db export-json out.json
+# Add a single item to an existing measurement
+gm-cli --db path/to/data.db add-item 5
+# Save a default DB path (~/.config/groundmeas/config.json) so --db is optional
+gm-cli set-default-db path/to/data.db
+# Enable shell completion (example for zsh)
+gm-cli --install-completion zsh
+```
+
+Set `GROUNDMEAS_DB` to avoid passing `--db` each time.
 
 ### 1. Database Setup
 
