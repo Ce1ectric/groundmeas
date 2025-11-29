@@ -214,3 +214,201 @@ def test_rho_f_model_least_squares_error(monkeypatch):
     assert "Failed to solve rho-f least-squares problem" in str(exc.value)
 
 
+# ─── shield_currents_for_location ───────────────────────────────────────────────
+
+
+def test_shield_currents_for_location_collects(monkeypatch):
+    def fake_read_measurements_by(location_id):
+        return (
+            [
+                {
+                    "id": 10,
+                    "items": [
+                        {
+                            "id": 1,
+                            "measurement_type": "shield_current",
+                            "frequency_hz": 50.0,
+                            "value": 5.0,
+                            "value_angle_deg": 0.0,
+                            "unit": "A",
+                        },
+                        {
+                            "id": 2,
+                            "measurement_type": "earthing_current",
+                            "value": 1.0,
+                            "unit": "A",
+                        },
+                    ],
+                },
+                {
+                    "id": 11,
+                    "items": [
+                        {
+                            "id": 3,
+                            "measurement_type": "shield_current",
+                            "frequency_hz": 50.0,
+                            "value_real": 1.0,
+                            "value_imag": 1.0,
+                            "unit": "A",
+                        }
+                    ],
+                },
+            ],
+            [10, 11],
+        )
+
+    monkeypatch.setattr(analytics, "read_measurements_by", fake_read_measurements_by)
+
+    out = analytics.shield_currents_for_location(5, frequency_hz=50.0)
+    assert [c["id"] for c in out] == [1, 3]
+    assert {c["measurement_id"] for c in out} == {10, 11}
+
+
+def test_shield_currents_for_location_warns(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_measurements_by",
+        lambda location_id: ([{"id": 1, "items": []}], [1]),
+    )
+    with pytest.warns(UserWarning):
+        out = analytics.shield_currents_for_location(1)
+    assert out == []
+
+
+def test_shield_currents_for_location_error(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_measurements_by",
+        lambda location_id: (_ for _ in ()).throw(Exception("db down")),
+    )
+    with pytest.raises(RuntimeError):
+        analytics.shield_currents_for_location(1)
+
+
+# ─── calculate_split_factor ─────────────────────────────────────────────────────
+
+
+def test_calculate_split_factor_success(monkeypatch):
+    def fake_read_items_by(**filters):
+        if filters.get("measurement_type") == "earth_fault_current":
+            return (
+                [
+                    {
+                        "id": filters.get("id"),
+                        "measurement_type": "earth_fault_current",
+                        "value": 100.0,
+                        "value_angle_deg": 0.0,
+                        "unit": "A",
+                    }
+                ],
+                [filters.get("id")],
+            )
+        if filters.get("measurement_type") == "shield_current":
+            ids = filters.get("id__in", [])
+            return (
+                [
+                    {
+                        "id": ids[0],
+                        "measurement_type": "shield_current",
+                        "value": 30.0,
+                        "value_angle_deg": 0.0,
+                        "unit": "A",
+                    },
+                    {
+                        "id": ids[1],
+                        "measurement_type": "shield_current",
+                        "value_real": 10.0,
+                        "value_imag": 0.0,
+                        "unit": "A",
+                    },
+                ],
+                ids,
+            )
+        raise AssertionError("unexpected filters")
+
+    monkeypatch.setattr(analytics, "read_items_by", fake_read_items_by)
+
+    result = analytics.calculate_split_factor(200, [1, 2])
+    assert result["split_factor"] == pytest.approx(0.6)
+    assert result["local_earthing_current"]["value"] == pytest.approx(60.0)
+    assert result["local_earthing_current"]["value_angle_deg"] == pytest.approx(0.0)
+
+
+def test_calculate_split_factor_warns_missing(monkeypatch):
+    def fake_read_items_by(**filters):
+        if filters.get("measurement_type") == "earth_fault_current":
+            return (
+                [
+                    {
+                        "id": 50,
+                        "measurement_type": "earth_fault_current",
+                        "value": 50.0,
+                        "value_angle_deg": 0.0,
+                        "unit": "A",
+                    }
+                ],
+                [50],
+            )
+        if filters.get("measurement_type") == "shield_current":
+            return (
+                [
+                    {
+                        "id": 2,
+                        "measurement_type": "shield_current",
+                        "value": 10.0,
+                        "value_angle_deg": 0.0,
+                        "unit": "A",
+                    }
+                ],
+                [2],
+            )
+        raise AssertionError("unexpected filters")
+
+    monkeypatch.setattr(analytics, "read_items_by", fake_read_items_by)
+
+    with pytest.warns(UserWarning):
+        result = analytics.calculate_split_factor(50, [1, 2])
+    assert result["split_factor"] == pytest.approx(0.8)
+    assert result["shield_current_sum"]["value"] == pytest.approx(10.0)
+
+
+def test_calculate_split_factor_zero_earth_current(monkeypatch):
+    def fake_read_items_by(**filters):
+        if filters.get("measurement_type") == "earth_fault_current":
+            return (
+                [
+                    {
+                        "id": 1,
+                        "measurement_type": "earth_fault_current",
+                        "value": 0.0,
+                        "value_angle_deg": 0.0,
+                        "unit": "A",
+                    }
+                ],
+                [1],
+            )
+        if filters.get("measurement_type") == "shield_current":
+            return (
+                [
+                    {
+                        "id": 2,
+                        "measurement_type": "shield_current",
+                        "value": 1.0,
+                        "value_angle_deg": 0.0,
+                        "unit": "A",
+                    }
+                ],
+                [2],
+            )
+        raise AssertionError("unexpected filters")
+
+    monkeypatch.setattr(analytics, "read_items_by", fake_read_items_by)
+
+    with pytest.raises(ValueError):
+        analytics.calculate_split_factor(1, [2])
+
+
+def test_calculate_split_factor_requires_ids():
+    with pytest.raises(ValueError):
+        analytics.calculate_split_factor(1, [])
+

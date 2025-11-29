@@ -36,6 +36,7 @@ MeasurementType = Literal[
     "transferred_potential",
     "earth_fault_current",
     "earthing_current",
+    "shield_current",
     "earthing_resistance",
     "earthing_impedance",
     "soil_resistivity",

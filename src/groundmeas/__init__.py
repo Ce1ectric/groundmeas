@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Ce1ectric"
 __license__ = "MIT"
 
@@ -45,9 +45,11 @@ try:
     )
     from .models import Location, Measurement, MeasurementItem
     from .analytics import (
+        calculate_split_factor,
         impedance_over_frequency,
         real_imag_over_frequency,
         rho_f_model,
+        shield_currents_for_location,
     )
     from .plots import plot_imp_over_f, plot_rho_f_model
 except ImportError as e:
@@ -71,9 +73,11 @@ __all__ = [
     "Measurement",
     "MeasurementItem",
     # analytics
+    "calculate_split_factor",
     "impedance_over_frequency",
     "real_imag_over_frequency",
     "rho_f_model",
+    "shield_currents_for_location",
     # plotting
     "plot_imp_over_f",
     "plot_rho_f_model",

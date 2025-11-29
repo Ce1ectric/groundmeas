@@ -43,6 +43,17 @@ def test_measurement_instantiation_defaults():
     assert m.asset_type == "cable"
 
 
+def test_measurement_item_allows_shield_current():
+    """shield_current should be accepted as a MeasurementItem measurement_type."""
+    item = MeasurementItem(
+        measurement_type="shield_current",
+        value=5.0,
+        value_angle_deg=30.0,
+        unit="A",
+    )
+    assert item.measurement_type == "shield_current"
+
+
 def test_compute_magnitude_rectangular():
     """
     If value is None but value_real/value_imag set,

@@ -10,7 +10,7 @@ groundmeas provides:
 
 * **Database models & CRUD** via SQLModel/SQLAlchemy (`Location`, `Measurement`, `MeasurementItem`).
 * **Export utilities** to JSON, CSV, and XML.
-* **Analytics routines** for impedance-over-frequency, real–imaginary processing, and rho–f model fitting.
+* **Analytics routines** for impedance-over-frequency, real–imaginary processing, rho–f model fitting, and shield-current split factors.
 * **Plotting helpers** for impedance vs frequency and model overlays using Matplotlib.
 
 It’s designed to help engineers and researchers work with earthing measurement campaigns, automate data pipelines, and quickly gain insights on soil resistivity and grounding impedance behavior.
@@ -108,13 +108,20 @@ export_measurements_to_xml("data.xml")
 
 ### 4. Analytics
 
-Compute impedance and resistivity mappings, and fit the rho–f model:
+Compute relevant connections between quantities of the earthing system: 
+- impedance and 
+- real / imaginary parts over frequency, 
+- fit the rho–f model
+- prospective touch voltage vs. Earth Potential Rise
 
 ```python
 from groundmeas.analytics import (
     impedance_over_frequency,
     real_imag_over_frequency,
     rho_f_model,
+    voltage_vt_epr,
+    shield_currents_for_location,
+    calculate_split_factor,
 )
 
 # Impedance vs frequency for a single measurement
@@ -125,6 +132,20 @@ ri_map = real_imag_over_frequency([1, 2, 3])
 
 # Fit rho–f model across measurements [1,2,3]
 k1, k2, k3, k4, k5 = rho_f_model([1, 2, 3])
+
+# summarise the min, max measured touch voltages and the EPR for multiple measurements 
+touch_min, touch_max, epr = voltage_vt_epr([1, 2, 3])
+
+# Gather available shield currents at a site and compute split factors
+candidates = shield_currents_for_location(location_id=5, frequency_hz=50.0)
+# Pick the shield_current item IDs that share the same angle reference
+shield_ids = [c["id"] for c in candidates]
+split = calculate_split_factor(
+    earth_fault_current_id=42,
+    shield_current_ids=shield_ids,
+)
+split_factor = split["split_factor"]
+local_earthing_current = split["local_earthing_current"]["value"]
 ```
 
 ### 5. Plotting
