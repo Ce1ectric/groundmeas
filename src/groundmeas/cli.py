@@ -121,6 +121,18 @@ def _existing_item_units(measurement_type: str) -> List[str]:
     return sorted({str(v) for v in vals})
 
 
+def _existing_item_values(field: str, measurement_type: str | None = None) -> List[str]:
+    filters: dict[str, Any] = {}
+    if measurement_type:
+        filters["measurement_type"] = measurement_type
+    try:
+        items, _ = read_items_by(**filters)
+    except Exception:
+        return []
+    vals = [it.get(field) for it in items if it.get(field) not in (None, "")]
+    return sorted({str(v) for v in vals})
+
+
 def _resolve_db(db: Optional[str]) -> str:
     if db:
         return db
@@ -260,7 +272,8 @@ def add_measurement() -> None:
         if mtype == "done":
             break
 
-        freq = _prompt_float("Frequency Hz (optional)", default=50.0)
+        freq_choices = _existing_item_values("frequency_hz", mtype)
+        freq = _prompt_float("Frequency Hz (optional)", default=50.0, suggestions=freq_choices)
 
         entry_mode = _prompt_choice(
             "Value entry mode",
@@ -273,19 +286,28 @@ def add_measurement() -> None:
             "frequency_hz": freq,
         }
 
+        angle_choices = _existing_item_values("value_angle_deg", mtype)
         if entry_mode == "magnitude_angle":
             item["value"] = _prompt_float("Value (magnitude)", default=None)
-            item["value_angle_deg"] = _prompt_float("Angle deg (optional)", default=0.0)
+            item["value_angle_deg"] = _prompt_float(
+                "Angle deg (optional)", default=0.0, suggestions=angle_choices
+            )
         else:
             item["value_real"] = _prompt_float("Real part", default=None)
             item["value_imag"] = _prompt_float("Imag part", default=None)
 
         # Optional fields depending on measurement type
         if mtype == "soil_resistivity":
-            item["measurement_distance_m"] = _prompt_float("Measurement distance m (optional)", default=None)
+            dist_choices = _existing_item_values("measurement_distance_m", mtype)
+            item["measurement_distance_m"] = _prompt_float(
+                "Measurement distance m (optional)", default=None, suggestions=dist_choices
+            )
         if mtype in {"earthing_impedance", "earthing_resistance"}:
+            add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
             item["additional_resistance_ohm"] = _prompt_float(
-                "Additional series resistance Ω (optional)", default=None
+                "Additional series resistance Ω (optional)",
+                default=None,
+                suggestions=add_res_choices,
             )
 
         suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
@@ -358,7 +380,8 @@ def add_item(
     """Interactive wizard to add a single item to an existing measurement."""
     mtypes = _measurement_types()
     mtype = _prompt_choice("Measurement type", choices=mtypes)
-    freq = _prompt_float("Frequency Hz (optional)", default=50.0)
+    freq_choices = _existing_item_values("frequency_hz", mtype)
+    freq = _prompt_float("Frequency Hz (optional)", default=50.0, suggestions=freq_choices)
     entry_mode = _prompt_choice(
         "Value entry mode",
         choices=["magnitude_angle", "real_imag"],
@@ -370,18 +393,25 @@ def add_item(
         "frequency_hz": freq,
     }
 
+    angle_choices = _existing_item_values("value_angle_deg", mtype)
     if entry_mode == "magnitude_angle":
         item["value"] = _prompt_float("Value (magnitude)", default=None)
-        item["value_angle_deg"] = _prompt_float("Angle deg (optional)", default=0.0)
+        item["value_angle_deg"] = _prompt_float(
+            "Angle deg (optional)", default=0.0, suggestions=angle_choices
+        )
     else:
         item["value_real"] = _prompt_float("Real part", default=None)
         item["value_imag"] = _prompt_float("Imag part", default=None)
 
     if mtype == "soil_resistivity":
-        item["measurement_distance_m"] = _prompt_float("Measurement distance m (optional)", default=None)
+        dist_choices = _existing_item_values("measurement_distance_m", mtype)
+        item["measurement_distance_m"] = _prompt_float(
+            "Measurement distance m (optional)", default=None, suggestions=dist_choices
+        )
     if mtype in {"earthing_impedance", "earthing_resistance"}:
+        add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
         item["additional_resistance_ohm"] = _prompt_float(
-            "Additional series resistance Ω (optional)", default=None
+            "Additional series resistance Ω (optional)", default=None, suggestions=add_res_choices
         )
 
     suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"

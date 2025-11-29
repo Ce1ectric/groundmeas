@@ -170,6 +170,11 @@ def read_measurements(
     records, ids = [], []
     for meas in results:
         d = meas.model_dump()
+        loc = getattr(meas, "location", None)
+        if loc is not None:
+            d["location"] = loc.model_dump() if hasattr(loc, "model_dump") else loc
+        else:
+            d["location"] = None
         d["items"] = [it.model_dump() for it in meas.items]
         records.append(d)
         ids.append(meas.id)  # type: ignore
@@ -236,6 +241,11 @@ def read_measurements_by(**filters: Any) -> Tuple[List[Dict[str, Any]], List[int
     records, ids = [], []
     for meas in results:
         d = meas.model_dump()
+        loc = getattr(meas, "location", None)
+        if loc is not None:
+            d["location"] = loc.model_dump() if hasattr(loc, "model_dump") else loc
+        else:
+            d["location"] = None
         d["items"] = [it.model_dump() for it in meas.items]
         records.append(d)
         ids.append(meas.id)  # type: ignore
