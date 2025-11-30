@@ -52,6 +52,7 @@ try:
         shield_currents_for_location,
         distance_profile_value,
     )
+    from .vision_import import import_items_from_images
     from .plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
 except ImportError as e:
     logger.error("Failed to import groundmeas submodule: %s", e)
@@ -80,6 +81,7 @@ __all__ = [
     "rho_f_model",
     "shield_currents_for_location",
     "distance_profile_value",
+    "import_items_from_images",
     # plotting
     "plot_imp_over_f",
     "plot_rho_f_model",

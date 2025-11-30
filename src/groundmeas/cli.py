@@ -42,6 +42,7 @@ from .analytics import (
     shield_currents_for_location,
     voltage_vt_epr,
 )
+from .vision_import import import_items_from_images
 from .plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
 
 app = typer.Typer(help="CLI for managing groundmeas data")
@@ -408,9 +409,42 @@ def list_items(
         typer.echo("No items found.")
         return
 
+    def _fmt_val(val: Any) -> str:
+        try:
+            if val is None:
+                return "-"
+            if isinstance(val, float):
+                return f"{val:.3f}"
+            return str(val)
+        except Exception:
+            return str(val)
+
+    def _fmt_int(val: Any) -> str:
+        try:
+            if val is None:
+                return "-"
+            if isinstance(val, float):
+                return f"{int(round(val))}"
+            if isinstance(val, int):
+                return str(val)
+            return str(val)
+        except Exception:
+            return str(val)
+
+    header = f"{'id':>4}  {'type':<26} {'freq':>5} {'value':>10} {'angle':>8} {'dist':>6} {'unit':>4}"
+    typer.echo(header)
+    typer.echo("-" * len(header))
     for it in items:
+        itm_type = str(it.get("measurement_type") or "")
+        freq = _fmt_int(it.get("frequency_hz"))
+        val = _fmt_val(it.get("value"))
+        ang_raw = it.get("value_angle_deg")
+        ang = "-" if ang_raw in (None, "-") else _fmt_int(ang_raw)
+        dist_raw = it.get("measurement_distance_m")
+        dist = "-" if dist_raw in (None, "-") else _fmt_int(dist_raw)
+        unit = it.get("unit") or ""
         typer.echo(
-            f"[id={it.get('id')}] type={it.get('measurement_type')} freq={it.get('frequency_hz')} value={it.get('value')} unit={it.get('unit')}"
+            f"{it.get('id'):>4}  {itm_type:<26} {freq:>5} {val:>10} {ang:>8} {dist:>6} {unit:>4}"
         )
 
 
@@ -680,6 +714,53 @@ def cli_distance_profile_value(
     val_str = f"{data.get('result_value')} {unit}".strip()
     typer.echo("Method, Value, Distance")
     typer.echo(f"{data.get('algorithm')}, {val_str}, {dist_str}")
+
+
+@app.command("import-from-images")
+def cli_import_from_images(
+    measurement_id: int = typer.Argument(..., help="Measurement ID to attach items to"),
+    images_dir: Path = typer.Argument(..., exists=True, file_okay=False, help="Directory containing measurement images"),
+    measurement_type: str = typer.Option(
+        "earthing_impedance",
+        "--type",
+        "-t",
+        help="Measurement type for impedance series (earthing_impedance or earthing_resistance)",
+    ),
+    frequency: float = typer.Option(50.0, "--frequency", "-f", help="Frequency Hz to assign to imported items"),
+    injection_distance_m: Optional[float] = typer.Option(
+        None, "--injection-distance", help="Distance to current injection electrode (m)"
+    ),
+    ocr_provider: str = typer.Option(
+        "tesseract",
+        "--ocr",
+        help="OCR provider (tesseract for offline; placeholders for future online services)",
+    ),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write summary to JSON file"),
+) -> None:
+    """Import measurement items from an image directory using OCR."""
+    if measurement_type not in {"earthing_impedance", "earthing_resistance"}:
+        raise typer.Exit("measurement_type must be earthing_impedance or earthing_resistance")
+
+    summary = import_items_from_images(
+        images_dir=images_dir,
+        measurement_id=measurement_id,
+        measurement_type=measurement_type,
+        frequency_hz=frequency,
+        distance_to_current_injection_m=injection_distance_m,
+        ocr_provider=ocr_provider,
+    )
+
+    if json_out:
+        _dump_or_print(summary, json_out)
+        return
+
+    typer.echo("Imported items from images")
+    typer.echo(f"Parsed rows: {summary.get('parsed_row_count')}")
+    typer.echo(f"Created items: {len(summary.get('created_item_ids', []))}")
+    if summary.get("skipped"):
+        typer.echo("Skipped:")
+        for msg in summary["skipped"]:
+            typer.echo(f"  - {msg}")
 
 
 @app.command("impedance-over-frequency")

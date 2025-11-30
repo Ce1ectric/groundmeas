@@ -98,6 +98,11 @@ gm-cli --db path/to/data.db plot-voltage-vt-epr 1 2 --out vt.png
 gm-cli set-default-db path/to/data.db
 # Enable shell completion (example for zsh)
 gm-cli --install-completion zsh
+
+# OCR import (offline Tesseract/OpenCV)
+gm-cli --db path/to/data.db import-from-images 123 ./images_dir \
+  --type earthing_impedance --frequency 50 --injection-distance 100
+# Future: swap to an online OCR provider once implemented if quality is insufficient
 ```
 
 Set `GROUNDMEAS_DB` to avoid passing `--db` each time.
