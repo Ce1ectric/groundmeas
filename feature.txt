@@ -1,0 +1,22 @@
+Feature list upcomming versions
+--------------------------------
+
+- add analytics method: calculate earth impedance from impedance profile using different algorithm: 
+    - max of all values
+    - 62 % distance to current probe: necessary input: distance to current probe
+    - minimum gradient
+    - minimum standard deviation
+    - Z^-1 (1/x=0) variant
+
+    - output a measurement item earth_impedance (default) or earth_resistance if argument earth_resistance is set 
+
+- read earth measurements from images. focus on COMPANO disyplay output
+    - 1m measurement = propective touch voltage
+    - 1m ... X m = impedance profile
+    - current = if range of currents +/- 20% use the mean of all curents as reference for a measurement item
+
+
+
+
+- Earthing impedance, earthing current
+Check that is only 1 earthing_impedance and earthing current per frequency within one measurement 

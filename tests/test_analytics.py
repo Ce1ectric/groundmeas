@@ -1,10 +1,147 @@
 # tests/test_analytics.py
 
+import math
 import pytest
 import warnings
 import numpy as np
 
 from groundmeas import analytics
+
+
+# ─── distance_profile_value ─────────────────────────────────────────────────────
+
+
+def test_distance_profile_maximum(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (
+            [
+                {"id": 1, "measurement_distance_m": 1.0, "value": 0.1, "unit": "Ω"},
+                {"id": 2, "measurement_distance_m": 10.0, "value": 0.5, "unit": "Ω"},
+            ],
+            None,
+        ),
+    )
+    out = analytics.distance_profile_value(
+        1, measurement_type="earthing_impedance", algorithm="maximum"
+    )
+    assert out["result_value"] == pytest.approx(0.5)
+    assert out["algorithm"] == "maximum"
+    assert out["result_distance_m"] == pytest.approx(10.0)
+    assert len(out["data_points"]) == 2
+
+
+def test_distance_profile_62_percent(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (
+            [
+                {
+                    "id": 1,
+                    "measurement_distance_m": 50.0,
+                    "value": 1.0,
+                    "distance_to_current_injection_m": 100.0,
+                },
+                {
+                    "id": 2,
+                    "measurement_distance_m": 60.0,
+                    "value": 2.0,
+                    "distance_to_current_injection_m": 100.0,
+                },
+                {
+                    "id": 3,
+                    "measurement_distance_m": 70.0,
+                    "value": 3.0,
+                    "distance_to_current_injection_m": 100.0,
+                },
+            ],
+            None,
+        ),
+    )
+    out = analytics.distance_profile_value(1, algorithm="62_percent")
+    assert out["distance_to_current_injection_m"] == pytest.approx(100.0)
+    assert out["details"]["target_distance_m"] == pytest.approx(62.0)
+    assert out["result_value"] == pytest.approx(2.2)
+    assert out["result_distance_m"] == pytest.approx(62.0)
+
+
+def test_distance_profile_minimum_gradient(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (
+            [
+                {"measurement_distance_m": 1.0, "value": 0.1},
+                {"measurement_distance_m": 5.0, "value": 0.5},
+                {"measurement_distance_m": 10.0, "value": 0.55},
+                {"measurement_distance_m": 20.0, "value": 1.5},
+            ],
+            None,
+        ),
+    )
+    out = analytics.distance_profile_value(2, algorithm="minimum_gradient")
+    assert out["details"]["distance_m"] == pytest.approx(10.0)
+    assert out["details"]["gradient"] == pytest.approx(0.03833, rel=1e-3)
+    assert out["result_distance_m"] == pytest.approx(10.0)
+
+
+def test_distance_profile_minimum_stddev(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (
+            [
+                {"measurement_distance_m": 1.0, "value": 1.0},
+                {"measurement_distance_m": 2.0, "value": 1.1},
+                {"measurement_distance_m": 3.0, "value": 1.2},
+                {"measurement_distance_m": 4.0, "value": 3.0},
+                {"measurement_distance_m": 5.0, "value": 4.0},
+            ],
+            None,
+        ),
+    )
+    out = analytics.distance_profile_value(
+        3, algorithm="minimum_stddev", window=3
+    )
+    assert out["result_value"] == pytest.approx(1.2)
+    assert out["details"]["window_size"] == 3
+    assert out["details"]["stddev"] == pytest.approx(0.0816, rel=1e-2)
+    assert out["result_distance_m"] == pytest.approx(3.0)
+
+
+def test_distance_profile_inverse(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (
+            [
+                {"measurement_distance_m": 1.0, "value": 0.5},
+                {"measurement_distance_m": 2.0, "value": 0.6},
+                {"measurement_distance_m": 4.0, "value": 0.7},
+                {"measurement_distance_m": 8.0, "value": 0.8},
+            ],
+            None,
+        ),
+    )
+    out = analytics.distance_profile_value(4, algorithm="inverse")
+    assert out["details"]["intercept"] != 0
+    assert out["result_value"] == pytest.approx(0.8349, rel=1e-3)
+    assert math.isinf(out["result_distance_m"])
+
+
+def test_distance_profile_requires_injection(monkeypatch):
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (
+            [{"measurement_distance_m": 10.0, "value": 1.0}],
+            None,
+        ),
+    )
+    with pytest.raises(ValueError):
+        analytics.distance_profile_value(5, algorithm="62_percent")
 
 
 # ─── impedance_over_frequency ───────────────────────────────────────────────────
@@ -411,4 +548,3 @@ def test_calculate_split_factor_zero_earth_current(monkeypatch):
 def test_calculate_split_factor_requires_ids():
     with pytest.raises(ValueError):
         analytics.calculate_split_factor(1, [])
-

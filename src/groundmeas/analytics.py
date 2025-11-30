@@ -11,7 +11,7 @@ import itertools
 import logging
 import math
 import warnings
-from typing import Any, Dict, Union, List, Tuple
+from typing import Any, Callable, Dict, List, Literal, Tuple, Union
 
 import numpy as np
 
@@ -152,6 +152,228 @@ def real_imag_over_frequency(
         all_results[mid] = freq_map
 
     return all_results[ids[0]] if single else all_results
+
+
+def distance_profile_value(
+    measurement_id: int,
+    measurement_type: str = "earthing_impedance",
+    algorithm: Literal["maximum", "62_percent", "minimum_gradient", "minimum_stddev", "inverse"] = "maximum",
+    window: int = 3,
+) -> Dict[str, Any]:
+    """
+    Reduce a distance–value profile (impedance or voltage) to a single characteristic value.
+
+    Algorithms:
+      - maximum: largest measured value.
+      - 62_percent: interpolate the value at 62% of the distance_to_current_injection_m.
+      - minimum_gradient: point with the smallest |dy/dx|.
+      - minimum_stddev: sliding window with minimum stddev → take its maximum value.
+      - inverse: fit 1/value vs 1/distance and return value at distance → infinity.
+
+    Args:
+        measurement_id: Measurement.id to read items from.
+        measurement_type: MeasurementItem.measurement_type to filter by.
+        algorithm: Algorithm selector.
+        window: Window size for the minimum_stddev algorithm.
+
+    Returns:
+        Dict with the computed value, distance, and underlying data points.
+
+    Raises:
+        RuntimeError: on database read failures.
+        ValueError: on missing data or unsupported algorithm.
+    """
+    try:
+        items, _ = read_items_by(
+            measurement_id=measurement_id, measurement_type=measurement_type
+        )
+    except Exception as exc:
+        logger.error(
+            "Error reading %s items for measurement %s: %s",
+            measurement_type,
+            measurement_id,
+            exc,
+        )
+        raise RuntimeError(
+            f"Failed to load {measurement_type} data for measurement {measurement_id}"
+        ) from exc
+
+    points: List[Dict[str, Any]] = []
+    injection_candidates: List[float] = []
+    units: List[str] = []
+
+    for item in items:
+        dist = item.get("measurement_distance_m")
+        val = item.get("value")
+        if dist is None or val is None:
+            warnings.warn(
+                f"MeasurementItem id={item.get('id')} missing distance or value; skipping",
+                UserWarning,
+            )
+            continue
+
+        inj = item.get("distance_to_current_injection_m")
+        if inj is not None:
+            try:
+                injection_candidates.append(float(inj))
+            except Exception:
+                warnings.warn(
+                    f"MeasurementItem id={item.get('id')} has invalid distance_to_current_injection_m; skipping that field",
+                    UserWarning,
+                )
+
+        if item.get("unit"):
+            units.append(str(item.get("unit")))
+
+        try:
+            point = {
+                "item_id": item.get("id"),
+                "distance_m": float(dist),
+                "value": float(val),
+                "unit": item.get("unit"),
+                "distance_to_current_injection_m": inj
+                if inj is None
+                else float(inj),
+                "description": item.get("description"),
+            }
+        except Exception:
+            warnings.warn(
+                f"Could not convert MeasurementItem id={item.get('id')} to floats; skipping",
+                UserWarning,
+            )
+            continue
+        points.append(point)
+
+    if not points:
+        raise ValueError(
+            f"No {measurement_type} items with distance/value found for measurement {measurement_id}"
+        )
+
+    points.sort(key=lambda p: p["distance_m"])
+
+    # Determine a consistent injection distance if provided
+    injection_distance = None
+    if injection_candidates:
+        uniq = {round(val, 6) for val in injection_candidates}
+        injection_distance = injection_candidates[0]
+        if len(uniq) > 1:
+            warnings.warn(
+                "distance_to_current_injection_m is not consistent across items; using the first value",
+                UserWarning,
+            )
+
+    def _algo_maximum() -> Tuple[float, float, Dict[str, Any]]:
+        best = max(points, key=lambda p: p["value"])
+        return best["value"], best["distance_m"], {"point": best}
+
+    def _algo_62_percent() -> Tuple[float, float, Dict[str, Any]]:
+        if injection_distance is None:
+            raise ValueError(
+                "distance_to_current_injection_m is required for the 62_percent algorithm"
+            )
+        target = 0.62 * float(injection_distance)
+        nearest = sorted(points, key=lambda p: abs(p["distance_m"] - target))[:3]
+        # ensure strictly increasing x for np.interp
+        ordered = []
+        seen: set[float] = set()
+        for p in sorted(nearest, key=lambda p: p["distance_m"]):
+            if p["distance_m"] in seen:
+                continue
+            seen.add(p["distance_m"])
+            ordered.append(p)
+        if len(ordered) < 2:
+            raise ValueError("Need at least two unique distances for 62_percent interpolation")
+        xs = [p["distance_m"] for p in ordered]
+        ys = [p["value"] for p in ordered]
+        interpolated = float(np.interp(target, xs, ys))
+        return interpolated, target, {
+            "target_distance_m": target,
+            "used_points": ordered,
+        }
+
+    def _algo_minimum_gradient() -> Tuple[float, float, Dict[str, Any]]:
+        if len(points) < 2:
+            raise ValueError("minimum_gradient requires at least two points")
+        distances = np.array([p["distance_m"] for p in points], dtype=float)
+        values = np.array([p["value"] for p in points], dtype=float)
+        gradients = np.gradient(values, distances)
+        idx = int(np.argmin(np.abs(gradients)))
+        return points[idx]["value"], points[idx]["distance_m"], {
+            "distance_m": points[idx]["distance_m"],
+            "gradient": float(gradients[idx]),
+        }
+
+    def _algo_minimum_stddev() -> Tuple[float, float, Dict[str, Any]]:
+        if window < 2:
+            raise ValueError("window must be >= 2 for minimum_stddev")
+        if len(points) < window:
+            raise ValueError(
+                f"minimum_stddev requires at least {window} points; have {len(points)}"
+            )
+        best_std = float("inf")
+        best_window: List[Dict[str, Any]] | None = None
+        for start in range(0, len(points) - window + 1):
+            segment = points[start : start + window]
+            vals = [p["value"] for p in segment]
+            std = float(np.std(vals))
+            if std < best_std:
+                best_std = std
+                best_window = segment
+        assert best_window is not None
+        peak = max(best_window, key=lambda p: p["value"])
+        return peak["value"], peak["distance_m"], {
+            "window_size": window,
+            "stddev": best_std,
+            "window_points": best_window,
+        }
+
+    def _algo_inverse() -> Tuple[float, float, Dict[str, Any]]:
+        if len(points) < 2:
+            raise ValueError("inverse algorithm requires at least two points")
+        distances = np.array([p["distance_m"] for p in points], dtype=float)
+        values = np.array([p["value"] for p in points], dtype=float)
+        if np.any(distances == 0) or np.any(values == 0):
+            raise ValueError("Distances and values must be non-zero for inverse algorithm")
+        x = 1.0 / distances
+        y = 1.0 / values
+        coeffs = np.polyfit(x, y, 1)
+        slope, intercept = float(coeffs[0]), float(coeffs[1])
+        if intercept == 0:
+            raise ValueError("Inverse fit produced zero intercept; cannot compute limit")
+        limit_value = 1.0 / intercept
+        return limit_value, float("inf"), {"slope": slope, "intercept": intercept}
+
+    algo_key = algorithm.lower().strip().replace(" ", "_").replace("-", "_")
+    if algo_key == "62%":
+        algo_key = "62_percent"
+    algo_map: Dict[str, Callable[[], Tuple[float, float, Dict[str, Any]]]] = {
+        "maximum": _algo_maximum,
+        "62_percent": _algo_62_percent,
+        "minimum_gradient": _algo_minimum_gradient,
+        "minimum_stddev": _algo_minimum_stddev,
+        "inverse": _algo_inverse,
+    }
+
+    if algo_key not in algo_map:
+        raise ValueError(f"Unsupported algorithm '{algorithm}'")
+
+    result_value, result_distance, details = algo_map[algo_key]()
+
+    unit = units[0] if units else None
+    if units and len({u for u in units}) > 1:
+        warnings.warn("Mixed units across items; using the first one for output", UserWarning)
+
+    return {
+        "measurement_id": measurement_id,
+        "measurement_type": measurement_type,
+        "algorithm": algo_key,
+        "result_value": float(result_value),
+        "result_distance_m": float(result_distance),
+        "unit": unit,
+        "distance_to_current_injection_m": injection_distance,
+        "data_points": points,
+        "details": details,
+    }
 
 
 def rho_f_model(

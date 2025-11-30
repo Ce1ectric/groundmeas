@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-__version__ = "0.3.1"
+__version__ = "1.0.0"
 __author__ = "Ce1ectric"
 __license__ = "MIT"
 
@@ -50,6 +50,7 @@ try:
         real_imag_over_frequency,
         rho_f_model,
         shield_currents_for_location,
+        distance_profile_value,
     )
     from .plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
 except ImportError as e:
@@ -78,6 +79,7 @@ __all__ = [
     "real_imag_over_frequency",
     "rho_f_model",
     "shield_currents_for_location",
+    "distance_profile_value",
     # plotting
     "plot_imp_over_f",
     "plot_rho_f_model",

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, get_args
 
@@ -34,6 +35,7 @@ from .export import export_measurements_to_json
 from .models import MeasurementType
 from .analytics import (
     calculate_split_factor,
+    distance_profile_value,
     impedance_over_frequency,
     real_imag_over_frequency,
     rho_f_model,
@@ -329,12 +331,18 @@ def add_measurement() -> None:
             item["value_real"] = _prompt_float("Real part", default=None)
             item["value_imag"] = _prompt_float("Imag part", default=None)
 
+        # Optional distance metadata
+        dist_choices = _existing_item_values("measurement_distance_m", mtype)
+        item["measurement_distance_m"] = _prompt_float(
+            "Measurement distance m (optional)", default=None, suggestions=dist_choices
+        )
+        inj_choices = _existing_item_values("distance_to_current_injection_m", mtype)
+        item["distance_to_current_injection_m"] = _prompt_float(
+            "Distance to current injection m (optional)",
+            default=None,
+            suggestions=inj_choices,
+        )
         # Optional fields depending on measurement type
-        if mtype == "soil_resistivity":
-            dist_choices = _existing_item_values("measurement_distance_m", mtype)
-            item["measurement_distance_m"] = _prompt_float(
-                "Measurement distance m (optional)", default=None, suggestions=dist_choices
-            )
         if mtype in {"earthing_impedance", "earthing_resistance"}:
             add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
             item["additional_resistance_ohm"] = _prompt_float(
@@ -436,11 +444,16 @@ def add_item(
         item["value_real"] = _prompt_float("Real part", default=None)
         item["value_imag"] = _prompt_float("Imag part", default=None)
 
-    if mtype == "soil_resistivity":
-        dist_choices = _existing_item_values("measurement_distance_m", mtype)
-        item["measurement_distance_m"] = _prompt_float(
-            "Measurement distance m (optional)", default=None, suggestions=dist_choices
-        )
+    dist_choices = _existing_item_values("measurement_distance_m", mtype)
+    item["measurement_distance_m"] = _prompt_float(
+        "Measurement distance m (optional)", default=None, suggestions=dist_choices
+    )
+    inj_choices = _existing_item_values("distance_to_current_injection_m", mtype)
+    item["distance_to_current_injection_m"] = _prompt_float(
+        "Distance to current injection m (optional)",
+        default=None,
+        suggestions=inj_choices,
+    )
     if mtype in {"earthing_impedance", "earthing_resistance"}:
         add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
         item["additional_resistance_ohm"] = _prompt_float(
@@ -573,15 +586,19 @@ def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edi
         value_imag = _prompt_float("Imag part", default=val_i)
         item_updates = {"value_real": value_real, "value_imag": value_imag, "value": None, "value_angle_deg": None}
 
-    dist = None
+    dist_choices = _existing_item_values("measurement_distance_m", mtype)
+    dist = _prompt_float(
+        "Measurement distance m (optional)",
+        default=item.get("measurement_distance_m"),
+        suggestions=dist_choices,
+    )
+    inj_choices = _existing_item_values("distance_to_current_injection_m", mtype)
+    inj = _prompt_float(
+        "Distance to current injection m (optional)",
+        default=item.get("distance_to_current_injection_m"),
+        suggestions=inj_choices,
+    )
     add_res = None
-    if mtype == "soil_resistivity":
-        dist_choices = _existing_item_values("measurement_distance_m", mtype)
-        dist = _prompt_float(
-            "Measurement distance m (optional)",
-            default=item.get("measurement_distance_m"),
-            suggestions=dist_choices,
-        )
     if mtype in {"earthing_impedance", "earthing_resistance"}:
         add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
         add_res = _prompt_float(
@@ -605,7 +622,8 @@ def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edi
         "frequency_hz": freq,
         "unit": unit,
         "description": desc or None,
-        "measurement_distance_m": dist if mtype == "soil_resistivity" else None,
+        "measurement_distance_m": dist,
+        "distance_to_current_injection_m": inj,
         "additional_resistance_ohm": add_res if mtype in {"earthing_impedance", "earthing_resistance"} else None,
     }
     updates.update(item_updates)
@@ -614,6 +632,54 @@ def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edi
     if not updated:
         raise typer.Exit(f"MeasurementItem id={item_id} not found")
     typer.echo(f"Updated item id={item_id}")
+
+
+@app.command("distance-profile")
+def cli_distance_profile_value(
+    measurement_id: int = typer.Argument(..., help="Measurement ID"),
+    measurement_type: str = typer.Option(
+        "earthing_impedance", "--type", "-t", help="Measurement type to analyze"
+    ),
+    algorithm: str = typer.Option(
+        "maximum",
+        "--algorithm",
+        "-a",
+        help="Algorithm: maximum, 62_percent, minimum_gradient, minimum_stddev, inverse",
+    ),
+    window: int = typer.Option(
+        3, "--window", "-w", help="Window size for minimum_stddev (>=2)"
+    ),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
+) -> None:
+    """Calculate a characteristic value from a distance–impedance/voltage profile."""
+    if measurement_type not in _measurement_types():
+        raise typer.Exit(f"Unknown measurement_type '{measurement_type}'")
+
+    data = distance_profile_value(
+        measurement_id=measurement_id,
+        measurement_type=measurement_type,
+        algorithm=algorithm,
+        window=window,
+    )
+
+    if json_out:
+        _dump_or_print(data, json_out)
+        return
+
+    unit = data.get("unit") or ""
+    dist = data.get("result_distance_m")
+    if dist is None:
+        dist_str = "-"
+    elif math.isinf(dist):
+        dist_str = "inf"
+    else:
+        dist_str = f"{dist} m"
+
+    val_str = f"{data.get('result_value')} {unit}".strip()
+    typer.echo("Method, Value, Distance")
+    typer.echo(f"{data.get('algorithm')}, {val_str}, {dist_str}")
 
 
 @app.command("impedance-over-frequency")

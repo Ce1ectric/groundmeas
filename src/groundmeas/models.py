@@ -165,6 +165,9 @@ class MeasurementItem(SQLModel, table=True):
     measurement_distance_m: Optional[float] = Field(
         None, description="Depth/distance for soil resistivity (m)"
     )
+    distance_to_current_injection_m: Optional[float] = Field(
+        None, description="Distance to the current injection point (m)"
+    )
     measurement_id: Optional[int] = Field(default=None, foreign_key="measurement.id")
     measurement: Optional[Measurement] = Relationship(back_populates="items")
 

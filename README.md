@@ -32,6 +32,21 @@ In grounding studies, measurements of earth electrode impedance are taken over a
 
 where $k_1…k_5$ are real coefficients determined by least‑squares across multiple measurements.
 
+### Distance–Value Profile Algorithms (impedance/voltage over distance)
+
+Given pairs $(d_i, y_i)$ with distance $d_i$ (m) and measured impedance/voltage $y_i$:
+
+- **Maximum**: pick $\max(y_i)$ and its distance $d_{\arg\max}$.
+- **62 % rule**: requires injection distance $L$. Target distance $d_* = 0.62·L$. Interpolate linearly around $d_*$ using the three nearest points → $y(d_*)$.
+- **Minimum gradient**: compute discrete gradient $g_i \approx \Delta y / \Delta d$ (NumPy `gradient` over sorted points). Choose the point with minimal $|g_i|$ → report $(y_i, d_i)$ there.
+- **Minimum standard deviation**: slide a window of size $w$ across sorted points, compute $\sigma_j = \operatorname{std}(y_{j…j+w-1})$. Select the window with minimal $\sigma_j$; return the maximum value inside that window and its distance.
+- **Inverse extrapolation**: transform $x_i = 1/d_i$, $z_i = 1/y_i$. Fit a line $z = a·x + b$; as $d \to \infty$ ($x \to 0$), $z \to b$, so the characteristic value is $1/b$ (distance reported as ∞).
+
+Requirements/notes:
+- Distances and values must be finite; inverse algorithm additionally requires all $d_i, y_i > 0$.
+- For the 62 % rule, `distance_to_current_injection_m` must be available (consistent across items).
+- All algorithms work on sorted distance–value pairs, skipping items missing `measurement_distance_m` or `value`.
+
 ---
 
 ## Installation
@@ -176,6 +191,30 @@ split = calculate_split_factor(
 )
 split_factor = split["split_factor"]
 local_earthing_current = split["local_earthing_current"]["value"]
+```
+
+#### Using the distance–profile analytics
+
+From Python:
+```python
+from groundmeas.analytics import distance_profile_value
+
+result = distance_profile_value(
+    measurement_id=1,
+    measurement_type="earthing_impedance",
+    algorithm="62_percent",   # maximum | 62_percent | minimum_gradient | minimum_stddev | inverse
+    window=3,                 # only used for minimum_stddev
+)
+print(result["result_value"], result["result_distance_m"])
+```
+
+From the CLI:
+```bash
+gm-cli --db path/to/data.db distance-profile 1 \
+  --type earthing_impedance --algorithm 62_percent --window 3
+# Prints:
+# Method, Value, Distance
+# 62_percent, 1.35 Ω, 62.0 m
 ```
 
 ### 5. Plotting
