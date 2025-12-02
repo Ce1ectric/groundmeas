@@ -85,6 +85,9 @@ gm-cli --db path/to/data.db export-json out.json
 gm-cli --db path/to/data.db add-item 5
 # Edit an existing item
 gm-cli --db path/to/data.db edit-item 42
+# Delete an item or a measurement (with confirmation)
+gm-cli --db path/to/data.db delete-item 42
+gm-cli --db path/to/data.db delete-measurement 5
 # Analytics from CLI
 gm-cli --db path/to/data.db impedance-over-frequency 1 --json-out imp.json
 gm-cli --db path/to/data.db rho-f-model 1 2 3 --json-out rho.json

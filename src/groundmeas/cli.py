@@ -26,6 +26,8 @@ from .db import (
     connect_db,
     create_item,
     create_measurement,
+    delete_item,
+    delete_measurement,
     read_items_by,
     read_measurements_by,
     update_item,
@@ -446,6 +448,40 @@ def list_items(
         typer.echo(
             f"{it.get('id'):>4}  {itm_type:<26} {freq:>5} {val:>10} {ang:>8} {dist:>6} {unit:>4}"
         )
+
+
+@app.command("delete-measurement")
+def cli_delete_measurement(
+    measurement_id: int = typer.Argument(..., help="Measurement ID to delete"),
+    force: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Delete a measurement and its items."""
+    if not force:
+        if not typer.confirm(f"Delete measurement id={measurement_id} and all its items?"):
+            typer.echo("Aborted.")
+            raise typer.Exit(code=0)
+    ok = delete_measurement(measurement_id)
+    if not ok:
+        typer.echo(f"Measurement id={measurement_id} not found.")
+        raise typer.Exit(code=1)
+    typer.echo(f"Deleted measurement id={measurement_id}.")
+
+
+@app.command("delete-item")
+def cli_delete_item(
+    item_id: int = typer.Argument(..., help="MeasurementItem ID to delete"),
+    force: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Delete a single measurement item."""
+    if not force:
+        if not typer.confirm(f"Delete item id={item_id}?"):
+            typer.echo("Aborted.")
+            raise typer.Exit(code=0)
+    ok = delete_item(item_id)
+    if not ok:
+        typer.echo(f"Item id={item_id} not found.")
+        raise typer.Exit(code=1)
+    typer.echo(f"Deleted item id={item_id}.")
 
 
 @app.command("add-item")
