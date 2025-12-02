@@ -11,6 +11,9 @@ from __future__ import annotations
 import logging
 import math
 import re
+import os
+import base64
+import requests
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -85,11 +88,101 @@ def preprocess_image(path: Path) -> np.ndarray:
     return th
 
 
-def ocr_image(path: Path, lang: str = "eng") -> str:
-    """Run Tesseract OCR on an image path."""
-    pre = preprocess_image(path)
-    text = pytesseract.image_to_string(pre, lang=lang, config="--psm 6 --oem 3")
-    return text
+def _read_api_key(env_name: str) -> str:
+    key = os.environ.get(env_name, "").strip()
+    if not key:
+        raise RuntimeError(f"API key not found in env var {env_name}")
+    return key
+
+
+def _image_to_base64(path: Path, max_dim: int | None = 1400) -> str:
+    """
+    Read image and encode to base64 (JPEG). Optionally downscale if longer side > max_dim.
+    """
+    img = cv2.imread(str(path))
+    if img is None:
+        raise FileNotFoundError(f"Image not found: {path}")
+    if max_dim:
+        h, w = img.shape[:2]
+        if max(h, w) > max_dim:
+            scale = max_dim / float(max(h, w))
+            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    _, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+    return base64.b64encode(buf).decode("ascii")
+
+
+def ocr_image(
+    path: Path,
+    lang: str = "eng",
+    provider_model: str = "tesseract",
+    api_key_env: str = "OPENAI_API_KEY",
+    timeout: float = 120.0,
+    max_dim: int | None = 1400,
+) -> str:
+    """
+    Run OCR on an image path.
+
+    provider_model:
+      - "tesseract" (default)
+      - "openai:gpt-4o" (or any OpenAI vision-capable model; uses env key)
+      - "ollama:deepseek-ocr" (or other local Ollama vision model)
+    """
+    if ":" in provider_model:
+        provider, model = provider_model.split(":", 1)
+    else:
+        provider, model = provider_model, None
+    provider = provider.lower()
+
+    if provider == "tesseract":
+        pre = preprocess_image(path)
+        return pytesseract.image_to_string(pre, lang=lang, config="--psm 6 --oem 3")
+
+    if provider == "openai":
+        api_key = _read_api_key(api_key_env)
+        b64 = _image_to_base64(path, max_dim=max_dim)
+        model_name = model or "gpt-4o-mini"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Extract all visible text. Respond with plain text only."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}" }},
+                    ],
+                }
+            ],
+            "max_tokens": 512,
+        }
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            json=payload,
+            headers=headers,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+    if provider == "ollama":
+        model_name = model or "deepseek-ocr"
+        b64 = _image_to_base64(path, max_dim=max_dim)
+        payload = {
+            "model": model_name,
+            "prompt": "Extract all text visible in the image. Return plain text only.",
+            "images": [b64],
+            "stream": False,
+        }
+        resp = requests.post("http://localhost:11434/api/generate", json=payload, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("response", "")
+
+    raise ValueError(f"Unsupported OCR provider '{provider_model}'")
 
 
 def parse_measurement_rows(text: str) -> List[ParsedRow]:
@@ -104,12 +197,17 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
     seen_keys: set[tuple[float, Optional[float], Optional[float], Optional[float]]] = set()
     compact_pattern = re.compile(
         r"(?P<dist>-?\d+(?:[.,]\d+)?)\s*m"
-        r".*?(?P<cur>-?\d+(?:[.,]\d+)?)\s*mA"
-        r"(?:\s*(?P<ang1>-?\d+(?:[.,]\d+)?)\s*[°º])?"
-        r".*?(?P<volt>-?\d+(?:[.,]\d+)?)\s*mV"
-        r"(?:\s*(?P<ang2>-?\d+(?:[.,]\d+)?)\s*[°º])?"
-        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]",
+        r".*?(?P<cur>-?\d+(?:[.,]\d+)?)\s*mA\s*(?P<ang1>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
+        r".*?(?P<volt>-?\d+(?:[.,]\d+)?)\s*mV\s*(?P<ang2>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
+        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]\s*(?P<ang3>-?\d+(?:[.,]\d+)?)?\s*[°º]?",
         re.IGNORECASE,
+    )
+    full_pattern = re.compile(
+        r"(?P<dist>-?\d+(?:[.,]\d+)?)\s*m"
+        r".*?(?P<cur>-?\d+(?:[.,]\d+)?)\s*mA\s*(?P<ang1>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
+        r".*?(?P<volt>-?\d+(?:[.,]\d+)?)\s*mV\s*(?P<ang2>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
+        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]\s*(?P<ang3>-?\d+(?:[.,]\d+)?)?\s*[°º]?",
+        re.IGNORECASE | re.DOTALL,
     )
     distance_pattern = re.compile(
         r"(?:dist|distance|d)\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)\s*(?:m\b|meter|metre|mtr)?",
@@ -146,6 +244,28 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         .replace("0.", "0.0")
         .replace("rn", "m")
     )
+    for m_full in full_pattern.finditer(full_clean):
+        cur_val = _normalize_number(m_full.group("cur")) * 1e-3  # mA -> A
+        volt_val = _normalize_number(m_full.group("volt")) * 1e-3  # mV -> V
+        row = ParsedRow(
+            distance_m=_normalize_number(m_full.group("dist")),
+            current_a=cur_val,
+            current_angle_deg=_normalize_number(m_full.group("ang1")) if m_full.group("ang1") else None,
+            voltage_v=volt_val,
+            voltage_angle_deg=_normalize_number(m_full.group("ang2")) if m_full.group("ang2") else None,
+            impedance_ohm=_normalize_number(m_full.group("imp")) * 1e-3,  # mΩ → Ω
+            impedance_angle_deg=_normalize_number(m_full.group("ang3")) if m_full.group("ang3") else None,
+        )
+        key = (
+            row.distance_m or math.inf,
+            row.current_a,
+            row.voltage_v,
+            row.impedance_ohm,
+        )
+        if key not in seen_keys:
+            seen_keys.add(key)
+            rows.append(row)
+
     for m_compact in compact_pattern.finditer(full_clean):
         cur_val = _normalize_number(m_compact.group("cur")) * 1e-3  # mA -> A
         volt_val = _normalize_number(m_compact.group("volt")) * 1e-3  # mV -> V
@@ -156,7 +276,7 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
             voltage_v=volt_val,
             voltage_angle_deg=_normalize_number(m_compact.group("ang2")) if m_compact.group("ang2") else None,
             impedance_ohm=_normalize_number(m_compact.group("imp")) * 1e-3,  # mΩ → Ω
-            impedance_angle_deg=_normalize_number(m_compact.group("ang2")) if m_compact.group("ang2") else None,
+            impedance_angle_deg=_normalize_number(m_compact.group("ang3")) if m_compact.group("ang3") else None,
         )
         if row.impedance_ohm is None and row.voltage_v is not None and row.current_a not in (None, 0):
             row.impedance_ohm = abs(row.voltage_v / row.current_a)
@@ -416,21 +536,11 @@ def build_items_from_rows(
     voltage_rows: List[ParsedRow] = []
 
     # Deduplicate impedance rows (exact-ish match)
-    seen_imp: list[Dict[str, object]] = []
+    seen_imp: dict[float, Dict[str, object]] = {}
     for row in rows_with_dist:
         if row.impedance_ohm is not None and row.impedance_ohm > 0:
-            is_dup = False
-            for existing in seen_imp:
-                dist1 = existing["measurement_distance_m"]
-                val1 = abs(existing["value"])
-                dist_tol = 0.02 * max(dist1, row.distance_m, 1e-6)
-                val_tol = 0.02 * max(val1, row.impedance_ohm, 1e-6)
-                if abs(dist1 - row.distance_m) <= dist_tol and abs(val1 - row.impedance_ohm) <= val_tol:
-                    is_dup = True
-                    break
-            if is_dup:
-                continue
-            item = {
+            dist_key = round(row.distance_m, 3)
+            candidate = {
                 "measurement_type": measurement_type,
                 "frequency_hz": frequency_hz,
                 "value": row.impedance_ohm,
@@ -439,13 +549,16 @@ def build_items_from_rows(
                 "measurement_distance_m": row.distance_m,
                 "distance_to_current_injection_m": distance_to_current_injection_m,
             }
-            impedance_items.append(item)
-            seen_imp.append(
-                {
-                    "measurement_distance_m": row.distance_m,
-                    "value": row.impedance_ohm,
-                }
-            )
+            prev = seen_imp.get(dist_key)
+            # Prefer item with angle, otherwise larger magnitude
+            def _score(it: Dict[str, object]) -> tuple[int, float]:
+                has_ang = 1 if it.get("value_angle_deg") is not None else 0
+                return (has_ang, float(it.get("value", 0.0)))
+            if prev is None or _score(candidate) > _score(prev):
+                seen_imp[dist_key] = candidate
+    impedance_items.extend(seen_imp.values())
+
+    for row in rows_with_dist:
         if row.current_a is not None:
             current_values.append(row.current_a)
             if row.current_angle_deg is not None:
@@ -532,56 +645,80 @@ def import_items_from_images(
     images_dir: Path,
     measurement_id: int,
     measurement_type: str = "earthing_impedance",
-    frequency_hz: float = 50.0,
+    frequency_hz: Union[float, str] = 50.0,
     distance_to_current_injection_m: Optional[float] = None,
     ocr_provider: str = "tesseract",
+    api_key_env: str = "OPENAI_API_KEY",
+    ocr_timeout: float = 120.0,
+    ocr_max_dim: int | None = 1400,
 ) -> Dict[str, object]:
     """
     Run OCR over all images in a directory and create MeasurementItems.
 
     Returns summary with counts and any skipped files.
     """
-    images = sorted(
-        [p for p in Path(images_dir).iterdir() if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}]
-    )
-    if not images:
+    img_dir = Path(images_dir)
+    img_freq_pairs: List[tuple[Path, float]] = []
+    dir_mode = isinstance(frequency_hz, str) and frequency_hz.strip().lower() == "dir"
+
+    if dir_mode:
+        for sub in sorted(img_dir.iterdir()):
+            if not sub.is_dir():
+                continue
+            try:
+                freq_val = float(str(sub.name).replace(",", "."))
+            except Exception:
+                continue
+            for p in sorted(sub.iterdir()):
+                if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}:
+                    img_freq_pairs.append((p, freq_val))
+    else:
+        try:
+            freq_val = float(frequency_hz)
+        except Exception:
+            freq_val = 50.0
+        img_freq_pairs = [
+            (p, freq_val)
+            for p in sorted(img_dir.iterdir())
+            if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+        ]
+
+    if not img_freq_pairs:
         raise FileNotFoundError(f"No image files found in {images_dir}")
 
     created_ids: List[int] = []
     skipped: List[str] = []
     parsed_rows: List[ParsedRow] = []
 
-    for img in images:
+    for img, freq in img_freq_pairs:
         try:
-            if ocr_provider != "tesseract":
-                raise ValueError(f"OCR provider '{ocr_provider}' not supported yet")
-            text = ocr_image(img)
+            text = ocr_image(
+                img,
+                provider_model=ocr_provider,
+                api_key_env=api_key_env,
+                timeout=ocr_timeout,
+                max_dim=ocr_max_dim,
+            )
             rows = parse_measurement_rows(text)
             parsed_rows.extend(rows)
+            # build and create items per image (frequency-specific)
+            items = build_items_from_rows(
+                measurement_id=measurement_id,
+                rows=rows,
+                measurement_type=measurement_type,
+                frequency_hz=freq,
+                distance_to_current_injection_m=distance_to_current_injection_m,
+            )
+            for payload in (
+                items["impedance_items"]
+                + items["earthing_current_items"]
+                + items["prospective_items"]
+            ):
+                iid = create_item(payload, measurement_id=measurement_id)
+                created_ids.append(iid)
         except Exception as exc:
             logger.warning("Skipping %s due to error: %s", img, exc)
             skipped.append(f"{img.name}: {exc}")
-
-    items = build_items_from_rows(
-        measurement_id=measurement_id,
-        rows=parsed_rows,
-        measurement_type=measurement_type,
-        frequency_hz=frequency_hz,
-        distance_to_current_injection_m=distance_to_current_injection_m,
-    )
-
-    for payload in (
-        items["impedance_items"]
-        + items["earthing_current_items"]
-        + items["voltage_items"]
-        + items["prospective_items"]
-    ):
-        try:
-            iid = create_item(payload, measurement_id=measurement_id)
-            created_ids.append(iid)
-        except Exception as exc:
-            logger.warning("Failed to create item for measurement %s: %s", measurement_id, exc)
-            skipped.append(f"create_item error: {exc}")
 
     return {
         "created_item_ids": created_ids,

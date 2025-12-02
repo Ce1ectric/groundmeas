@@ -103,6 +103,24 @@ gm-cli --install-completion zsh
 gm-cli --db path/to/data.db import-from-images 123 ./images_dir \
   --type earthing_impedance --frequency 50 --injection-distance 100
 # Future: swap to an online OCR provider once implemented if quality is insufficient
+
+# OCR import with configurable provider
+# Offline Tesseract (default):
+gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance --frequency 50
+# Read frequency from subfolder names (e.g., images/50/*.jpg, images/150/*.jpg):
+gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance --frequency dir
+# Use OpenAI vision model (set your API key in OPENAI_API_KEY or override --api-key-env):
+gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance \
+  --frequency dir --ocr openai:gpt-4o --api-key-env OPENAI_API_KEY
+# Use local Ollama vision OCR (e.g., deepseek-ocr), Ollama must be running:
+gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance \
+  --frequency dir --ocr ollama:deepseek-ocr
+
+OCR notes:
+- Images are expected to be photographs of the OMICRON COMPANO 100 display. Better lighting/focus → better OCR.
+- When `--frequency dir` is used, frequencies are read from subfolder names (e.g., images/50/*.jpeg → 50 Hz).
+- For OpenAI OCR, set your API key via env var (default `OPENAI_API_KEY`; override with `--api-key-env`). If you hit rate/size limits, downscale via `--ocr-max-dim` or retry later.
+- For Ollama OCR, ensure the vision model is pulled and the Ollama server is running locally.
 ```
 
 Set `GROUNDMEAS_DB` to avoid passing `--db` each time.

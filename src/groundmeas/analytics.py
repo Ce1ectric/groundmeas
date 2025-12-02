@@ -251,6 +251,58 @@ def distance_profile_value(
 
     points.sort(key=lambda p: p["distance_m"])
 
+    def _dedupe_by_interpolation(raw_points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """For duplicate distances, keep the point closest to linear interpolation."""
+        by_dist: Dict[float, List[Dict[str, Any]]] = {}
+        for p in raw_points:
+            by_dist.setdefault(p["distance_m"], []).append(p)
+        distances = sorted(by_dist.keys())
+
+        def _mean_val(d: float) -> float:
+            vals = [pp["value"] for pp in by_dist[d] if pp.get("value") is not None]
+            return float(sum(vals) / len(vals)) if vals else 0.0
+
+        selected: List[Dict[str, Any]] = []
+        for idx, dist in enumerate(distances):
+            group = by_dist[dist]
+            if len(group) == 1:
+                selected.append(group[0])
+                continue
+
+            try:
+                if idx == 0 and len(distances) > 1:
+                    x1, y1 = 0.0, 0.0
+                    x2 = distances[idx + 1]
+                    y2 = _mean_val(x2)
+                elif idx == len(distances) - 1 and len(distances) >= 2:
+                    x2 = distances[idx - 1]
+                    y2 = _mean_val(x2)
+                    if idx >= 2:
+                        x1 = distances[idx - 2]
+                        y1 = _mean_val(x1)
+                    else:
+                        x1, y1 = x2, y2
+                else:
+                    x1 = distances[idx - 1]
+                    y1 = _mean_val(x1)
+                    x2 = distances[idx + 1]
+                    y2 = _mean_val(x2)
+
+                if x2 == x1:
+                    expected = _mean_val(dist)
+                else:
+                    expected = y1 + (dist - x1) * (y2 - y1) / (x2 - x1)
+            except Exception:
+                expected = _mean_val(dist)
+
+            best = min(group, key=lambda p: abs(p["value"] - expected))
+            selected.append(best)
+
+        selected.sort(key=lambda p: p["distance_m"])
+        return selected
+
+    points = _dedupe_by_interpolation(points)
+
     # Determine a consistent injection distance if provided
     injection_distance = None
     if injection_candidates:

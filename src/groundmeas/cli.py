@@ -726,14 +726,34 @@ def cli_import_from_images(
         "-t",
         help="Measurement type for impedance series (earthing_impedance or earthing_resistance)",
     ),
-    frequency: float = typer.Option(50.0, "--frequency", "-f", help="Frequency Hz to assign to imported items"),
+    frequency: str = typer.Option(
+        "50",
+        "--frequency",
+        "-f",
+        help="Frequency Hz to assign (number) or 'dir' to read from subfolder names",
+    ),
     injection_distance_m: Optional[float] = typer.Option(
         None, "--injection-distance", help="Distance to current injection electrode (m)"
     ),
     ocr_provider: str = typer.Option(
         "tesseract",
         "--ocr",
-        help="OCR provider (tesseract for offline; placeholders for future online services)",
+        help="OCR provider: tesseract (offline), openai:<model>, or ollama:<model>",
+    ),
+    api_key_env: str = typer.Option(
+        "OPENAI_API_KEY",
+        "--api-key-env",
+        help="Env var to read API key from (used for openai provider)",
+    ),
+    ocr_timeout: float = typer.Option(
+        120.0,
+        "--ocr-timeout",
+        help="Timeout in seconds for OCR HTTP calls (openai/ollama)",
+    ),
+    ocr_max_dim: int = typer.Option(
+        1400,
+        "--ocr-max-dim",
+        help="Max image dimension (pixels) when sending to OCR provider; set 0 to disable downscale",
     ),
     json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write summary to JSON file"),
 ) -> None:
@@ -748,6 +768,9 @@ def cli_import_from_images(
         frequency_hz=frequency,
         distance_to_current_injection_m=injection_distance_m,
         ocr_provider=ocr_provider,
+        api_key_env=api_key_env,
+        ocr_timeout=ocr_timeout,
+        ocr_max_dim=ocr_max_dim or None,
     )
 
     if json_out:
