@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Ce1ectric"
 __license__ = "MIT"
 
