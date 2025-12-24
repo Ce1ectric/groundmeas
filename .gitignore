@@ -5,7 +5,7 @@ notebooks/.venv/
 notebooks/.env/
 notebooks/
 dist/
-
+scripts/
 # export datatypes
 # all csv
 *.csv
@@ -13,3 +13,7 @@ dist/
 *.json
 # all xml
 *.xml
+#all db files
+*.db
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints

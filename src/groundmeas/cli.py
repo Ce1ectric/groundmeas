@@ -46,6 +46,7 @@ from .analytics import (
 )
 from .vision_import import import_items_from_images
 from .plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
+from .map_vis import generate_map
 
 app = typer.Typer(help="CLI for managing groundmeas data")
 logger = logging.getLogger(__name__)
@@ -942,37 +943,91 @@ def cli_plot_voltage_vt_epr(
     typer.echo(f"Wrote {output}")
 
 @app.command("import-json")
-def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON with measurement data")) -> None:
+def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON file or directory")) -> None:
     """
     Import measurement(s) from JSON.
 
-    Accepts either:
-      - a list of measurement dicts (each optionally containing 'items'), or
-      - a single measurement dict with optional 'items'.
+    Supports:
+      - Single JSON file containing a measurement or list of measurements.
+      - Directory of JSON files.
+      - Automatic merging of paired files: 'X_measurement.json' + 'X_items.json'.
     """
-    try:
-        data = json.loads(path.read_text())
-    except Exception as exc:
-        raise typer.Exit(code=1) from exc
+    files_to_process: List[Tuple[Path, Optional[Path]]] = []
 
-    measurements: List[dict[str, Any]]
-    if isinstance(data, list):
-        measurements = data
-    elif isinstance(data, dict):
-        measurements = [data]
+    if path.is_dir():
+        # Scan directory
+        all_json = list(path.glob("*.json"))
+        for p in all_json:
+            if p.name.endswith("_items.json"):
+                continue  # Skip, will be picked up by measurement file
+            
+            if p.name.endswith("_measurement.json"):
+                # Look for items file
+                items_path = p.parent / p.name.replace("_measurement.json", "_items.json")
+                files_to_process.append((p, items_path if items_path.exists() else None))
+            else:
+                # Standalone file
+                files_to_process.append((p, None))
     else:
-        typer.echo("Unsupported JSON structure; expected object or array.")
-        raise typer.Exit(code=1)
+        # Single file
+        if path.name.endswith("_measurement.json"):
+             items_path = path.parent / path.name.replace("_measurement.json", "_items.json")
+             files_to_process.append((path, items_path if items_path.exists() else None))
+        else:
+             files_to_process.append((path, None))
 
-    created: List[Tuple[int, int]] = []
-    for m in measurements:
-        items = m.pop("items", [])
-        mid = create_measurement(m)
-        for it in items:
-            create_item(it, measurement_id=mid)
-        created.append((mid, len(items)))
+    total_created: List[Tuple[int, int]] = []
 
-    typer.echo(f"Imported {len(created)} measurement(s): " + ", ".join(f"id={mid} items={count}" for mid, count in created))
+    for meas_path, items_path in files_to_process:
+        try:
+            data = json.loads(meas_path.read_text())
+        except Exception as exc:
+            typer.echo(f"Error reading {meas_path}: {exc}", err=True)
+            continue
+
+        measurements: List[dict[str, Any]]
+        if isinstance(data, list):
+            measurements = data
+        elif isinstance(data, dict):
+            measurements = [data]
+        else:
+            typer.echo(f"Skipping {meas_path}: Unsupported JSON structure.")
+            continue
+
+        # If we have a separate items file, merge it into the single measurement object
+        # (Assuming 1-to-1 mapping for the split file case)
+        if items_path:
+            try:
+                items_data = json.loads(items_path.read_text())
+                # Expecting {"items": [...]} or just [...]
+                extra_items = []
+                if isinstance(items_data, dict) and "items" in items_data:
+                    extra_items = items_data["items"]
+                elif isinstance(items_data, list):
+                    extra_items = items_data
+                
+                # Attach to the first measurement found (usually there's only one in this split format)
+                if measurements:
+                    measurements[0].setdefault("items", []).extend(extra_items)
+                    typer.echo(f"Merged items from {items_path.name} into {meas_path.name}")
+            except Exception as exc:
+                typer.echo(f"Error reading items file {items_path}: {exc}", err=True)
+
+        for m in measurements:
+            try:
+                items = m.pop("items", [])
+                mid = create_measurement(m)
+                for it in items:
+                    create_item(it, measurement_id=mid)
+                total_created.append((mid, len(items)))
+            except Exception as e:
+                typer.echo(f"Failed to import measurement from {meas_path.name}: {e}", err=True)
+
+    if total_created:
+        typer.echo(f"Successfully imported {len(total_created)} measurement(s).")
+        # typer.echo(", ".join(f"id={mid} items={count}" for mid, count in total_created))
+    else:
+        typer.echo("No measurements imported.")
 
 
 @app.command("export-json")
@@ -991,6 +1046,60 @@ def export_json(
         filters["id__in"] = measurement_ids
     export_measurements_to_json(str(path), **filters)
     typer.echo(f"Wrote {path}")
+
+
+@app.command("map")
+def cli_map(
+    measurement_ids: Optional[List[int]] = typer.Option(
+        None,
+        "--measurement-id",
+        "-m",
+        help="Restrict to these measurement IDs (repeatable).",
+    ),
+    output: Path = typer.Option("map.html", "--out", "-o", help="Output HTML file"),
+    open_browser: bool = typer.Option(True, help="Open in browser automatically"),
+) -> None:
+    """Generate a map of measurement locations."""
+    filters: dict[str, Any] = {}
+    if measurement_ids:
+        filters["id__in"] = measurement_ids
+
+    measurements, _ = read_measurements_by(**filters)
+
+    try:
+        generate_map(measurements, output_file=str(output), open_browser=open_browser)
+    except RuntimeError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command("dashboard")
+def cli_dashboard() -> None:
+    """
+    Launch the interactive Streamlit dashboard.
+    
+    Allows map visualization, multi-selection, and interactive analysis.
+    """
+    import subprocess
+    import sys
+    
+    # Path to the dashboard script
+    dashboard_script = Path(__file__).parent / "dashboard.py"
+    
+    if not dashboard_script.exists():
+        typer.echo(f"Error: Dashboard script not found at {dashboard_script}", err=True)
+        raise typer.Exit(code=1)
+        
+    cmd = [sys.executable, "-m", "streamlit", "run", str(dashboard_script)]
+    
+    typer.echo("Starting dashboard...")
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"Dashboard crashed: {e}", err=True)
+        raise typer.Exit(code=1)
+    except KeyboardInterrupt:
+        typer.echo("Dashboard stopped.")
 
 
 @app.command("set-default-db")

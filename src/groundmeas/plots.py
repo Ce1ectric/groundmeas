@@ -9,6 +9,7 @@ from .analytics import (
     impedance_over_frequency,
     real_imag_over_frequency,
     voltage_vt_epr,
+    value_over_distance,
 )
 
 
@@ -194,5 +195,54 @@ def plot_voltage_vt_epr(
     ax.set_title(f"EPR & Touch Voltages Min/Max @ {frequency} Hz")
     ax.legend()
     ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    fig.tight_layout()
+    return fig
+
+
+def plot_value_over_distance(
+    measurement_ids: Union[int, List[int]],
+    measurement_type: str = "earthing_impedance",
+) -> plt.Figure:
+    """
+    Plot value versus measurement_distance_m for one or multiple measurements.
+
+    Args:
+        measurement_ids: single ID or list of Measurement IDs.
+        measurement_type: The type of measurement item to plot.
+
+    Returns:
+        A matplotlib Figure.
+    """
+    single = isinstance(measurement_ids, int)
+    ids: List[int] = [measurement_ids] if single else list(measurement_ids)
+
+    fig, ax = plt.subplots()
+    plotted = False
+
+    for mid in ids:
+        dist_val = value_over_distance(mid, measurement_type=measurement_type)
+        if not dist_val:
+            continue
+
+        # Sort by distance
+        dists = sorted(dist_val.keys())
+        vals = [dist_val[d] for d in dists]
+
+        ax.plot(dists, vals, marker="o", linestyle="-", label=f"ID {mid}")
+        plotted = True
+
+    if not plotted:
+        if single:
+            raise ValueError(
+                f"No data available for measurement_id={measurement_ids} type={measurement_type}"
+            )
+        else:
+            raise ValueError("No data available for the provided measurement IDs.")
+
+    ax.set_xlabel("Distance (m)")
+    ax.set_ylabel(f"{measurement_type} Value")
+    ax.set_title(f"{measurement_type} vs Distance")
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    ax.legend()
     fig.tight_layout()
     return fig

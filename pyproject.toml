@@ -17,7 +17,11 @@ dependencies = [
     "prompt_toolkit (>=3.0.48,<4.0.0)",
     "pytesseract (>=0.3.13,<0.4.0)",
     "opencv-python-headless (>=4.11.0.86,<5.0.0)",
-    "requests (>=2.32.3,<3.0.0)"
+    "requests (>=2.32.3,<3.0.0)",
+    "folium (>=0.19.4,<1.0.0)",
+    "streamlit (>=1.52.2,<2.0.0)",
+    "streamlit-folium (>=0.25.3,<0.26.0)",
+    "plotly (>=6.5.0,<7.0.0)"
 ]
 
 [tool.poetry]
