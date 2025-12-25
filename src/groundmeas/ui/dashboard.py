@@ -15,14 +15,14 @@ import json
 from pathlib import Path
 import os
 
-from groundmeas.db import read_measurements_by, connect_db
-from groundmeas.vis_plotly import (
+from groundmeas.core.db import read_measurements_by, connect_db
+from groundmeas.visualization.vis_plotly import (
     plot_imp_over_f_plotly,
     plot_rho_f_model_plotly,
     plot_voltage_vt_epr_plotly,
     plot_value_over_distance_plotly,
 )
-from groundmeas.analytics import impedance_over_frequency, value_over_distance_detailed
+from groundmeas.services.analytics import impedance_over_frequency, value_over_distance_detailed
 
 # Page config
 st.set_page_config(page_title="Groundmeas Dashboard", layout="wide")
@@ -34,12 +34,14 @@ def resolve_db_path() -> str:
     Determine the database path from environment variables or config file.
 
     Priority:
-    1. GROUNDMEAS_DB environment variable.
-    2. ~/.config/groundmeas/config.json ("db_path" key).
-    3. Default: "groundmeas.db" in the current working directory.
+      1. ``GROUNDMEAS_DB`` environment variable
+      2. ``~/.config/groundmeas/config.json`` (``"db_path"``)
+      3. Default ``groundmeas.db`` in the current working directory
 
-    Returns:
-        The resolved database file path as a string.
+    Returns
+    -------
+    str
+        Resolved database path.
     """
     # Check environment variable
     env_db = os.environ.get("GROUNDMEAS_DB")
@@ -63,7 +65,7 @@ def init_db():
     """
     Initialize the database connection.
 
-    Calls connect_db() with the resolved path. Displays an error in Streamlit
+    Calls ``connect_db`` with the resolved path. Displays an error in Streamlit
     if the connection fails.
     """
     db_path = resolve_db_path()

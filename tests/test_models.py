@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import numpy as np
 from pydantic import ValidationError
 
-from groundmeas.models import (
+from groundmeas.core.models import (
     Location,
     Measurement,
     MeasurementItem,

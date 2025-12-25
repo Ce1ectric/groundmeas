@@ -5,7 +5,7 @@ import pytest
 import warnings
 import numpy as np
 
-from groundmeas import analytics
+from groundmeas.services import analytics
 
 
 # ─── distance_profile_value ─────────────────────────────────────────────────────

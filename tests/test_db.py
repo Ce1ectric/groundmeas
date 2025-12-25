@@ -7,8 +7,8 @@ from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as SA_Session
 
-import groundmeas.db as db
-from groundmeas.db import (
+import groundmeas.core.db as db
+from groundmeas.core.db import (
     connect_db,
     _get_session,
     create_measurement,
@@ -21,7 +21,7 @@ from groundmeas.db import (
     update_item,
     delete_item,
 )
-from groundmeas.models import Location, Measurement, MeasurementItem
+from groundmeas.core.models import Location, Measurement, MeasurementItem
 
 
 def test_connect_db_success(tmp_path):

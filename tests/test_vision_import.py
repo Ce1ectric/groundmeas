@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from groundmeas.vision_import import (
+from groundmeas.services.vision_import import (
     ParsedRow,
     build_items_from_rows,
     parse_measurement_rows,

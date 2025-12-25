@@ -120,8 +120,7 @@ The dashboard provides a user-friendly interface to explore your data.
 You can use `groundmeas` directly in your Python scripts or Jupyter notebooks.
 
 ```python
-from groundmeas.db import connect_db, read_measurements_by
-from groundmeas.analytics import impedance_over_frequency
+from groundmeas import connect_db, read_measurements_by, impedance_over_frequency
 
 # Connect to DB
 connect_db("groundmeas.db")
@@ -141,16 +140,24 @@ for meas in measurements:
 
 ```
 groundmeas/
-├── src/groundmeas/       # Source code
-│   ├── analytics.py      # Physical models and algorithms
-│   ├── cli.py            # Command Line Interface definition
-│   ├── dashboard.py      # Streamlit dashboard entry point
-│   ├── db.py             # Database connection and CRUD
-│   ├── models.py         # SQLModel data definitions
-│   └── vis_plotly.py     # Plotly visualization logic
-├── scripts/              # Helper scripts (e.g., release.py)
-├── tests/                # Pytest suite
-└── pyproject.toml        # Project configuration and dependencies
+├── src/groundmeas/
+│   ├── __init__.py              # Public API exports
+│   ├── core/
+│   │   ├── db.py                # DB connection + CRUD
+│   │   └── models.py            # SQLModel data definitions
+│   ├── services/
+│   │   ├── analytics.py         # Physical models and algorithms
+│   │   ├── export.py            # JSON/CSV/XML export helpers
+│   │   └── vision_import.py     # OCR import pipeline
+│   ├── visualization/
+│   │   ├── plots.py             # Matplotlib plots
+│   │   ├── vis_plotly.py        # Plotly figures
+│   │   └── map_vis.py           # Folium map generation
+│   └── ui/
+│       ├── cli.py               # Typer CLI entry point
+│       └── dashboard.py         # Streamlit dashboard
+├── tests/                       # Pytest suite
+└── pyproject.toml               # Project configuration and dependencies
 ```
 
 ---

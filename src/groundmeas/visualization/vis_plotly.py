@@ -10,7 +10,7 @@ from typing import List, Union, Optional, Tuple, Dict
 import numpy as np
 import warnings
 
-from .analytics import (
+from ..services.analytics import (
     impedance_over_frequency,
     real_imag_over_frequency,
     voltage_vt_epr,
@@ -30,16 +30,21 @@ def plot_imp_over_f_plotly(
     measurement_ids: Union[int, List[int]], normalize_freq_hz: Optional[float] = None
 ) -> go.Figure:
     """
-    Create an interactive Plotly figure of earthing impedance vs. frequency.
+    Create an interactive Plotly figure of earthing impedance vs frequency.
 
-    Plots one curve per measurement ID. Supports normalization to a baseline frequency.
+    Plots one curve per measurement ID and optionally normalizes to a baseline frequency.
 
-    Args:
-        measurement_ids: Single Measurement ID or list of IDs.
-        normalize_freq_hz: Optional frequency (Hz) to normalize values against.
+    Parameters
+    ----------
+    measurement_ids : int or list[int]
+        Single measurement ID or list of IDs.
+    normalize_freq_hz : float, optional
+        Frequency (Hz) to normalize against.
 
-    Returns:
-        A plotly.graph_objects.Figure containing the plot.
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Interactive impedance plot.
     """
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)
@@ -94,15 +99,21 @@ def plot_rho_f_model_plotly(
     rho: Union[float, List[float]] = 100,
 ) -> go.Figure:
     """
-    Create an interactive Plotly figure comparing measured impedance with the Rho-f model.
+    Create an interactive Plotly figure comparing measured impedance with the rho–f model.
 
-    Args:
-        measurement_ids: List of Measurement IDs to plot as measured data.
-        rho_f: Tuple of model coefficients (k1, k2, k3, k4, k5).
-        rho: Single resistivity value or list of values to plot model curves for.
+    Parameters
+    ----------
+    measurement_ids : list[int]
+        Measurement IDs to plot.
+    rho_f : tuple[float, float, float, float, float]
+        Model coefficients ``(k1, k2, k3, k4, k5)``.
+    rho : float or list[float], default 100
+        Resistivity value(s) to plot model curves for.
 
-    Returns:
-        A plotly.graph_objects.Figure containing measured data and model curves.
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Figure with measured and model curves.
     """
     # Start with measured data
     fig = plot_imp_over_f_plotly(measurement_ids)
@@ -141,19 +152,21 @@ def plot_voltage_vt_epr_plotly(
     frequency: float = 50.0
 ) -> go.Figure:
     """
-    Create an interactive grouped bar chart of EPR and Touch Voltages.
+    Create an interactive grouped bar chart of EPR and touch voltages.
 
-    Visualizes:
-    - Earth Potential Rise (EPR)
-    - Prospective Touch Voltage (Vtp) - Min/Max
-    - Actual Touch Voltage (Vt) - Min/Max
+    Visualizes EPR, prospective touch voltage (min/max), and actual touch voltage (min/max).
 
-    Args:
-        measurement_ids: Single Measurement ID or list of IDs.
-        frequency: Frequency in Hz to extract data for (default: 50.0).
+    Parameters
+    ----------
+    measurement_ids : int or list[int]
+        Single Measurement ID or list of IDs.
+    frequency : float, default 50.0
+        Frequency in Hz.
 
-    Returns:
-        A plotly.graph_objects.Figure containing the bar chart.
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Grouped bar chart.
     """
     data = voltage_vt_epr(measurement_ids, frequency=frequency)
     single = isinstance(measurement_ids, int)

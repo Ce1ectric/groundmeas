@@ -24,16 +24,22 @@ def generate_map(
     open_browser: bool = True,
 ) -> None:
     """
-    Generate an interactive map showing measurement locations.
+    Generate an interactive Folium map of measurement locations.
 
-    Args:
-        measurements: List of measurement dictionaries (as returned by db.read_measurements_by).
-                      Each dict should have a "location" key with "latitude" and "longitude".
-        output_file: Path to save the HTML map.
-        open_browser: Whether to open the generated map in the default web browser.
+    Parameters
+    ----------
+    measurements : list of dict
+        Measurement records (as returned by ``db.read_measurements_by``) with
+        a ``location`` containing ``latitude`` and ``longitude``.
+    output_file : str, default "measurements_map.html"
+        Path to save the HTML map.
+    open_browser : bool, default True
+        Whether to open the generated map in the default browser.
 
-    Raises:
-        RuntimeError: If folium is not installed.
+    Raises
+    ------
+    RuntimeError
+        If ``folium`` is not installed.
     """
     if folium is None:
         raise RuntimeError(

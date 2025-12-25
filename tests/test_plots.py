@@ -2,7 +2,7 @@
 import pytest
 import matplotlib.pyplot as plt
 
-from groundmeas import plots
+from groundmeas.visualization import plots
 
 
 def fake_impedance(mid, data):

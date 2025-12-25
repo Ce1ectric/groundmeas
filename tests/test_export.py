@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import groundmeas.export as export_module
+import groundmeas.services.export as export_module
 
 
 def test_export_json_success(tmp_path, monkeypatch):
