@@ -978,10 +978,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extension-groundmeasanalytics_extension" class="md-nav__link">
+  <a href="#extension" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Extension (groundmeas.analytics_extension)
+        Extension
       
     </span>
   </a>
@@ -1080,8 +1080,7 @@
 
 
 <h1 id="api-reference">API Reference</h1>
-<p>Call <code>groundmeas.db.connect_db(path)</code> once per process before using database-backed functions.</p>
-<hr />
+<p>Docstrings follow the pandas/PEP 257 convention. Call <code>groundmeas.db.connect_db(path)</code> once per process before using database-backed functions.</p>
 <h2 id="database-groundmeasdb">Database (<code>groundmeas.db</code>)</h2>
 <table>
 <thead>
@@ -1095,52 +1094,52 @@
 <tr>
 <td><code>connect_db(path, echo=False)</code></td>
 <td>Initialize/open SQLite; create tables.</td>
-<td><code>path</code>: file path; <code>echo</code>: log SQL</td>
+<td><code>path</code> file path; <code>echo</code> log SQL</td>
 </tr>
 <tr>
 <td><code>create_measurement(data)</code></td>
-<td>Insert measurement (optional nested <code>location</code>). Returns <code>measurement_id</code>.</td>
-<td><code>data</code>: measurement fields</td>
+<td>Insert measurement (optional nested <code>location</code>). Returns ID.</td>
+<td></td>
 </tr>
 <tr>
 <td><code>create_item(data, measurement_id)</code></td>
-<td>Insert item linked to a measurement. Returns <code>item_id</code>.</td>
-<td><code>measurement_id</code>: parent ID</td>
+<td>Insert item linked to a measurement. Returns ID.</td>
+<td></td>
 </tr>
 <tr>
 <td><code>read_measurements(where=None)</code></td>
-<td>Raw SQL WHERE string; returns <code>(records, ids)</code> with items + location.</td>
-<td><code>where</code>: string</td>
+<td>Raw WHERE string; returns records + IDs (with items, location).</td>
+<td></td>
 </tr>
 <tr>
 <td><code>read_measurements_by(**filters)</code></td>
 <td>Filtered read; supports <code>__lt/__lte/__gt/__gte/__in/__ne</code>.</td>
-<td>e.g., <code>asset_type="substation"</code></td>
+<td></td>
 </tr>
 <tr>
 <td><code>read_items_by(**filters)</code></td>
 <td>Filtered read for items; same suffix rules.</td>
-<td>e.g., <code>frequency_hz__gte=1000</code></td>
+<td></td>
 </tr>
 <tr>
 <td><code>update_measurement(measurement_id, updates)</code></td>
-<td>Update measurement (nested <code>location</code> allowed). Returns bool.</td>
-<td></td>
+<td>Update measurement (nested <code>location</code> allowed).</td>
+<td>Returns bool</td>
 </tr>
 <tr>
 <td><code>update_item(item_id, updates)</code></td>
-<td>Update one item. Returns bool.</td>
-<td></td>
+<td>Update one item.</td>
+<td>Returns bool</td>
 </tr>
 <tr>
 <td><code>delete_measurement(measurement_id)</code></td>
-<td>Delete measurement and items. Returns bool.</td>
-<td></td>
+<td>Delete measurement and items.</td>
+<td>Returns bool</td>
 </tr>
 <tr>
 <td><code>delete_item(item_id)</code></td>
-<td>Delete one item. Returns bool.</td>
-<td></td>
+<td>Delete one item.</td>
+<td>Returns bool</td>
 </tr>
 </tbody>
 </table>
@@ -1171,7 +1170,7 @@
 </tr>
 <tr>
 <td><code>_compute_magnitude</code></td>
-<td>Auto-computes missing polar/rectangular parts; raises <code>ValueError</code> if neither representation is present.</td>
+<td>Auto-computes missing polar/rectangular parts; raises <code>ValueError</code> if neither is present.</td>
 <td>SQLAlchemy event</td>
 </tr>
 </tbody>
@@ -1189,7 +1188,7 @@
 <tr>
 <td><code>impedance_over_frequency(measurement_ids)</code></td>
 <td>Map freq → |Z| (or per measurement).</td>
-<td>Accepts single ID or list.</td>
+<td>Accepts single ID or list</td>
 </tr>
 <tr>
 <td><code>real_imag_over_frequency(measurement_ids)</code></td>
@@ -1198,56 +1197,28 @@
 </tr>
 <tr>
 <td><code>distance_profile_value(measurement_id, measurement_type="earthing_impedance", algorithm="maximum", window=3)</code></td>
-<td>Reduce distance–value profile via chosen algorithm.</td>
-<td>Algorithms: <code>maximum</code>, <code>62_percent</code>, <code>minimum_gradient</code>, <code>minimum_stddev</code>, <code>inverse</code> (fits relation below).</td>
+<td>Reduce distance–value profile via algorithm (<code>maximum</code>, <code>62_percent</code>, <code>minimum_gradient</code>, <code>minimum_stddev</code>, <code>inverse</code>).</td>
+<td>Inverse fits <code>1/Z = a*(1/d) + b</code></td>
 </tr>
-</tbody>
-</table>
-<div class="arithmatex">\[
-\frac{1}{Z} = a \cdot \frac{1}{d} + b
-\]</div>
-<table>
-<thead>
-<tr>
-<th>Function</th>
-<th>Description</th>
-<th>Key args/notes</th>
-</tr>
-</thead>
-<tbody>
 <tr>
 <td><code>rho_f_model(measurement_ids)</code></td>
 <td>Fit rho–f coefficients <code>(k1..k5)</code> using impedance (real/imag) + soil resistivity.</td>
-<td>Requires overlapping freq points.</td>
+<td>Requires overlap in freq</td>
 </tr>
-</tbody>
-</table>
-<div class="arithmatex">\[
-Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \cdot f
-\]</div>
-<table>
-<thead>
-<tr>
-<th>Function</th>
-<th>Description</th>
-<th>Key args/notes</th>
-</tr>
-</thead>
-<tbody>
 <tr>
 <td><code>voltage_vt_epr(measurement_ids, frequency=50)</code></td>
 <td>EPR and touch/prospective voltages per ampere.</td>
-<td>Needs <code>earthing_impedance</code> + <code>earthing_current</code> at <code>frequency</code>.</td>
+<td>Needs impedance + current at <code>frequency</code></td>
 </tr>
 <tr>
 <td><code>shield_currents_for_location(location_id, frequency_hz=None)</code></td>
 <td>List shield-current items for a location.</td>
-<td>Optional frequency filter.</td>
+<td>Optional frequency filter</td>
 </tr>
 <tr>
 <td><code>calculate_split_factor(earth_fault_current_id, shield_current_ids)</code></td>
 <td>Compute split factor and vector sums (mag/angle/real/imag).</td>
-<td>Provide shield IDs with consistent reference.</td>
+<td>Provide shield IDs with consistent reference</td>
 </tr>
 <tr>
 <td><code>value_over_distance(measurement_ids, measurement_type="earthing_impedance")</code></td>
@@ -1261,8 +1232,8 @@ Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \
 </tr>
 <tr>
 <td><code>_current_item_to_complex(item)</code></td>
-<td>Convert item to complex current (A).</td>
-<td>Prefers real/imag, else magnitude/angle.</td>
+<td>Convert an item to a complex current (A).</td>
+<td>Prefers real/imag, else magnitude/angle</td>
 </tr>
 </tbody>
 </table>
@@ -1311,7 +1282,7 @@ Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \
 <tr>
 <td><code>plot_rho_f_model(measurement_ids, rho_f, rho=100)</code></td>
 <td>Measured vs rho–f model curves.</td>
-<td><code>rho</code>: single or list.</td>
+<td><code>rho</code>: single or list</td>
 </tr>
 <tr>
 <td><code>plot_voltage_vt_epr(measurement_ids, frequency=50)</code></td>
@@ -1326,7 +1297,6 @@ Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \
 </tbody>
 </table>
 <h2 id="plotly-groundmeasvis_plotly">Plotly (<code>groundmeas.vis_plotly</code>)</h2>
-<p>All return <code>plotly.graph_objects.Figure</code> for dashboards/notebooks.</p>
 <table>
 <thead>
 <tr>
@@ -1407,7 +1377,7 @@ Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \
 </tr>
 <tr>
 <td><code>build_items_from_rows(measurement_id, rows, measurement_type, frequency_hz, distance_to_current_injection_m=None)</code></td>
-<td>Assemble payloads for impedance, earthing currents (median if stable), prospective touch voltage near 1 m.</td>
+<td>Assemble payloads for impedance, earthing currents, prospective touch voltage near 1 m.</td>
 <td></td>
 </tr>
 <tr>
@@ -1481,23 +1451,8 @@ Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \
 </tr>
 </tbody>
 </table>
-<h2 id="extension-groundmeasanalytics_extension">Extension (<code>groundmeas.analytics_extension</code>)</h2>
-<table>
-<thead>
-<tr>
-<th>Function</th>
-<th>Description</th>
-<th>Key args/notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>value_over_distance(...)</code></td>
-<td>Duplicate of <code>analytics.value_over_distance</code>; currently unused elsewhere.</td>
-<td></td>
-</tr>
-</tbody>
-</table>
+<h2 id="extension">Extension</h2>
+<p>No additional extension modules; all analytics are in <code>groundmeas.services.analytics</code>.</p>
 
 
 
