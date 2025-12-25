@@ -8,7 +8,7 @@ notebooks/.env/
 notebooks/
 dist/
 scripts/
-sites/
+site/
 docs/
 # export datatypes
 # all csv
