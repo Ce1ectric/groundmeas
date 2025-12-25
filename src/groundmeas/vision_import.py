@@ -39,13 +39,34 @@ class ParsedRow:
 
 
 def _normalize_number(raw: str) -> float:
+    """
+    Convert a string number with comma or dot decimal separator to float.
+
+    Args:
+        raw: The string representation of the number (e.g., "1,23" or "1.23").
+
+    Returns:
+        The float value.
+    """
     return float(raw.replace(",", "."))
 
 
 def _parse_value_angle_unit(chunk: str) -> tuple[Optional[float], Optional[float], Optional[str]]:
     """
-    Parse a token like '114.0 mA 0.00°' or '118.1 mΩ -136.56°'.
-    Returns (value_in_si, angle_deg, unit_string) with SI scaling applied.
+    Parse a token string containing value, unit, and optional phase angle.
+
+    Examples:
+        - '114.0 mA 0.00°' -> (0.114, 0.0, 'mA')
+        - '118.1 mΩ -136.56°' -> (0.1181, -136.56, 'mΩ')
+
+    Args:
+        chunk: The text chunk to parse.
+
+    Returns:
+        A tuple containing:
+        - value: The magnitude in base SI units (e.g., Amps, Ohms).
+        - angle: The phase angle in degrees, or None if not present.
+        - unit: The original unit string found (e.g., "mA", "mΩ").
     """
     if not chunk:
         return None, None, None
@@ -76,7 +97,20 @@ def _parse_value_angle_unit(chunk: str) -> tuple[Optional[float], Optional[float
 
 
 def preprocess_image(path: Path) -> np.ndarray:
-    """Load and lightly denoise/threshold an image for OCR."""
+    """
+    Load and preprocess an image for Tesseract OCR.
+
+    Applies grayscale conversion, median blur, and adaptive thresholding.
+
+    Args:
+        path: Path to the image file.
+
+    Returns:
+        The preprocessed image as a numpy array (OpenCV format).
+
+    Raises:
+        FileNotFoundError: If the image cannot be loaded.
+    """
     img = cv2.imread(str(path))
     if img is None:
         raise FileNotFoundError(f"Image not found: {path}")
@@ -89,6 +123,18 @@ def preprocess_image(path: Path) -> np.ndarray:
 
 
 def _read_api_key(env_name: str) -> str:
+    """
+    Read an API key from an environment variable.
+
+    Args:
+        env_name: The name of the environment variable.
+
+    Returns:
+        The API key string.
+
+    Raises:
+        RuntimeError: If the environment variable is not set or empty.
+    """
     key = os.environ.get(env_name, "").strip()
     if not key:
         raise RuntimeError(f"API key not found in env var {env_name}")
@@ -97,7 +143,18 @@ def _read_api_key(env_name: str) -> str:
 
 def _image_to_base64(path: Path, max_dim: int | None = 1400) -> str:
     """
-    Read image and encode to base64 (JPEG). Optionally downscale if longer side > max_dim.
+    Read an image, optionally resize it, and encode it to Base64 JPEG.
+
+    Args:
+        path: Path to the image file.
+        max_dim: Maximum dimension (width or height) for resizing.
+                 If None, no resizing is performed.
+
+    Returns:
+        The Base64 encoded string of the JPEG image.
+
+    Raises:
+        FileNotFoundError: If the image cannot be loaded.
     """
     img = cv2.imread(str(path))
     if img is None:
@@ -120,12 +177,27 @@ def ocr_image(
     max_dim: int | None = 1400,
 ) -> str:
     """
-    Run OCR on an image path.
+    Perform Optical Character Recognition (OCR) on an image.
 
-    provider_model:
-      - "tesseract" (default)
-      - "openai:gpt-4o" (or any OpenAI vision-capable model; uses env key)
-      - "ollama:deepseek-ocr" (or other local Ollama vision model)
+    Supports local Tesseract, OpenAI Vision models, and Ollama models.
+
+    Args:
+        path: Path to the image file.
+        lang: Language code for Tesseract (default: "eng").
+        provider_model: Provider and model string.
+            - "tesseract" (default)
+            - "openai:gpt-4o" (or other OpenAI models)
+            - "ollama:deepseek-ocr" (or other Ollama models)
+        api_key_env: Environment variable name for the API key (for OpenAI).
+        timeout: Request timeout in seconds for API calls.
+        max_dim: Maximum image dimension for API calls (to reduce token usage).
+
+    Returns:
+        The extracted text string.
+
+    Raises:
+        ValueError: If the provider is unsupported.
+        RuntimeError: If the API call fails.
     """
     if ":" in provider_model:
         provider, model = provider_model.split(":", 1)
@@ -187,11 +259,17 @@ def ocr_image(
 
 def parse_measurement_rows(text: str) -> List[ParsedRow]:
     """
-    Parse OCR text into structured rows (distance/current/voltage/impedance).
-    Supports table-like lines with columns:
-      Entf. | V OUT (Korr.) | IN 1 | Z (Korr)
-      1.0m | 114.0 mA 0.00° | 13.46mV -136.56°| 118.1 mΩ -136.56°
-    Falls back to distance-led free text otherwise.
+    Parse unstructured OCR text into structured measurement rows.
+
+    Extracts distance, current, voltage, and impedance values using regex patterns.
+    Handles both table-like structures (pipe-separated) and free-text formats.
+    Attempts to normalize units (mA -> A, mV -> V, mΩ -> Ω).
+
+    Args:
+        text: The raw text output from OCR.
+
+    Returns:
+        A list of ParsedRow objects containing the extracted data.
     """
     rows: List[ParsedRow] = []
     seen_keys: set[tuple[float, Optional[float], Optional[float], Optional[float]]] = set()
@@ -525,9 +603,26 @@ def build_items_from_rows(
     distance_to_current_injection_m: Optional[float] = None,
 ) -> Dict[str, List[Dict[str, object]]]:
     """
-    Convert parsed rows into MeasurementItem payloads.
+    Convert parsed rows into MeasurementItem dictionaries for database insertion.
 
-    Returns dict with keys: impedance_items, current_items, voltage_items.
+    Processes rows to generate:
+    - Impedance items (deduplicated by distance)
+    - Earthing current items (aggregated/median filtered)
+    - Prospective touch voltage items (interpolated/selected at ~1m distance)
+
+    Args:
+        measurement_id: The ID of the parent Measurement.
+        rows: List of ParsedRow objects.
+        measurement_type: The type of measurement (e.g., "earthing_impedance").
+        frequency_hz: The frequency of the measurement.
+        distance_to_current_injection_m: Optional distance to injection point.
+
+    Returns:
+        A dictionary containing lists of item payloads:
+        - "impedance_items"
+        - "earthing_current_items"
+        - "voltage_items" (currently empty)
+        - "prospective_items"
     """
     rows_with_dist = [r for r in rows if r.distance_m is not None]
     impedance_items: List[Dict[str, object]] = []
@@ -653,9 +748,31 @@ def import_items_from_images(
     ocr_max_dim: int | None = 1400,
 ) -> Dict[str, object]:
     """
-    Run OCR over all images in a directory and create MeasurementItems.
+    Batch process images in a directory to extract and import measurement items.
 
-    Returns summary with counts and any skipped files.
+    Iterates through images, runs OCR, parses the text, and creates MeasurementItem
+    records in the database. Supports directory-based frequency handling (if
+    subdirectories are named by frequency).
+
+    Args:
+        images_dir: Path to the directory containing images.
+        measurement_id: ID of the target Measurement record.
+        measurement_type: Type of measurement (default: "earthing_impedance").
+        frequency_hz: Frequency in Hz, or "dir" to infer from subdirectory names.
+        distance_to_current_injection_m: Optional distance parameter.
+        ocr_provider: OCR backend to use ("tesseract", "openai:...", "ollama:...").
+        api_key_env: Env var for API key (if using cloud OCR).
+        ocr_timeout: Timeout for OCR API calls.
+        ocr_max_dim: Max image dimension for OCR.
+
+    Returns:
+        A summary dictionary with:
+        - "created_item_ids": List of IDs of created items.
+        - "skipped": List of skipped files/errors.
+        - "parsed_row_count": Total number of rows parsed.
+
+    Raises:
+        FileNotFoundError: If no images are found in the directory.
     """
     img_dir = Path(images_dir)
     img_freq_pairs: List[tuple[Path, float]] = []

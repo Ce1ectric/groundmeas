@@ -145,8 +145,8 @@ def read_measurements(
 
     Returns:
         A tuple:
-          - List of measurement dicts (each includes a nested "items" list)
-          - List of measurement IDs in the same order
+            - List of measurement dicts (each includes a nested "items" list)
+            - List of measurement IDs in the same order
 
     Raises:
         RuntimeError: if a database error occurs.

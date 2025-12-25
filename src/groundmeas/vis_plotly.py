@@ -30,7 +30,16 @@ def plot_imp_over_f_plotly(
     measurement_ids: Union[int, List[int]], normalize_freq_hz: Optional[float] = None
 ) -> go.Figure:
     """
-    Plot earthing impedance versus frequency using Plotly.
+    Create an interactive Plotly figure of earthing impedance vs. frequency.
+
+    Plots one curve per measurement ID. Supports normalization to a baseline frequency.
+
+    Args:
+        measurement_ids: Single Measurement ID or list of IDs.
+        normalize_freq_hz: Optional frequency (Hz) to normalize values against.
+
+    Returns:
+        A plotly.graph_objects.Figure containing the plot.
     """
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)
@@ -85,7 +94,15 @@ def plot_rho_f_model_plotly(
     rho: Union[float, List[float]] = 100,
 ) -> go.Figure:
     """
-    Plot measured impedance and rho-f model using Plotly.
+    Create an interactive Plotly figure comparing measured impedance with the Rho-f model.
+
+    Args:
+        measurement_ids: List of Measurement IDs to plot as measured data.
+        rho_f: Tuple of model coefficients (k1, k2, k3, k4, k5).
+        rho: Single resistivity value or list of values to plot model curves for.
+
+    Returns:
+        A plotly.graph_objects.Figure containing measured data and model curves.
     """
     # Start with measured data
     fig = plot_imp_over_f_plotly(measurement_ids)
@@ -124,7 +141,19 @@ def plot_voltage_vt_epr_plotly(
     frequency: float = 50.0
 ) -> go.Figure:
     """
-    Bar plot of EPR and touch voltages using Plotly.
+    Create an interactive grouped bar chart of EPR and Touch Voltages.
+
+    Visualizes:
+    - Earth Potential Rise (EPR)
+    - Prospective Touch Voltage (Vtp) - Min/Max
+    - Actual Touch Voltage (Vt) - Min/Max
+
+    Args:
+        measurement_ids: Single Measurement ID or list of IDs.
+        frequency: Frequency in Hz to extract data for (default: 50.0).
+
+    Returns:
+        A plotly.graph_objects.Figure containing the bar chart.
     """
     data = voltage_vt_epr(measurement_ids, frequency=frequency)
     single = isinstance(measurement_ids, int)
@@ -205,7 +234,18 @@ def plot_value_over_distance_plotly(
     target_frequency: Optional[float] = None,
 ) -> go.Figure:
     """
-    Plot value versus distance using Plotly.
+    Create an interactive Plotly figure of values vs. distance.
+
+    Useful for visualizing soil resistivity profiles or potential gradients.
+
+    Args:
+        measurement_ids: Single Measurement ID or list of IDs.
+        measurement_type: The type of measurement item to plot (e.g., "earthing_impedance").
+        show_all_frequencies: If True, plots a separate curve for each frequency found.
+        target_frequency: If provided (and show_all_frequencies is False), plots only this frequency.
+
+    Returns:
+        A plotly.graph_objects.Figure containing the plot.
     """
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)

@@ -58,12 +58,24 @@ CONFIG_PATH = Path.home() / ".config" / "groundmeas" / "config.json"
 
 
 def _word_choice(values: Iterable[str]) -> WordCompleter:
+    """Create a case-insensitive WordCompleter for prompt_toolkit."""
     return WordCompleter(list(values), ignore_case=True, sentence=True)
 
 
 def _prompt_text(
     message: str, default: str | None = None, completer: WordCompleter | None = None
 ) -> str:
+    """
+    Prompt the user for text input with optional default and autocompletion.
+
+    Args:
+        message: The prompt message.
+        default: Default value if user enters nothing.
+        completer: WordCompleter instance for autocompletion.
+
+    Returns:
+        The user input string.
+    """
     suffix = f" [{default}]" if default else ""
     out = prompt(f"{message}{suffix}: ", completer=completer)
     return out.strip() or (default or "")
@@ -74,6 +86,17 @@ def _prompt_float(
     default: float | None = None,
     suggestions: Sequence[str] | None = None,
 ) -> Optional[float]:
+    """
+    Prompt the user for a float value.
+
+    Args:
+        message: The prompt message.
+        default: Default float value.
+        suggestions: List of string suggestions for autocompletion.
+
+    Returns:
+        The parsed float, or None if input is empty and default is None.
+    """
     completer = _word_choice(suggestions) if suggestions else None
     while True:
         raw = _prompt_text(
@@ -96,6 +119,17 @@ def _prompt_choice(
     choices: Sequence[str],
     default: str | None = None,
 ) -> str:
+    """
+    Prompt the user to select from a list of choices.
+
+    Args:
+        message: The prompt message.
+        choices: List of valid choices.
+        default: Default choice.
+
+    Returns:
+        The selected choice string.
+    """
     completer = _word_choice(choices)
     suffix = f" [{default}]" if default else ""
     while True:
@@ -108,6 +142,7 @@ def _prompt_choice(
 
 
 def _load_measurement(measurement_id: int) -> dict[str, Any]:
+    """Load a measurement by ID or exit if not found."""
     recs, _ = read_measurements_by(id=measurement_id)
     if not recs:
         raise typer.Exit(f"Measurement id={measurement_id} not found")
@@ -115,6 +150,7 @@ def _load_measurement(measurement_id: int) -> dict[str, Any]:
 
 
 def _load_item(item_id: int) -> dict[str, Any]:
+    """Load a measurement item by ID or exit if not found."""
     recs, _ = read_items_by(id=item_id)
     if not recs:
         raise typer.Exit(f"MeasurementItem id={item_id} not found")
@@ -122,6 +158,7 @@ def _load_item(item_id: int) -> dict[str, Any]:
 
 
 def _dump_or_print(data: Any, json_out: Optional[Path]) -> None:
+    """Write data to a JSON file or print to stdout."""
     if json_out:
         json_out.write_text(json.dumps(data, indent=2))
         typer.echo(f"Wrote {json_out}")
@@ -130,10 +167,12 @@ def _dump_or_print(data: Any, json_out: Optional[Path]) -> None:
 
 
 def _measurement_types() -> List[str]:
+    """Get list of valid measurement types from the model definition."""
     return sorted(get_args(MeasurementType))  # type: ignore[arg-type]
 
 
 def _existing_locations() -> List[str]:
+    """Get list of unique location names from the database."""
     try:
         measurements, _ = read_measurements_by()
     except Exception:
@@ -143,6 +182,7 @@ def _existing_locations() -> List[str]:
 
 
 def _existing_measurement_values(field: str) -> List[str]:
+    """Get list of unique values for a specific measurement field."""
     try:
         measurements, _ = read_measurements_by()
     except Exception:
@@ -152,6 +192,7 @@ def _existing_measurement_values(field: str) -> List[str]:
 
 
 def _existing_item_units(measurement_type: str) -> List[str]:
+    """Get list of unique units used for a specific measurement type."""
     try:
         items, _ = read_items_by(measurement_type=measurement_type)
     except Exception:
@@ -161,6 +202,7 @@ def _existing_item_units(measurement_type: str) -> List[str]:
 
 
 def _existing_item_values(field: str, measurement_type: str | None = None) -> List[str]:
+    """Get list of unique values for a specific item field, optionally filtered by type."""
     filters: dict[str, Any] = {}
     if measurement_type:
         filters["measurement_type"] = measurement_type
@@ -173,6 +215,7 @@ def _existing_item_values(field: str, measurement_type: str | None = None) -> Li
 
 
 def _resolve_db(db: Optional[str]) -> str:
+    """Resolve the database path from args, config, or default."""
     if db:
         return db
     if CONFIG_PATH.exists():
@@ -187,11 +230,13 @@ def _resolve_db(db: Optional[str]) -> str:
 
 
 def _save_default_db(db_path: str) -> None:
+    """Save the database path to the user config file."""
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps({"db_path": db_path}, indent=2))
 
 
 def _print_measurement_summary(mid: int, measurement: dict[str, Any], items: List[dict[str, Any]]) -> None:
+    """Print a human-readable summary of a measurement and its items."""
     typer.echo("\nSummary")
     typer.echo("-------")
     typer.echo(f"Measurement id={mid}")

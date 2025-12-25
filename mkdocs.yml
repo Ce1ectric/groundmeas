@@ -1,0 +1,62 @@
+site_name: groundmeas
+site_description: Grounding System Measurements & Analysis
+site_author: Christian Ehlert
+repo_url: https://github.com/Ce1ectric/groundmeas
+repo_name: Ce1ectric/groundmeas
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: teal
+      accent: purple
+    - scheme: slate
+      primary: teal
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+
+nav:
+  - Home: 00_index.md
+  - Quickstart: 02_quickstart.md
+  - Data Model: 01_datamodels.md
+  - Tutorials:
+      - Overview: 10_tutorial_intro.md
+      - Create Measurements: 11_create_measurements.md
+      - Read Measurements: 12_read_measurements.md
+      - Change Measurements: 13_change_measurements.md
+      - Import & Export: 14_import_export.md
+      - Analytics: 15_analytics.md
+      - Dashboard: 16_dashboard.md
+  - Reference:
+      - Overview: 20_ref_intro.md
+      - API: 21_ref_api.md
+      - CLI: 22_ref_cli.md
+  - Contributing: 99_contributing.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

@@ -1,11 +1,15 @@
 # Python environment
 .env/
 .venv/
+.github/
+.*
 notebooks/.venv/
 notebooks/.env/
 notebooks/
 dist/
 scripts/
+sites/
+docs/
 # export datatypes
 # all csv
 *.csv

@@ -33,6 +33,9 @@ pytest = "^8.3.5"
 black = "^25.1.0"
 ipykernel = "^6.29.5"
 pytest-cov = "^6.1.1"
+mkdocs = "^1.6.1"
+mkdocs-material = "^9.7.1"
+mkdocstrings = {extras = ["python"], version = "^1.0.0"}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

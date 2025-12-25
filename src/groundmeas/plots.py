@@ -1,4 +1,15 @@
-# src/groundmeas/plots.py
+"""
+groundmeas.plots
+================
+
+Matplotlib-based plotting functions for earthing measurements.
+
+Provides functions to visualize:
+- Impedance vs. Frequency
+- Rho-f model comparisons
+- Touch voltages and EPR (Earth Potential Rise)
+- Values over distance (e.g. soil resistivity profiles)
+"""
 
 import matplotlib.pyplot as plt
 from typing import Tuple, Union, List, Dict, Any, Optional
@@ -149,15 +160,22 @@ def plot_voltage_vt_epr(
     frequency: float = 50.0
 ) -> plt.Figure:
     """
-    Bar‐plot of EPR and both min/max of prospective and actual touch voltages.
+    Plot Earth Potential Rise (EPR) and Touch Voltages (Prospective & Actual).
 
-    For each measurement ID you’ll see:
-      • EPR (V) at x–width
-      • Prospective TV max & min overlayed at x
-      • Actual      TV max & min overlayed at x+width
+    Creates a grouped bar chart showing:
+    - EPR (Earth Potential Rise)
+    - Prospective Touch Voltage (Vtp): Min and Max
+    - Actual Touch Voltage (Vt): Min and Max
 
-    All voltage bars start at zero so the longer (max) bars show their full length
-    behind the shorter (min) bars.
+    Bars are grouped by Measurement ID. Max values are plotted behind Min values
+    to show the range.
+
+    Args:
+        measurement_ids: Single Measurement ID or list of IDs.
+        frequency: Frequency in Hz to extract data for (default: 50.0).
+
+    Returns:
+        A matplotlib Figure containing the bar chart.
     """
     # 1) get the numbers
     data = voltage_vt_epr(measurement_ids, frequency=frequency)

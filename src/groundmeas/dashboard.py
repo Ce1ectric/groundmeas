@@ -30,6 +30,17 @@ st.set_page_config(page_title="Groundmeas Dashboard", layout="wide")
 CONFIG_PATH = Path.home() / ".config" / "groundmeas" / "config.json"
 
 def resolve_db_path() -> str:
+    """
+    Determine the database path from environment variables or config file.
+
+    Priority:
+    1. GROUNDMEAS_DB environment variable.
+    2. ~/.config/groundmeas/config.json ("db_path" key).
+    3. Default: "groundmeas.db" in the current working directory.
+
+    Returns:
+        The resolved database file path as a string.
+    """
     # Check environment variable
     env_db = os.environ.get("GROUNDMEAS_DB")
     if env_db:
@@ -49,6 +60,12 @@ def resolve_db_path() -> str:
     return str(Path("groundmeas.db").resolve())
 
 def init_db():
+    """
+    Initialize the database connection.
+
+    Calls connect_db() with the resolved path. Displays an error in Streamlit
+    if the connection fails.
+    """
     db_path = resolve_db_path()
     try:
         connect_db(db_path)
@@ -57,6 +74,12 @@ def init_db():
         st.error(f"Failed to connect to database at {db_path}: {e}")
 
 def main():
+    """
+    Main entry point for the Streamlit dashboard.
+
+    Sets up the layout, loads data, renders the map, and handles user interactions
+    for filtering and analysis.
+    """
     # Initialize DB connection
     init_db()
 

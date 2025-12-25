@@ -1,58 +1,59 @@
 # groundmeas: Grounding System Measurements & Analysis
 
-**groundmeas** is a Python package for collecting, storing, analyzing, and visualizing earthing (grounding) measurement data.
+**groundmeas** is a comprehensive Python package designed for the management, analysis, and visualization of earthing (grounding) system measurements. It provides a robust toolset for engineers and researchers to handle field data, perform complex physical analysis, and generate interactive reports.
 
 ---
 
-## Project Description
+## 📚 Physical Background
 
-groundmeas provides:
+Understanding the behavior of grounding systems is critical for electrical safety and system performance. `groundmeas` implements several standard and advanced methods for analyzing measurement data.
 
-* **Database models & CRUD** via SQLModel/SQLAlchemy (`Location`, `Measurement`, `MeasurementItem`).
-* **Export utilities** to JSON, CSV, and XML.
-* **Analytics routines** for impedance-over-frequency, real–imaginary processing, rho–f model fitting, and shield-current split factors (`calculate_split_factor`).
-* **Plotting helpers** for impedance vs frequency and model overlays using Matplotlib.
-* **CLI** (`gm-cli`) with interactive entry, DB-backed autocomplete, listing, add/edit items and measurements, default DB config, and JSON import/export.
+### Earthing Impedance ($Z_E$)
+The earthing impedance is a frequency-dependent parameter defined as the ratio of the Earth Potential Rise (EPR) to the current flowing into the earth ($I_E$).
+$$ Z_E(f) = \frac{V_{EPR}(f)}{I_E(f)} $$
 
-It’s designed to help engineers and researchers work with earthing measurement campaigns, automate data pipelines, and quickly gain insights on soil resistivity and grounding impedance behavior.
+### Soil Resistivity ($\rho$)
+Soil resistivity is a key factor influencing the grounding resistance. It is typically measured using the Wenner or Schlumberger method and varies with depth and frequency.
 
----
+### The Rho-f Model
+To characterize the frequency dependence of a grounding system, `groundmeas` implements the **Rho-f Model**. This empirical model correlates the earthing impedance with soil resistivity ($\rho$) and frequency ($f$) using a linear regression approach with complex coefficients:
 
-## Technical Background
+$$ Z(\rho, f) = k_1 \cdot \rho + (k_2 + j \cdot k_3) \cdot f + (k_4 + j \cdot k_5) \cdot \rho \cdot f $$
 
-In grounding studies, measurements of earth electrode impedance are taken over a range of frequencies, and soil resistivity measurements at various depths are collected.
+Where $k_1 \dots k_5$ are coefficients determined by fitting the model to measured data. This allows for the prediction of impedance behavior under varying soil conditions and frequencies.
 
-* **Earthing Impedance** $Z$ vs. **Frequency** (f): typically expressed in Ω.
-* **Soil Resistivity** (ρ) vs. **Depth** (d): used to model frequency‑dependent behavior.
-* **rho–f Model**: fits the relationship
+### Determination of Earthing Impedance (Fall-of-Potential)
+When measuring impedance using the Fall-of-Potential method, the challenge is to determine the "true" impedance from a distance vs. impedance profile. `groundmeas` offers multiple algorithms to extract this value:
 
-  $$
-  Z(ρ, f) = k_1·ρ + (k_2 + j·k_3)·f + (k_4 + j·k_5)·ρ·f
-  $$
-
-where $k_1…k_5$ are real coefficients determined by least‑squares across multiple measurements.
-
-### Distance–Value Profile Algorithms (impedance/voltage over distance)
-
-Given pairs $(d_i, y_i)$ with distance $d_i$ (m) and measured impedance/voltage $y_i$:
-
-- **Maximum**: pick $\max(y_i)$ and its distance $d_{\arg\max}$.
-- **62 % rule**: requires injection distance $L$. Target distance $d_* = 0.62·L$. Interpolate linearly around $d_*$ using the three nearest points → $y(d_*)$.
-- **Minimum gradient**: compute discrete gradient $g_i \approx \Delta y / \Delta d$ (NumPy `gradient` over sorted points). Choose the point with minimal $|g_i|$ → report $(y_i, d_i)$ there.
-- **Minimum standard deviation**: slide a window of size $w$ across sorted points, compute $\sigma_j = \operatorname{std}(y_{j…j+w-1})$. Select the window with minimal $\sigma_j$; return the maximum value inside that window and its distance.
-- **Inverse extrapolation**: transform $x_i = 1/d_i$, $z_i = 1/y_i$. Fit a line $z = a·x + b$; as $d \to \infty$ ($x \to 0$), $z \to b$, so the characteristic value is $1/b$ (distance reported as ∞).
-
-Requirements/notes:
-- Distances and values must be finite; inverse algorithm additionally requires all $d_i, y_i > 0$.
-- For the 62 % rule, `distance_to_current_injection_m` must be available (consistent across items).
-- All algorithms work on sorted distance–value pairs, skipping items missing `measurement_distance_m` or `value`.
+1.  **Maximum**: Returns the highest measured value (conservative approach).
+2.  **62% Rule**: Interpolates the value at 62% of the distance to the current injection point (valid for homogeneous soil).
+3.  **Minimum Gradient**: Identifies the flat portion of the curve where the gradient ($\Delta Z / \Delta d$) is minimal.
+4.  **Minimum Standard Deviation**: Uses a sliding window to find the region with the lowest variance (flattest part of the curve).
+5.  **Inverse Extrapolation**: Fits a function $1/Z = a \cdot (1/d) + b$ to extrapolate the value at infinite distance ($d \to \infty$).
 
 ---
 
-## Installation
+## 🚀 Features
 
-Requires Python 3.12+:
+*   **Data Management**: robust SQLite database with SQLModel (Pydantic) ORM for `Measurements`, `MeasurementItems`, and `Locations`.
+*   **Interactive Dashboard**: A Streamlit-based web interface with:
+    *   **Map Visualization**: Geospatial view of measurement locations using Folium.
+    *   **Interactive Plots**: Plotly-based charts for Impedance vs. Frequency, Voltage profiles, and more.
+    *   **Engineering Notation**: Automatic formatting of axis labels (e.g., $k\Omega$, $mA$).
+*   **CLI (Command Line Interface)**: A powerful Typer-based CLI for all operations.
+*   **Analytics**: Built-in functions for:
+    *   Split factor calculation (shield currents).
+    *   Touch voltage ($V_t$) and Prospective Touch Voltage ($V_{tp}$) analysis.
+    *   Complex number processing (Real/Imaginary/Magnitude/Angle).
+*   **Import/Export**: Support for JSON import/export, including batch processing of folders.
 
+---
+
+## 📦 Installation
+
+**Prerequisites**: Python 3.12+
+
+### Using Poetry (Recommended)
 ```bash
 git clone https://github.com/Ce1ectric/groundmeas.git
 cd groundmeas
@@ -60,217 +61,106 @@ poetry install
 poetry shell
 ```
 
-or using pip locally:
+### Using Pip
 ```bash
-git clone https://github.com/Ce1ectric/groundmeas.git
-cd groundmeas
-pip install .
+pip install groundmeas
 ```
-
-Or install via pip: `pip install groundmeas`.
 
 ---
 
-## Usage
-### 0. CLI quickstart
+## 🖥️ Usage
 
-```bash
-gm-cli --db path/to/data.db add-measurement   # interactive wizard with autocomplete
-gm-cli --db path/to/data.db list-measurements
-gm-cli --db path/to/data.db list-items 1
-gm-cli --db path/to/data.db edit-measurement 1   # edit a measurement with defaults prefilled
-gm-cli --db path/to/data.db import-json notebooks/measurements/foo_measurement.json
-gm-cli --db path/to/data.db export-json out.json
-# Add a single item to an existing measurement
-gm-cli --db path/to/data.db add-item 5
-# Edit an existing item
-gm-cli --db path/to/data.db edit-item 42
-# Delete an item or a measurement (with confirmation)
-gm-cli --db path/to/data.db delete-item 42
-gm-cli --db path/to/data.db delete-measurement 5
-# Analytics from CLI
-gm-cli --db path/to/data.db impedance-over-frequency 1 --json-out imp.json
-gm-cli --db path/to/data.db rho-f-model 1 2 3 --json-out rho.json
-gm-cli --db path/to/data.db voltage-vt-epr 1 2 -f 50 --json-out vt.json
-gm-cli --db path/to/data.db calculate-split-factor --earth-fault-id 10 --shield-id 11 --shield-id 12
-# Plotting from CLI (writes images)
-gm-cli --db path/to/data.db plot-impedance 1 2 --out imp.png
-gm-cli --db path/to/data.db plot-rho-f-model 1 2 3 --out rho.png
-gm-cli --db path/to/data.db plot-voltage-vt-epr 1 2 --out vt.png
-# Save a default DB path (~/.config/groundmeas/config.json) so --db is optional
-gm-cli set-default-db path/to/data.db
-# Enable shell completion (example for zsh)
-gm-cli --install-completion zsh
+### 1. The Command Line Interface (CLI)
+The `gm-cli` tool is the main entry point for managing your data.
 
-# OCR import (offline Tesseract/OpenCV)
-gm-cli --db path/to/data.db import-from-images 123 ./images_dir \
-  --type earthing_impedance --frequency 50 --injection-distance 100
-# Future: swap to an online OCR provider once implemented if quality is insufficient
+**Setup Database:**
+By default, `groundmeas` looks for a database. You can specify one via the `--db` flag or set a default path in `~/.config/groundmeas/config.json`.
 
-# OCR import with configurable provider
-# Offline Tesseract (default):
-gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance --frequency 50
-# Read frequency from subfolder names (e.g., images/50/*.jpg, images/150/*.jpg):
-gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance --frequency dir
-# Use OpenAI vision model (set your API key in OPENAI_API_KEY or override --api-key-env):
-gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance \
-  --frequency dir --ocr openai:gpt-4o --api-key-env OPENAI_API_KEY
-# Use local Ollama vision OCR (e.g., deepseek-ocr), Ollama must be running:
-gm-cli --db path/to/data.db import-from-images 123 ./images_dir --type earthing_impedance \
-  --frequency dir --ocr ollama:deepseek-ocr
+**Common Commands:**
 
-OCR notes:
-- Images are expected to be photographs of the OMICRON COMPANO 100 display. Better lighting/focus → better OCR.
-- When `--frequency dir` is used, frequencies are read from subfolder names (e.g., images/50/*.jpeg → 50 Hz).
-- For OpenAI OCR, set your API key via env var (default `OPENAI_API_KEY`; override with `--api-key-env`). If you hit rate/size limits, downscale via `--ocr-max-dim` or retry later.
-- For Ollama OCR, ensure the vision model is pulled and the Ollama server is running locally.
-```
+*   **Dashboard**: Launch the interactive visualization tool.
+    ```bash
+    gm-cli dashboard
+    ```
 
-Set `GROUNDMEAS_DB` to avoid passing `--db` each time.
+*   **Import Data**: Import measurements from a JSON file or a folder of JSON files.
+    ```bash
+    gm-cli import-json ./data/measurements/
+    ```
 
-### 1. Database Setup
+*   **List Data**: View stored measurements.
+    ```bash
+    gm-cli list-measurements
+    ```
 
-Initialize or connect to a SQLite database (tables will be created automatically):
+*   **Analytics**: Calculate the characteristic impedance using the minimum gradient method.
+    ```bash
+    gm-cli distance-profile 1 --algorithm minimum_gradient
+    ```
+
+*   **Help**: See all available commands.
+    ```bash
+    gm-cli --help
+    ```
+
+### 2. The Interactive Dashboard
+The dashboard provides a user-friendly interface to explore your data.
+
+1.  Run `gm-cli dashboard`.
+2.  **Map View**: Select measurement points on the map. Use "Multi-select mode" to compare multiple datasets.
+3.  **Analysis Tabs**:
+    *   **Impedance vs Frequency**: Compare frequency responses ($Z_E$).
+    *   **Rho-f Model**: Fit and visualize the model parameters.
+    *   **Voltage / EPR**: Analyze Earth Potential Rise and Touch Voltages ($V_t$, $V_{tp}$).
+    *   **Value vs Distance**: Visualize Fall-of-Potential curves with filtering by frequency.
+
+### 3. Python API
+You can use `groundmeas` directly in your Python scripts or Jupyter notebooks.
 
 ```python
-from groundmeas.db import connect_db
-connect_db("mydata.db", echo=True)
+from groundmeas.db import connect_db, read_measurements_by
+from groundmeas.analytics import impedance_over_frequency
+
+# Connect to DB
+connect_db("groundmeas.db")
+
+# Fetch data
+measurements, _ = read_measurements_by(location_id=1)
+
+# Analyze
+for meas in measurements:
+    z_f = impedance_over_frequency(meas["id"])
+    print(f"Measurement {meas['id']}: {z_f}")
 ```
-
-### 2. Creating Measurements
-
-Insert a measurement (optionally with nested location) and its items:
-
-```python
-from groundmeas.db import create_measurement, create_item
-
-# Create measurement with nested Location
-meas_id = create_measurement({
-    "timestamp": "2025-01-01T12:00:00",
-    "method": "staged_fault_test",
-    "voltage_level_kv": 10.0,
-    "asset_type": "substation",
-    "location": {"name": "Site A", "latitude": 52.0, "longitude": 13.0},
-})
-
-# Add earthing impedance item
-item_id = create_item({
-    "measurement_type": "earthing_impedance",
-    "frequency_hz": 50.0,
-    "value": 12.3
-}, measurement_id=meas_id)
-```
-
-### 3. Exporting Data
-
-Export measurements (and nested items) to various formats:
-
-```python
-from groundmeas.export import (
-    export_measurements_to_json,
-    export_measurements_to_csv,
-    export_measurements_to_xml,
-)
-
-export_measurements_to_json("data.json")
-export_measurements_to_csv("data.csv")
-export_measurements_to_xml("data.xml")
-```
-
-### 4. Analytics
-
-Compute relevant connections between quantities of the earthing system: 
-- impedance and 
-- real / imaginary parts over frequency, 
-- fit the rho–f model
-- prospective touch voltage vs. Earth Potential Rise
-
-```python
-from groundmeas.analytics import (
-    impedance_over_frequency,
-    real_imag_over_frequency,
-    rho_f_model,
-    voltage_vt_epr,
-    shield_currents_for_location,
-    calculate_split_factor,
-)
-
-# Impedance vs frequency for a single measurement
-imp_map = impedance_over_frequency(1)
-
-# Real & Imag components for multiple measurements
-ri_map = real_imag_over_frequency([1, 2, 3])
-
-# Fit rho–f model across measurements [1,2,3]
-k1, k2, k3, k4, k5 = rho_f_model([1, 2, 3])
-
-# summarise the min, max measured touch voltages and the EPR for multiple measurements 
-touch_min, touch_max, epr = voltage_vt_epr([1, 2, 3])
-
-# Gather available shield currents at a site and compute split factors
-candidates = shield_currents_for_location(location_id=5, frequency_hz=50.0)
-# Pick the shield_current item IDs that share the same angle reference
-shield_ids = [c["id"] for c in candidates]
-split = calculate_split_factor(
-    earth_fault_current_id=42,
-    shield_current_ids=shield_ids,
-)
-split_factor = split["split_factor"]
-local_earthing_current = split["local_earthing_current"]["value"]
-```
-
-#### Using the distance–profile analytics
-
-From Python:
-```python
-from groundmeas.analytics import distance_profile_value
-
-result = distance_profile_value(
-    measurement_id=1,
-    measurement_type="earthing_impedance",
-    algorithm="62_percent",   # maximum | 62_percent | minimum_gradient | minimum_stddev | inverse
-    window=3,                 # only used for minimum_stddev
-)
-print(result["result_value"], result["result_distance_m"])
-```
-
-From the CLI:
-```bash
-gm-cli --db path/to/data.db distance-profile 1 \
-  --type earthing_impedance --algorithm 62_percent --window 3
-# Prints:
-# Method, Value, Distance
-# 62_percent, 1.35 Ω, 62.0 m
-```
-
-### 5. Plotting
-
-Visualize raw and modeled curves:
-
-```python
-from groundmeas.plots import plot_imp_over_f, plot_rho_f_model
-
-# Raw impedance curves
-fig1 = plot_imp_over_f([1, 2, 3])
-fig1.show()
-
-# Normalized at 50 Hz
-fig2 = plot_imp_over_f(1, normalize_freq_hz=50)
-fig2.show()
-
-# Overlay rho–f model
-fig3 = plot_rho_f_model([1,2,3], (k1,k2,k3,k4,k5), rho=[100, 200])
-fig3.show()
-```
-
-## Contributing
-
-Pull requests are welcome!
-For major changes, please open an issue first to discuss.
-Ensure tests pass and add new tests for your changes.
 
 ---
 
-## License
+## 📂 Project Structure
 
-MIT License. See [LICENSE](LICENSE) for details.
+```
+groundmeas/
+├── src/groundmeas/       # Source code
+│   ├── analytics.py      # Physical models and algorithms
+│   ├── cli.py            # Command Line Interface definition
+│   ├── dashboard.py      # Streamlit dashboard entry point
+│   ├── db.py             # Database connection and CRUD
+│   ├── models.py         # SQLModel data definitions
+│   └── vis_plotly.py     # Plotly visualization logic
+├── scripts/              # Helper scripts (e.g., release.py)
+├── tests/                # Pytest suite
+└── pyproject.toml        # Project configuration and dependencies
+```
+
+---
+
+## 🤝 Contributing
+
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feat/new-feature`).
+3.  Commit your changes.
+4.  Push to the branch.
+5.  Open a Pull Request.
+
+## 📄 License
+
+[MIT License](LICENSE)
