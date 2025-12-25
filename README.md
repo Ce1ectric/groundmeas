@@ -2,6 +2,8 @@
 
 **groundmeas** is a comprehensive Python package designed for the management, analysis, and visualization of earthing (grounding) system measurements. It provides a robust toolset for engineers and researchers to handle field data, perform complex physical analysis, and generate interactive reports.
 
+See the full documentation here: https://ce1ectric.github.io/groundmeas/
+
 ---
 
 ## 📚 Physical Background
