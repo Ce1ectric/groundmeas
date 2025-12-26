@@ -1,6 +1,6 @@
 [project]
 name = "groundmeas"
-version = "1.3.1"
+version = "1.3.2"
 description = ""
 authors = [
     {name = "Christian Ehlert",email = "christian.ehlert@mailbox.org"}
