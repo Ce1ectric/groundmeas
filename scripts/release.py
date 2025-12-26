@@ -32,15 +32,15 @@ def update_citation_version(citation_file: Path, new_version: str) -> bool:
     while avoiding the 'cff-version' header.
     """
     content = citation_file.read_text()
-    pattern = re.compile(r"(?m)^\\s*version:\\s*[\"']?[^\"'\\n]*[\"']?\\s*$")
+    pattern = re.compile(r"(?m)^\s*version:\s*[\"']?[^\"'\n]*[\"']?\s*$")
     new_line = f"version: {new_version}"
 
     updated_content, count = pattern.subn(new_line, content, count=1)
     if count == 0:
         return False
 
-    if not updated_content.endswith("\\n"):
-        updated_content += "\\n"
+    if not updated_content.endswith("\n"):
+        updated_content += "\n"
     citation_file.write_text(updated_content)
     return True
 
