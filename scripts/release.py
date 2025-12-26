@@ -24,6 +24,26 @@ def run_command(command: str, shell: bool = False):
         console.print(e.stderr)
         sys.exit(1)
 
+def update_citation_version(citation_file: Path, new_version: str) -> bool:
+    """
+    Update the version field inside CITATION.cff.
+
+    We match lines that start with 'version:' (allowing whitespace and quotes)
+    while avoiding the 'cff-version' header.
+    """
+    content = citation_file.read_text()
+    pattern = re.compile(r"(?m)^\\s*version:\\s*[\"']?[^\"'\\n]*[\"']?\\s*$")
+    new_line = f"version: {new_version}"
+
+    updated_content, count = pattern.subn(new_line, content, count=1)
+    if count == 0:
+        return False
+
+    if not updated_content.endswith("\\n"):
+        updated_content += "\\n"
+    citation_file.write_text(updated_content)
+    return True
+
 @app.command()
 def release():
     """
@@ -70,15 +90,24 @@ def release():
     # 3b. Update CITATION.cff version
     citation_file = Path("CITATION.cff")
     if citation_file.exists():
-        cit_content = citation_file.read_text()
-        new_cit = re.sub(r"^version:\\s*.*$", f"version: {new_version}", cit_content, flags=re.MULTILINE)
-        if cit_content == new_cit:
-            console.print("[yellow]Warning: Could not update version in CITATION.cff (pattern not found?).[/yellow]")
-        else:
-            citation_file.write_text(new_cit)
+        if update_citation_version(citation_file, new_version):
             console.print(f"Updated {citation_file}")
+        else:
+            console.print("[yellow]Warning: Could not update version in CITATION.cff (version key not found).[/yellow]")
     else:
         console.print("[yellow]Warning: CITATION.cff not found.[/yellow]")
+
+    # 3c. Regenerate third-party notices/licenses
+    console.print("[bold green]Generating third-party notices...[/bold green]")
+    try:
+        subprocess.run(
+            ["python", "scripts/generate_third_party_licenses.py"],
+            check=True,
+        )
+        console.print("[bold green]Third-party notices updated.[/bold green]")
+    except subprocess.CalledProcessError:
+        console.print("[bold red]Failed to generate third-party notices. Aborting release.[/bold red]")
+        sys.exit(1)
 
     # 4. Run tests
     console.print("[bold green]Running tests...[/bold green]")
