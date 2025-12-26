@@ -36,6 +36,7 @@ pytest-cov = "^6.1.1"
 mkdocs = "^1.6.1"
 mkdocs-material = "^9.7.1"
 mkdocstrings = {extras = ["python"], version = "^1.0.0"}
+pip-licenses = "^5.0.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -43,3 +44,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 gm-cli = "groundmeas.ui.cli:app"
+licenses = "scripts.generate_third_party_licenses:main"

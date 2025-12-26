@@ -68,6 +68,19 @@ poetry shell
 pip install groundmeas
 ```
 
+### License check & third-party notices
+List installed package licenses:
+```bash
+poetry run python scripts/license_check.py
+```
+
+Generate a Markdown report (including license texts) for compliance:
+```bash
+poetry install --with dev
+poetry run pip-licenses --format=markdown --with-license-file > THIRD_PARTY_NOTICES.md
+```
+Commit `THIRD_PARTY_NOTICES.md` if you want the notices tracked.
+
 ---
 
 ## 🖥️ Usage
