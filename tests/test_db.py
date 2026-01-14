@@ -1,8 +1,6 @@
 # tests/test_db.py
 
 import pytest
-import datetime
-from pathlib import Path
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as SA_Session
@@ -17,11 +15,10 @@ from groundmeas.core.db import (
     read_measurements_by,
     read_items_by,
     update_measurement,
-    delete_measurement,
     update_item,
+    delete_measurement,
     delete_item,
 )
-from groundmeas.core.models import Location, Measurement, MeasurementItem
 
 
 def test_connect_db_success(tmp_path):
@@ -65,6 +62,8 @@ class DummyMeas:
 class DummyItem:
     def __init__(self):
         self.id = 99
+        self.value = None
+        self.unit = None
     def model_dump(self):
         return {"id": self.id, "x": 42}
 
@@ -87,14 +86,6 @@ class FakeSessionReadMeasurements:
     def execute(self, stmt):
         return FakeResult([DummyMeas()])
 
-class FakeSessionReadMeasurements:
-    """Session stub that always returns DummyMeas."""
-    def __enter__(self):
-        return self
-    def __exit__(self, *args):
-        return False
-    def execute(self, stmt):
-        return FakeResult([DummyMeas()])
 
 class FakeSessionReadItems:
     """Session stub that always returns DummyItem."""
@@ -104,6 +95,7 @@ class FakeSessionReadItems:
         return False
     def execute(self, stmt):
         return FakeResult([DummyItem()])
+
 
 class FakeSessionGet:
     def __init__(self, to_get=None, error_on_commit=False):
@@ -135,6 +127,23 @@ class FakeSessionGet:
     def delete(self, obj):
         self.deleted = obj
 
+    def flush(self):
+        pass
+
+
+class DummyLocation:
+    def __init__(self, name="Loc"):
+        self.id = None
+        self.name = name
+
+
+class DummyMeasurement:
+    def __init__(self, location_id=None, location=None):
+        self.location_id = location_id
+        self.location = location
+        self.method = None
+        self.asset_type = None
+
 
 def test_create_measurement_no_location(monkeypatch):
     fake = FakeSessionGet(to_get=None)
@@ -146,8 +155,6 @@ def test_create_measurement_no_location(monkeypatch):
 
 def test_create_measurement_with_location(monkeypatch):
     # two sessions: first for Location, second for Measurement
-    loc = Location(name="X")
-    meas = Measurement(foo="baz")
     # session1 refresh loc.id=123, session2 refresh meas.id=456
     class S1(FakeSessionGet):
         def refresh(self, obj):
@@ -254,8 +261,91 @@ def test_read_measurements_by_success(monkeypatch):
     assert ids == [7]
 
 def test_read_items_by_success(monkeypatch):
-    monkeypatch.setattr(db, "_get_session", lambda: FakeSessionReadMeasurements())
     monkeypatch.setattr(db, "_get_session", lambda: FakeSessionReadItems())
     recs, ids = read_items_by(measurement_id=5)
     assert recs[0]["x"] == 42
     assert ids == [99]
+
+
+def test_read_items_by_unsupported_op():
+    with pytest.raises(ValueError):
+        read_items_by(id__bad=1)
+
+
+def test_update_measurement_updates_location(monkeypatch):
+    loc = DummyLocation(name="Old")
+    meas = DummyMeasurement(location_id=1, location=loc)
+
+    session = FakeSessionGet(to_get=meas)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+
+    updated = update_measurement(1, {"method": "wenner", "location": {"name": "New"}})
+    assert updated is True
+    assert meas.method == "wenner"
+    assert meas.location.name == "New"
+
+
+def test_update_measurement_creates_location(monkeypatch):
+    meas = DummyMeasurement(location_id=None, location=None)
+
+    class SessionWithFlush(FakeSessionGet):
+        def add(self, obj):
+            super().add(obj)
+            if getattr(obj, "id", None) is None:
+                obj.id = 999
+
+    session = SessionWithFlush(to_get=meas)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+
+    updated = update_measurement(1, {"location": {"name": "New"}})
+    assert updated is True
+    assert meas.location_id == 999
+
+
+def test_update_measurement_not_found(monkeypatch):
+    session = FakeSessionGet(to_get=None)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert update_measurement(5, {"method": "wenner"}) is False
+
+
+def test_update_item_success(monkeypatch):
+    item = DummyItem()
+    session = FakeSessionGet(to_get=item)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert update_item(5, {"value": 1.5, "unit": "ohm"}) is True
+    assert item.value == 1.5
+    assert item.unit == "ohm"
+
+
+def test_update_item_not_found(monkeypatch):
+    session = FakeSessionGet(to_get=None)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert update_item(5, {"value": 1.5}) is False
+
+
+def test_delete_measurement_success(monkeypatch):
+    meas = DummyMeasurement()
+    session = FakeSessionGet(to_get=meas)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert delete_measurement(3) is True
+    assert session.deleted is meas
+
+
+def test_delete_measurement_not_found(monkeypatch):
+    session = FakeSessionGet(to_get=None)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert delete_measurement(3) is False
+
+
+def test_delete_item_success(monkeypatch):
+    item = DummyItem()
+    session = FakeSessionGet(to_get=item)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert delete_item(4) is True
+    assert session.deleted is item
+
+
+def test_delete_item_not_found(monkeypatch):
+    session = FakeSessionGet(to_get=None)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
+    assert delete_item(4) is False

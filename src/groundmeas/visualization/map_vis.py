@@ -78,7 +78,7 @@ def generate_map(
         <b>ID:</b> {meas.get('id')}<br>
         <b>Site:</b> {loc.get('name')}<br>
         <b>Date:</b> {meas.get('timestamp')}<br>
-        <b>Type:</b> {meas.get('measurement_type')}<br>
+        <b>Type:</b> {meas.get('asset_type')}<br>
         <b>Method:</b> {meas.get('method')}<br>
         """
         

@@ -4,9 +4,6 @@ import pytest
 import math
 from datetime import datetime, timezone
 
-import numpy as np
-from pydantic import ValidationError
-
 from groundmeas.core.models import (
     Location,
     Measurement,

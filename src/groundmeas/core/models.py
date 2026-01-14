@@ -23,8 +23,6 @@ from typing import Optional, List, Literal
 from sqlalchemy import Column, String, event
 from sqlmodel import SQLModel, Field, Relationship
 
-from pydantic import field_validator
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +44,8 @@ MethodType = Literal[
     "staged_fault_test",
     "injection_remote_substation",
     "injection_earth_electrode",
+    "wenner",
+    "schlumberger",
 ]
 
 AssetType = Literal[

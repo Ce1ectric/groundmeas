@@ -48,7 +48,7 @@ This project makes use of the following third-party open-source software.
 | Markdown | 3.10 | BSD-3-Clause |
 | markdown-it-py | 3.0.0 | MIT License |
 | MarkupSafe | 3.0.3 | BSD-3-Clause |
-| matplotlib | 3.10.1 | Python Software Foundation License |
+| matplotlib | 3.10.8 | Python Software Foundation License |
 | matplotlib-inline | 0.1.7 | BSD License |
 | mdurl | 0.1.2 | MIT License |
 | mergedeep | 1.3.4 | MIT License |
@@ -80,8 +80,8 @@ This project makes use of the following third-party open-source software.
 | ptyprocess | 0.7.0 | ISC License (ISCL) |
 | pure_eval | 0.2.3 | MIT License |
 | pyarrow | 22.0.0 | Apache Software License |
-| pydantic | 2.11.4 | MIT |
-| pydantic_core | 2.33.2 | MIT License |
+| pydantic | 2.12.5 | MIT |
+| pydantic_core | 2.41.5 | MIT |
 | pydeck | 0.9.1 | Apache License 2.0 |
 | Pygments | 2.19.1 | BSD License |
 | pymdown-extensions | 10.19.1 | MIT |
@@ -98,13 +98,14 @@ This project makes use of the following third-party open-source software.
 | requests | 2.32.5 | Apache Software License |
 | rich | 14.0.0 | MIT License |
 | rpds-py | 0.30.0 | MIT |
+| scipy | 1.17.0 | BSD License |
 | shellingham | 1.5.4 | ISC License (ISCL) |
 | six | 1.17.0 | MIT License |
 | smmap | 5.0.2 | BSD License |
-| SQLAlchemy | 2.0.40 | MIT License |
+| SQLAlchemy | 2.0.45 | MIT |
 | sqlite-fts4 | 1.0.3 | Apache License, Version 2.0 |
 | sqlite-utils | 3.38 | Apache Software License |
-| sqlmodel | 0.0.24 | MIT License |
+| sqlmodel | 0.0.31 | MIT |
 | stack-data | 0.6.3 | MIT License |
 | streamlit | 1.52.2 | Apache Software License |
 | streamlit-folium | 0.25.3 | UNKNOWN |
@@ -114,8 +115,8 @@ This project makes use of the following third-party open-source software.
 | tornado | 6.4.2 | Apache Software License |
 | traitlets | 5.14.3 | BSD License |
 | typer | 0.15.3 | MIT License |
-| typing-inspection | 0.4.0 | MIT License |
-| typing_extensions | 4.13.2 | PSF-2.0 |
+| typing-inspection | 0.4.2 | MIT |
+| typing_extensions | 4.15.0 | PSF-2.0 |
 | tzdata | 2025.2 | Apache Software License |
 | urllib3 | 2.6.2 | MIT |
 | watchdog | 6.0.0 | Apache Software License |

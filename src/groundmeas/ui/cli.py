@@ -16,7 +16,7 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Sequence, Tuple, get_args
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, get_args
 
 import typer
 from prompt_toolkit import prompt
@@ -42,10 +42,21 @@ from ..services.analytics import (
     real_imag_over_frequency,
     rho_f_model,
     shield_currents_for_location,
+    soil_resistivity_profile_detailed,
+    multilayer_soil_model,
+    layered_earth_forward,
+    invert_soil_resistivity_layers,
     voltage_vt_epr,
+    DX_DEFAULT,
 )
 from ..services.vision_import import import_items_from_images
-from ..visualization.plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
+from ..visualization.plots import (
+    plot_imp_over_f,
+    plot_rho_f_model,
+    plot_soil_model,
+    plot_soil_inversion,
+    plot_voltage_vt_epr,
+)
 from ..visualization.map_vis import generate_map
 
 app = typer.Typer(help="CLI for managing groundmeas data")
@@ -320,7 +331,13 @@ def add_measurement() -> None:
 
     method = _prompt_choice(
         "Method",
-        choices=["staged_fault_test", "injection_remote_substation", "injection_earth_electrode"],
+        choices=[
+            "staged_fault_test",
+            "injection_remote_substation",
+            "injection_earth_electrode",
+            "wenner",
+            "schlumberger",
+        ],
     )
     asset = _prompt_choice(
         "Asset type",
@@ -626,7 +643,13 @@ def edit_measurement(
 
     method = _prompt_choice(
         "Method",
-        choices=["staged_fault_test", "injection_remote_substation", "injection_earth_electrode"],
+        choices=[
+            "staged_fault_test",
+            "injection_remote_substation",
+            "injection_earth_electrode",
+            "wenner",
+            "schlumberger",
+        ],
         default=rec.get("method"),
     )
     asset = _prompt_choice(
@@ -908,6 +931,189 @@ def cli_real_imag_over_frequency(
     _dump_or_print(data, json_out)
 
 
+@app.command("soil-profile")
+def cli_soil_profile(
+    measurement_id: int = typer.Argument(..., help="Measurement ID"),
+    method: str = typer.Option("wenner", "--method", help="wenner or schlumberger"),
+    value_kind: str = typer.Option(
+        "auto",
+        "--value-kind",
+        help="auto, resistance, or resistivity",
+    ),
+    depth_factor: Optional[float] = typer.Option(
+        None, "--depth-factor", help="Override depth multiplier for spacing"
+    ),
+    ab_is_full: bool = typer.Option(
+        False,
+        "--ab-full/--ab-half",
+        help="Interpret Schlumberger spacing as full AB (default: AB/2)",
+    ),
+    mn_is_full: bool = typer.Option(
+        False,
+        "--mn-full/--mn-half",
+        help="Interpret Schlumberger MN as full spacing (default: MN/2)",
+    ),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Compute a depth-resistivity profile from soil resistivity items."""
+    data = soil_resistivity_profile_detailed(
+        measurement_id=measurement_id,
+        method=method,
+        value_kind=value_kind,
+        depth_factor=depth_factor,
+        ab_is_full=ab_is_full,
+        mn_is_full=mn_is_full,
+    )
+    _dump_or_print(data, json_out)
+
+
+@app.command("soil-model")
+def cli_soil_model(
+    rho: List[float] = typer.Option(
+        ..., "--rho", help="Layer resistivities (repeatable, 1-3 values)"
+    ),
+    thicknesses: List[float] = typer.Option(
+        [],
+        "--thickness",
+        help="Layer thicknesses for top layers (repeatable)",
+        show_default=False,
+    ),
+    method: str = typer.Option("wenner", "--method", help="wenner or schlumberger"),
+    spacings: List[float] = typer.Option(
+        [], "--spacing", help="Spacing values for simulation (repeatable)", show_default=False
+    ),
+    mn_m: Optional[float] = typer.Option(
+        None, "--mn", help="MN spacing for Schlumberger (full by default)"
+    ),
+    ab_is_full: bool = typer.Option(
+        True,
+        "--ab-full/--ab-half",
+        help="Interpret Schlumberger spacing as full AB (default: AB)",
+    ),
+    mn_is_full: bool = typer.Option(
+        True,
+        "--mn-full/--mn-half",
+        help="Interpret MN spacing as full MN (default: MN)",
+    ),
+    forward: str = typer.Option(
+        "filter", "--forward", help="Forward engine: filter or integral"
+    ),
+    dx: float = typer.Option(
+        DX_DEFAULT, "--dx", help="Log step for filter engine"
+    ),
+    n_lam: int = typer.Option(
+        6000, "--n-lam", help="Lambda grid size for integral engine"
+    ),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Define a layered soil model and optionally simulate apparent resistivity."""
+    model = multilayer_soil_model(rho_layers=rho, thicknesses_m=thicknesses or None)
+    output: Dict[str, Any] = {"model": model}
+
+    if spacings:
+        preds = layered_earth_forward(
+            spacings_m=spacings,
+            rho_layers=rho,
+            thicknesses_m=thicknesses or None,
+            method=method,
+            mn_m=mn_m,
+            ab_is_full=ab_is_full,
+            mn_is_full=mn_is_full,
+            forward=forward,
+            dx=dx,
+            n_lam=n_lam,
+        )
+        output.update(
+            {
+                "method": method,
+                "forward": forward,
+                "predicted_curve": [
+                    {"spacing_m": float(s), "rho_ohm_m": float(r)}
+                    for s, r in zip(spacings, preds)
+                ],
+            }
+        )
+
+    _dump_or_print(output, json_out)
+
+
+@app.command("soil-inversion")
+def cli_soil_inversion(
+    measurement_id: int = typer.Argument(..., help="Measurement ID"),
+    layers: int = typer.Option(2, "--layers", "-l", help="Number of layers (1-3)"),
+    method: str = typer.Option("wenner", "--method", help="wenner or schlumberger"),
+    value_kind: str = typer.Option(
+        "auto",
+        "--value-kind",
+        help="auto, resistance, or resistivity",
+    ),
+    depth_factor: Optional[float] = typer.Option(
+        None, "--depth-factor", help="Override depth multiplier for spacing"
+    ),
+    ab_is_full: bool = typer.Option(
+        False,
+        "--ab-full/--ab-half",
+        help="Interpret Schlumberger spacing as full AB (default: AB/2)",
+    ),
+    mn_is_full: bool = typer.Option(
+        False,
+        "--mn-full/--mn-half",
+        help="Interpret MN spacing as full MN (default: MN/2)",
+    ),
+    mn_m: Optional[float] = typer.Option(
+        None, "--mn", help="Optional MN override for Schlumberger"
+    ),
+    forward: str = typer.Option(
+        "filter", "--forward", help="Forward engine: filter or integral"
+    ),
+    dx: float = typer.Option(
+        DX_DEFAULT, "--dx", help="Log step for filter engine"
+    ),
+    n_lam: int = typer.Option(
+        6000, "--n-lam", help="Lambda grid size for integral engine"
+    ),
+    backend: str = typer.Option(
+        "auto", "--backend", help="Math backend: auto, numpy, or mlx"
+    ),
+    max_iter: int = typer.Option(30, "--max-iter", help="Maximum iterations"),
+    damping: float = typer.Option(0.3, "--damping", help="Damping factor"),
+    step_max: float = typer.Option(0.5, "--step-max", help="Max log-step size"),
+    tol: float = typer.Option(1e-4, "--tol", help="Convergence tolerance"),
+    initial_rho: List[float] = typer.Option(
+        [], "--initial-rho", help="Initial rho guesses (repeatable)", show_default=False
+    ),
+    initial_thicknesses: List[float] = typer.Option(
+        [],
+        "--initial-thickness",
+        help="Initial thickness guesses (repeatable)",
+        show_default=False,
+    ),
+    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+) -> None:
+    """Invert a layered-earth model from soil_resistivity data."""
+    data = invert_soil_resistivity_layers(
+        measurement_id=measurement_id,
+        method=method,
+        layers=layers,
+        value_kind=value_kind,
+        depth_factor=depth_factor,
+        ab_is_full=ab_is_full,
+        mn_is_full=mn_is_full,
+        mn_m=mn_m,
+        forward=forward,
+        dx=dx,
+        n_lam=n_lam,
+        backend=backend,
+        max_iter=max_iter,
+        damping=damping,
+        step_max=step_max,
+        tol=tol,
+        initial_rho=initial_rho if initial_rho else None,
+        initial_thicknesses=initial_thicknesses if initial_thicknesses else None,
+    )
+    _dump_or_print(data, json_out)
+
+
 @app.command("rho-f-model")
 def cli_rho_f_model(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement IDs to fit"),
@@ -1001,6 +1207,112 @@ def cli_plot_voltage_vt_epr(
 ) -> None:
     """Plot EPR and touch voltages, save to file."""
     fig = plot_voltage_vt_epr(measurement_ids, frequency=frequency)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output)
+    typer.echo(f"Wrote {output}")
+
+
+@app.command("plot-soil-model")
+def cli_plot_soil_model(
+    rho: List[float] = typer.Option(
+        ..., "--rho", help="Layer resistivities (repeatable, 1-3 values)"
+    ),
+    thicknesses: List[float] = typer.Option(
+        [],
+        "--thickness",
+        help="Layer thicknesses for top layers (repeatable)",
+        show_default=False,
+    ),
+    max_depth: Optional[float] = typer.Option(
+        None, "--max-depth", help="Depth for plotting the bottom layer"
+    ),
+    output: Path = typer.Option(..., "--out", "-o", help="Output image file"),
+) -> None:
+    """Plot a layered soil model and save to file."""
+    fig = plot_soil_model(
+        rho_layers=rho,
+        thicknesses_m=thicknesses or None,
+        max_depth_m=max_depth,
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output)
+    typer.echo(f"Wrote {output}")
+
+
+@app.command("plot-soil-inversion")
+def cli_plot_soil_inversion(
+    measurement_id: int = typer.Argument(..., help="Measurement ID"),
+    layers: int = typer.Option(2, "--layers", "-l", help="Number of layers (1-3)"),
+    method: str = typer.Option("wenner", "--method", help="wenner or schlumberger"),
+    value_kind: str = typer.Option(
+        "auto",
+        "--value-kind",
+        help="auto, resistance, or resistivity",
+    ),
+    depth_factor: Optional[float] = typer.Option(
+        None, "--depth-factor", help="Override depth multiplier for spacing"
+    ),
+    ab_is_full: bool = typer.Option(
+        False,
+        "--ab-full/--ab-half",
+        help="Interpret Schlumberger spacing as full AB (default: AB/2)",
+    ),
+    mn_is_full: bool = typer.Option(
+        False,
+        "--mn-full/--mn-half",
+        help="Interpret MN spacing as full MN (default: MN/2)",
+    ),
+    mn_m: Optional[float] = typer.Option(
+        None, "--mn", help="Optional MN override for Schlumberger"
+    ),
+    forward: str = typer.Option(
+        "filter", "--forward", help="Forward engine: filter or integral"
+    ),
+    dx: float = typer.Option(
+        DX_DEFAULT, "--dx", help="Log step for filter engine"
+    ),
+    n_lam: int = typer.Option(
+        6000, "--n-lam", help="Lambda grid size for integral engine"
+    ),
+    backend: str = typer.Option(
+        "auto", "--backend", help="Math backend: auto, numpy, or mlx"
+    ),
+    max_iter: int = typer.Option(30, "--max-iter", help="Maximum iterations"),
+    damping: float = typer.Option(0.3, "--damping", help="Damping factor"),
+    step_max: float = typer.Option(0.5, "--step-max", help="Max log-step size"),
+    tol: float = typer.Option(1e-4, "--tol", help="Convergence tolerance"),
+    initial_rho: List[float] = typer.Option(
+        [], "--initial-rho", help="Initial rho guesses (repeatable)", show_default=False
+    ),
+    initial_thicknesses: List[float] = typer.Option(
+        [],
+        "--initial-thickness",
+        help="Initial thickness guesses (repeatable)",
+        show_default=False,
+    ),
+    output: Path = typer.Option(..., "--out", "-o", help="Output image file"),
+) -> None:
+    """Plot observed vs inversion fit for soil resistivity data."""
+    fig = plot_soil_inversion(
+        measurement_id=measurement_id,
+        method=method,
+        layers=layers,
+        value_kind=value_kind,
+        depth_factor=depth_factor,
+        ab_is_full=ab_is_full,
+        mn_is_full=mn_is_full,
+        mn_m=mn_m,
+        forward=forward,
+        dx=dx,
+        n_lam=n_lam,
+        backend=backend,
+        max_iter=max_iter,
+        damping=damping,
+        step_max=step_max,
+        tol=tol,
+        initial_rho=initial_rho if initial_rho else None,
+        initial_thicknesses=initial_thicknesses if initial_thicknesses else None,
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output)
     typer.echo(f"Wrote {output}")

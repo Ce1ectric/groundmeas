@@ -1,37 +1,58 @@
 # Import and export
 
-Scenario continuation: archive the staged fault test, share data, and ingest additional measurements from JSON and images.
+This tutorial covers JSON, CSV, and XML export, JSON import, and OCR-based import from measurement images.
 
-## CLI
-| Task | Command | Notes |
-| --- | --- | --- |
-| Import JSON | `gm-cli import-json PATH` | File, folder, or split pairs `_measurement.json` + `_items.json`. |
-| Export JSON | `gm-cli export-json OUT.json --measurement-id MEAS_ID ...` | Export selected measurements with items. |
-| OCR import from images | `gm-cli import-from-images MEAS_ID IMAGES_DIR --type earthing_impedance --frequency 50 --ocr tesseract --injection-distance 200` | Use `--frequency dir` to read freq from subfolders; switch OCR provider with `--ocr openai:<model>` or `--ocr ollama:<model>`. |
+## Physical background
 
-Example (pull new site data):
-```bash
-gm-cli import-json data/new_site/
-gm-cli export-json export/sub_west.json --measurement-id 1
-gm-cli import-from-images 1 ./images/sub_west --type earthing_impedance --frequency dir --ocr tesseract
-```
+Not applicable. This tutorial focuses on data transfer and ingestion.
 
-## Python API
+## Function overview
+- `export_measurements_to_json`, `export_measurements_to_csv`, `export_measurements_to_xml` export measurement data.
+- `import_items_from_images` runs OCR and creates items from images.
+- CLI commands `import-json`, `export-json`, and `import-from-images` provide the same capabilities.
+
+## Inputs and outputs
+| Function | Input | Output | Description |
+| --- | --- | --- | --- |
+| `export_measurements_to_json` | `path`, filters | none | Write measurements to JSON. |
+| `export_measurements_to_csv` | `path`, filters | none | Write measurements to CSV. |
+| `export_measurements_to_xml` | `path`, filters | none | Write measurements to XML. |
+| `import_items_from_images` | images dir, measurement id | summary dict | OCR import of items from images. |
+
+## General workflow
+
+### Scenario A: share measurements
+1. Export measurements to JSON or CSV.
+2. Send the file to collaborators.
+3. Import the JSON into another database.
+
+### Scenario B: OCR import
+1. Collect images of measurement tables.
+2. Run OCR import for a target measurement.
+3. Validate the imported items.
+
+## Python API examples
+
+### Scenario A: export and share
 ```python
 from groundmeas.db import connect_db
-from groundmeas.export import export_measurements_to_json, export_measurements_to_csv, export_measurements_to_xml
+from groundmeas.export import export_measurements_to_json, export_measurements_to_csv
+
+connect_db("groundmeas.db")
+
+export_measurements_to_json("export/site_a.json", id__in=[1])
+export_measurements_to_csv("export/site_a.csv", id__in=[1])
+```
+
+### Scenario B: OCR import
+```python
+from groundmeas.db import connect_db
 from groundmeas.vision_import import import_items_from_images
 
 connect_db("groundmeas.db")
 
-# Export selected measurements
-export_measurements_to_json("export/sub_west.json", id__in=[1])
-export_measurements_to_csv("export/sub_west.csv", id__in=[1])
-export_measurements_to_xml("export/sub_west.xml", id__in=[1])
-
-# OCR import for another measurement
 summary = import_items_from_images(
-    images_dir="images/sub_west",
+    images_dir="images/site_a",
     measurement_id=1,
     measurement_type="earthing_impedance",
     frequency_hz="dir",
@@ -41,12 +62,25 @@ summary = import_items_from_images(
 print(summary)
 ```
 
-### OCR notes
-- For OpenAI models, set `OPENAI_API_KEY` or pass `api_key_env`.
-- `ocr_max_dim` can downscale images for cloud OCR efficiency.
-- The importer deduplicates impedance by distance, median-filters currents when stable, and estimates prospective touch voltage near 1 m.
+## CLI examples
 
-### File format tips
-- JSON export is lossless and includes nested items and location.
-- CSV export stores items as a JSON string column—best for spreadsheets, not round-trips.
-- XML export nests items under each measurement. 
+### Scenario A: export and import
+```bash
+gm-cli export-json export/site_a.json --measurement-id 1
+
+gm-cli import-json export/site_a.json
+```
+
+### Scenario B: OCR import
+```bash
+gm-cli import-from-images 1 images/site_a \
+  --type earthing_impedance \
+  --frequency dir \
+  --ocr tesseract \
+  --injection-distance 200
+```
+
+## Additional notes
+- CSV export stores items as a JSON string and is not round-trip safe.
+- OCR can misread decimal separators; validate imports before analysis.
+- Use `--json-out` in CLI commands to capture structured output for automation.

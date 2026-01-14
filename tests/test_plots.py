@@ -5,16 +5,6 @@ import matplotlib.pyplot as plt
 from groundmeas.visualization import plots
 
 
-def fake_impedance(mid, data):
-    """Helper to return a copy of data regardless of mid."""
-    return dict(data)
-
-
-def fake_rimap(measurement_ids, data):
-    """Helper to return data regardless of measurement_ids."""
-    return dict(data)
-
-
 def test_plot_imp_over_f_single_success(monkeypatch):
     # stub a simple two‐point impedance curve
     monkeypatch.setattr(
@@ -143,3 +133,66 @@ def test_plot_rho_f_model_multiple_rho(monkeypatch):
     labels = [ln.get_label() for ln in lines[1:]]
     assert "ρ=10.0" in labels[0]
     assert "ρ=20.0" in labels[1]
+
+
+def test_plot_soil_model():
+    fig = plots.plot_soil_model(
+        rho_layers=[100.0, 200.0],
+        thicknesses_m=[2.0],
+        max_depth_m=5.0,
+    )
+    assert isinstance(fig, plt.Figure)
+    ax = fig.axes[0]
+    lines = ax.get_lines()
+    assert len(lines) == 1
+    assert ax.get_xlabel() == "Depth (m)"
+    assert ax.get_ylabel() == "Resistivity (ohm-m)"
+
+
+def test_plot_soil_inversion(monkeypatch):
+    result = {
+        "observed_curve": [
+            {"spacing_m": 1.0, "rho_ohm_m": 100.0},
+            {"spacing_m": 2.0, "rho_ohm_m": 120.0},
+        ],
+        "predicted_curve": [
+            {"spacing_m": 1.0, "rho_ohm_m": 110.0},
+            {"spacing_m": 2.0, "rho_ohm_m": 115.0},
+        ],
+    }
+    monkeypatch.setattr(plots, "invert_soil_resistivity_layers", lambda *args, **kwargs: result)
+
+    fig = plots.plot_soil_inversion(1, method="wenner", layers=2)
+    assert isinstance(fig, plt.Figure)
+    ax = fig.axes[0]
+    lines = ax.get_lines()
+    assert len(lines) == 2
+    assert ax.get_xlabel() == "Spacing (m)"
+    assert ax.get_ylabel() == "Apparent resistivity (ohm-m)"
+
+
+def test_plot_voltage_vt_epr(monkeypatch):
+    monkeypatch.setattr(
+        plots,
+        "voltage_vt_epr",
+        lambda ids, frequency=50.0: {1: {"epr": 10.0, "vtp_min": 1.0, "vtp_max": 2.0, "vt_min": 0.5, "vt_max": 1.0}},
+    )
+    fig = plots.plot_voltage_vt_epr(1, frequency=50.0)
+    assert isinstance(fig, plt.Figure)
+    ax = fig.axes[0]
+    assert ax.get_xlabel() == "Measurement ID"
+    assert ax.get_ylabel() == "V/A"
+
+
+def test_plot_value_over_distance(monkeypatch):
+    monkeypatch.setattr(
+        plots,
+        "value_over_distance",
+        lambda mid, measurement_type="earthing_impedance": {1.0: 2.0, 2.0: 4.0},
+    )
+    fig = plots.plot_value_over_distance(1, measurement_type="earthing_impedance")
+    assert isinstance(fig, plt.Figure)
+    ax = fig.axes[0]
+    line = ax.get_lines()[0]
+    assert list(line.get_xdata()) == [1.0, 2.0]
+    assert list(line.get_ydata()) == [2.0, 4.0]

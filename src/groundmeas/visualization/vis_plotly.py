@@ -5,10 +5,9 @@ groundmeas.vis_plotly
 Interactive Plotly visualizations for the dashboard.
 """
 
+from typing import List, Optional, Tuple, Union
+
 import plotly.graph_objects as go
-from typing import List, Union, Optional, Tuple, Dict
-import numpy as np
-import warnings
 
 from ..services.analytics import (
     impedance_over_frequency,
@@ -16,6 +15,9 @@ from ..services.analytics import (
     voltage_vt_epr,
     value_over_distance,
     value_over_distance_detailed,
+    multilayer_soil_model,
+    invert_soil_resistivity_layers,
+    DX_DEFAULT,
 )
 
 SYMBOL_MAP = {
@@ -25,6 +27,7 @@ SYMBOL_MAP = {
     "earthing_resistance": "RA",
     "earthing_current": "IE",
 }
+
 
 def plot_imp_over_f_plotly(
     measurement_ids: Union[int, List[int]], normalize_freq_hz: Optional[float] = None
@@ -62,13 +65,13 @@ def plot_imp_over_f_plotly(
         if normalize_freq_hz is not None:
             baseline = freq_imp.get(normalize_freq_hz)
             if baseline is None:
-                continue # Or raise error
+                continue  # Or raise error
             imps = [val / baseline for val in imps]
 
         fig.add_trace(go.Scatter(
-            x=freqs, 
-            y=imps, 
-            mode='lines+markers', 
+            x=freqs,
+            y=imps,
+            mode='lines+markers',
             name=f"ID {mid}"
         ))
 
@@ -85,7 +88,7 @@ def plot_imp_over_f_plotly(
         height=350,
         margin=dict(l=20, r=20, t=40, b=20),
     )
-    
+
     # Engineering notation
     fig.update_yaxes(tickformat="s")
     fig.update_xaxes(tickformat="s")
@@ -124,7 +127,7 @@ def plot_rho_f_model_plotly(
     for freq_map in rimap.values():
         all_freqs.update(freq_map.keys())
     freqs = sorted(all_freqs)
-    
+
     if not freqs:
         return fig
 
@@ -175,10 +178,10 @@ def plot_voltage_vt_epr_plotly(
         data = {measurement_ids: data}
 
     fig = go.Figure()
-    
+
     # We group by measurement ID
     # Categories: EPR, Vtp (min/max), Vt (min/max)
-    
+
     # EPR
     fig.add_trace(go.Bar(
         name='EPR',
@@ -186,7 +189,7 @@ def plot_voltage_vt_epr_plotly(
         y=[data[mid].get("epr", 0.0) for mid in ids],
         marker_color='blue'
     ))
-    
+
     # Vtp Max
     fig.add_trace(go.Bar(
         name=f'{SYMBOL_MAP.get("prospective_touch_voltage", "Vtp")} Max',
@@ -195,20 +198,20 @@ def plot_voltage_vt_epr_plotly(
         marker_color='orange',
         opacity=0.6
     ))
-    
+
     # Vtp Min (overlayed? In plotly grouped bars are side-by-side usually)
-    # To replicate the "overlay" effect of matplotlib code (min on top of max), 
-    # we can just add them to the group. 
+    # To replicate the "overlay" effect of matplotlib code (min on top of max),
+    # we can just add them to the group.
     # Or we can use 'overlay' barmode, but that affects all bars.
     # Standard grouped bar chart is probably clearer for interactive use.
-    
+
     fig.add_trace(go.Bar(
         name=f'{SYMBOL_MAP.get("prospective_touch_voltage", "Vtp")} Min',
         x=[str(mid) for mid in ids],
         y=[data[mid].get("vtp_min", 0.0) for mid in ids],
         marker_color='orange'
     ))
-    
+
     # Vt Max
     fig.add_trace(go.Bar(
         name=f'{SYMBOL_MAP.get("touch_voltage", "Vt")} Max',
@@ -217,7 +220,7 @@ def plot_voltage_vt_epr_plotly(
         marker_color='green',
         opacity=0.6
     ))
-    
+
     # Vt Min
     fig.add_trace(go.Bar(
         name=f'{SYMBOL_MAP.get("touch_voltage", "Vt")} Min',
@@ -272,13 +275,13 @@ def plot_value_over_distance_plotly(
 
         if show_all_frequencies:
             # Group by frequency
-            freq_groups = {}
+            freq_groups: dict[float, list[dict[str, float | None]]] = {}
             for pt in data_points:
                 f = pt["frequency"]
-                if f is None: f = 0
-                if f not in freq_groups: freq_groups[f] = []
-                freq_groups[f].append(pt)
-            
+                if f is None:
+                    f = 0.0
+                freq_groups.setdefault(f, []).append(pt)
+
             for f in sorted(freq_groups.keys()):
                 pts = sorted(freq_groups[f], key=lambda x: x["distance"])
                 fig.add_trace(go.Scatter(
@@ -310,8 +313,199 @@ def plot_value_over_distance_plotly(
         height=350,
         margin=dict(l=20, r=20, t=40, b=20),
     )
-    
+
     fig.update_yaxes(tickformat="s")
     fig.update_xaxes(tickformat="s")
 
+    return fig
+
+
+def plot_soil_model_plotly(
+    rho_layers: List[float],
+    thicknesses_m: Optional[List[float]] = None,
+    max_depth_m: Optional[float] = None,
+) -> go.Figure:
+    """
+    Create an interactive plot of a layered soil model (resistivity vs depth).
+
+    Parameters
+    ----------
+    rho_layers : list[float]
+        Layer resistivities in ohm-m (1-3 layers).
+    thicknesses_m : list[float], optional
+        Thicknesses for the top layers (length = n_layers - 1).
+    max_depth_m : float, optional
+        Depth for plotting the bottom (infinite) layer.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Interactive layer step plot.
+    """
+    model = multilayer_soil_model(rho_layers=rho_layers, thicknesses_m=thicknesses_m)
+    layers = model.get("layers", [])
+    if not layers:
+        return go.Figure()
+
+    total_thickness = float(model.get("total_thickness_m", 0.0))
+    plot_bottom = float(max_depth_m) if max_depth_m is not None else max(total_thickness, 1.0)
+
+    x_step: List[float] = []
+    y_step: List[float] = []
+    prev_rho = None
+    for layer in layers:
+        top = float(layer["top_depth_m"])
+        bottom = layer.get("bottom_depth_m")
+        bottom_val = plot_bottom if bottom is None else float(bottom)
+        rho_val = float(layer["rho_ohm_m"])
+        if prev_rho is not None:
+            x_step.extend([top, top])
+            y_step.extend([prev_rho, rho_val])
+        x_step.extend([top, bottom_val])
+        y_step.extend([rho_val, rho_val])
+        prev_rho = rho_val
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x_step,
+            y=y_step,
+            mode="lines",
+            line=dict(dash="dash"),
+            name="Layered model",
+        )
+    )
+
+    fig.update_layout(
+        title=f"Soil model ({len(layers)} layer)",
+        xaxis_title="Depth (m)",
+        yaxis_title="Resistivity (ohm-m)",
+        hovermode="x unified",
+        height=350,
+        margin=dict(l=20, r=20, t=40, b=20),
+    )
+    fig.update_yaxes(tickformat="s")
+    fig.update_xaxes(tickformat="s")
+    return fig
+
+
+def plot_soil_inversion_plotly(
+    measurement_id: int,
+    method: str = "wenner",
+    layers: int = 2,
+    value_kind: str = "auto",
+    depth_factor: Optional[float] = None,
+    ab_is_full: bool = False,
+    mn_is_full: bool = False,
+    mn_m: Optional[float] = None,
+    forward: str = "filter",
+    dx: float = DX_DEFAULT,
+    n_lam: int = 6000,
+    backend: str = "auto",
+    max_iter: int = 30,
+    damping: float = 0.3,
+    step_max: float = 0.5,
+    tol: float = 1e-4,
+    initial_rho: Optional[List[float]] = None,
+    initial_thicknesses: Optional[List[float]] = None,
+) -> go.Figure:
+    """
+    Create an interactive plot of observed apparent resistivity vs inversion fit.
+
+    Parameters
+    ----------
+    measurement_id : int
+        Measurement ID containing soil_resistivity items.
+    method : str, default "wenner"
+        Array method ("wenner" or "schlumberger").
+    layers : int, default 2
+        Number of layers to invert.
+    value_kind : str, default "auto"
+        Interpret values as resistance or resistivity.
+    depth_factor : float, optional
+        Override depth multiplier for spacing.
+    ab_is_full : bool, default False
+        Interpret spacings as full AB for Schlumberger. When False, AB/2 is used.
+    mn_is_full : bool, default False
+        Interpret MN as full MN for Schlumberger. When False, MN/2 is used.
+    mn_m : float, optional
+        Optional MN override for Schlumberger.
+    forward : str, default "filter"
+        Forward engine ("filter" or "integral").
+    dx : float, default log(10)/3
+        Log step for the filter engine.
+    n_lam : int, default 6000
+        Lambda grid size for the integral engine.
+    backend : str, default "auto"
+        Math backend ("auto", "numpy", "mlx").
+    max_iter : int, default 30
+        Maximum Gauss-Newton iterations.
+    damping : float, default 0.3
+        Damping factor.
+    step_max : float, default 0.5
+        Max step size in log-space.
+    tol : float, default 1e-4
+        Convergence tolerance on RMSE change.
+    initial_rho : list[float], optional
+        Initial resistivity guesses.
+    initial_thicknesses : list[float], optional
+        Initial thickness guesses.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Interactive observed vs predicted curve.
+    """
+    result = invert_soil_resistivity_layers(
+        measurement_id=measurement_id,
+        method=method,
+        layers=layers,
+        value_kind=value_kind,
+        depth_factor=depth_factor,
+        ab_is_full=ab_is_full,
+        mn_is_full=mn_is_full,
+        mn_m=mn_m,
+        forward=forward,
+        dx=dx,
+        n_lam=n_lam,
+        backend=backend,
+        max_iter=max_iter,
+        damping=damping,
+        step_max=step_max,
+        tol=tol,
+        initial_rho=initial_rho,
+        initial_thicknesses=initial_thicknesses,
+    )
+    obs = result.get("observed_curve", [])
+    pred = result.get("predicted_curve", [])
+    if not obs or not pred:
+        return go.Figure()
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=[p["spacing_m"] for p in obs],
+            y=[p["rho_ohm_m"] for p in obs],
+            mode="markers",
+            name="Observed",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[p["spacing_m"] for p in pred],
+            y=[p["rho_ohm_m"] for p in pred],
+            mode="lines",
+            name="Inversion fit",
+        )
+    )
+    fig.update_layout(
+        title=f"Soil inversion ({method}, {layers} layer)",
+        xaxis_title="Spacing (m)",
+        yaxis_title="Apparent resistivity (ohm-m)",
+        hovermode="x unified",
+        height=350,
+        margin=dict(l=20, r=20, t=40, b=20),
+    )
+    fig.update_yaxes(tickformat="s")
+    fig.update_xaxes(tickformat="s")
     return fig

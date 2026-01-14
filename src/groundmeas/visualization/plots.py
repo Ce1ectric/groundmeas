@@ -9,11 +9,13 @@ Provides functions to visualize:
 - Rho-f model comparisons
 - Touch voltages and EPR (Earth Potential Rise)
 - Values over distance (e.g. soil resistivity profiles)
+- Layered soil models and inversion fits
 """
 
-import matplotlib.pyplot as plt
-from typing import Tuple, Union, List, Dict, Any, Optional
 import warnings
+from typing import List, Optional, Tuple, Union
+
+import matplotlib.pyplot as plt
 import numpy as np
 
 from ..services.analytics import (
@@ -21,6 +23,9 @@ from ..services.analytics import (
     real_imag_over_frequency,
     voltage_vt_epr,
     value_over_distance,
+    multilayer_soil_model,
+    invert_soil_resistivity_layers,
+    DX_DEFAULT,
 )
 
 
@@ -169,7 +174,7 @@ def plot_rho_f_model(
 
 def plot_voltage_vt_epr(
     measurement_ids: Union[int, List[int]],
-    frequency: float = 50.0
+    frequency: float = 50.0,
 ) -> plt.Figure:
     """
     Plot EPR and touch voltages (prospective and actual) as grouped bars.
@@ -275,6 +280,179 @@ def plot_value_over_distance(
     ax.set_ylabel(f"{measurement_type} Value")
     ax.set_title(f"{measurement_type} vs Distance")
     ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+
+def plot_soil_model(
+    rho_layers: List[float],
+    thicknesses_m: Optional[List[float]] = None,
+    max_depth_m: Optional[float] = None,
+) -> plt.Figure:
+    """
+    Plot a layered soil model as a resistivity-vs-depth step curve.
+
+    Parameters
+    ----------
+    rho_layers : list[float]
+        Layer resistivities in ohm-m (1-3 layers).
+    thicknesses_m : list[float], optional
+        Thicknesses for the top layers (length = n_layers - 1).
+    max_depth_m : float, optional
+        Depth for plotting the bottom (infinite) layer. Defaults to total thickness.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Figure with layer step curve.
+    """
+    model = multilayer_soil_model(rho_layers=rho_layers, thicknesses_m=thicknesses_m)
+    layers = model.get("layers", [])
+    if not layers:
+        raise ValueError("No layers available for plotting")
+
+    total_thickness = float(model.get("total_thickness_m", 0.0))
+    plot_bottom = float(max_depth_m) if max_depth_m is not None else max(total_thickness, 1.0)
+
+    fig, ax = plt.subplots()
+    x_step: List[float] = []
+    y_step: List[float] = []
+    prev_rho: Optional[float] = None
+    for layer in layers:
+        top = float(layer["top_depth_m"])
+        bottom = layer.get("bottom_depth_m")
+        bottom_val = plot_bottom if bottom is None else float(bottom)
+        rho_val = float(layer["rho_ohm_m"])
+        if prev_rho is not None:
+            x_step.extend([top, top])
+            y_step.extend([prev_rho, rho_val])
+        x_step.extend([top, bottom_val])
+        y_step.extend([rho_val, rho_val])
+        prev_rho = rho_val
+
+    ax.plot(x_step, y_step, linestyle="--", linewidth=2, label="Layered model")
+    ax.set_xlabel("Depth (m)")
+    ax.set_ylabel("Resistivity (ohm-m)")
+    ax.set_title(f"Soil model ({len(layers)} layer)")
+    ax.grid(True, linestyle="--", linewidth=0.5)
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+
+def plot_soil_inversion(
+    measurement_id: int,
+    method: str = "wenner",
+    layers: int = 2,
+    value_kind: str = "auto",
+    depth_factor: Optional[float] = None,
+    ab_is_full: bool = False,
+    mn_is_full: bool = False,
+    mn_m: Optional[float] = None,
+    forward: str = "filter",
+    dx: float = DX_DEFAULT,
+    n_lam: int = 6000,
+    backend: str = "auto",
+    max_iter: int = 30,
+    damping: float = 0.3,
+    step_max: float = 0.5,
+    tol: float = 1e-4,
+    initial_rho: Optional[List[float]] = None,
+    initial_thicknesses: Optional[List[float]] = None,
+) -> plt.Figure:
+    """
+    Plot apparent resistivity data and the layered-earth inversion fit.
+
+    Parameters
+    ----------
+    measurement_id : int
+        Measurement ID containing soil_resistivity items.
+    method : str, default "wenner"
+        Array method ("wenner" or "schlumberger").
+    layers : int, default 2
+        Number of layers to invert.
+    value_kind : str, default "auto"
+        Interpret values as resistance or resistivity.
+    depth_factor : float, optional
+        Override depth multiplier for spacing (profile build).
+    ab_is_full : bool, default False
+        Interpret spacings as full AB for Schlumberger. When False, AB/2 is used.
+    mn_is_full : bool, default False
+        Interpret MN as full MN for Schlumberger. When False, MN/2 is used.
+    mn_m : float, optional
+        Optional MN override for Schlumberger.
+    forward : str, default "filter"
+        Forward engine ("filter" or "integral").
+    dx : float, default log(10)/3
+        Log step for the filter engine.
+    n_lam : int, default 6000
+        Lambda grid size for the integral engine.
+    backend : str, default "auto"
+        Math backend for the transform ("auto", "numpy", "mlx").
+    max_iter : int, default 30
+        Maximum Gauss-Newton iterations.
+    damping : float, default 0.3
+        Damping factor.
+    step_max : float, default 0.5
+        Max step size in log-space.
+    tol : float, default 1e-4
+        Convergence tolerance on RMSE change.
+    initial_rho : list[float], optional
+        Initial resistivity guesses.
+    initial_thicknesses : list[float], optional
+        Initial thickness guesses.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Figure with observed points and predicted curve.
+    """
+    result = invert_soil_resistivity_layers(
+        measurement_id=measurement_id,
+        method=method,
+        layers=layers,
+        value_kind=value_kind,
+        depth_factor=depth_factor,
+        ab_is_full=ab_is_full,
+        mn_is_full=mn_is_full,
+        mn_m=mn_m,
+        forward=forward,
+        dx=dx,
+        n_lam=n_lam,
+        backend=backend,
+        max_iter=max_iter,
+        damping=damping,
+        step_max=step_max,
+        tol=tol,
+        initial_rho=initial_rho,
+        initial_thicknesses=initial_thicknesses,
+    )
+
+    obs = result.get("observed_curve", [])
+    pred = result.get("predicted_curve", [])
+    if not obs or not pred:
+        raise ValueError(f"No soil_resistivity data for measurement_id={measurement_id}")
+
+    fig, ax = plt.subplots()
+    ax.plot(
+        [p["spacing_m"] for p in obs],
+        [p["rho_ohm_m"] for p in obs],
+        marker="o",
+        linestyle="",
+        label="Observed",
+    )
+    ax.plot(
+        [p["spacing_m"] for p in pred],
+        [p["rho_ohm_m"] for p in pred],
+        linestyle="-",
+        linewidth=2,
+        label="Inversion fit",
+    )
+    ax.set_xlabel("Spacing (m)")
+    ax.set_ylabel("Apparent resistivity (ohm-m)")
+    ax.set_title(f"Soil inversion ({method}, {layers} layer)")
+    ax.grid(True, linestyle="--", linewidth=0.5)
     ax.legend()
     fig.tight_layout()
     return fig

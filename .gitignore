@@ -1,7 +1,15 @@
 # Python environment
 .env/
 .venv/
-*__pycache__/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+.coverage.*
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
 notebooks/.venv/
 notebooks/.env/
 notebooks/

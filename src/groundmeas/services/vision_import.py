@@ -55,6 +55,20 @@ def _normalize_number(raw: str) -> float:
     return float(raw.replace(",", "."))
 
 
+def _normalize_ocr_text(text: str) -> str:
+    """
+    Clean OCR text without distorting decimal numbers.
+
+    - Fixes missing leading zeros (".5" -> "0.5")
+    - Normalizes stray "0." tokens ("0." -> "0.0")
+    - Replaces common OCR artifacts
+    """
+    cleaned = text.replace("—", "-").replace("|", " | ").replace("rn", "m")
+    cleaned = re.sub(r"(?<!\d)\.(\d)", r"0.\1", cleaned)
+    cleaned = re.sub(r"\b0\.(?!\d)", "0.0", cleaned)
+    return cleaned
+
+
 def _parse_value_angle_unit(chunk: str) -> tuple[Optional[float], Optional[float], Optional[str]]:
     """
     Parse a token string containing value, unit, and optional phase angle.
@@ -352,12 +366,7 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
     degree_pattern = re.compile(r"(-?\d+(?:[.,]\d+)?)\s*[°º]")
 
     # Pass 1: extract any compact sequences across the whole text (multi-line)
-    full_clean = (
-        text.replace("—", "-")
-        .replace("|", " | ")
-        .replace("0.", "0.0")
-        .replace("rn", "m")
-    )
+    full_clean = _normalize_ocr_text(text)
     for m_full in full_pattern.finditer(full_clean):
         cur_val = _normalize_number(m_full.group("cur")) * 1e-3  # mA -> A
         volt_val = _normalize_number(m_full.group("volt")) * 1e-3  # mV -> V
@@ -412,12 +421,7 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         if not line:
             continue
 
-        cleaned = (
-            line.replace("—", "-")
-            .replace("|", " | ")
-            .replace("0.", "0.0")  # stabilize missing zero before dot
-            .replace("rn", "m")
-        )
+        cleaned = _normalize_ocr_text(line)
         m_compact_line = compact_pattern.search(cleaned)
         if m_compact_line:
             cur_val = _normalize_number(m_compact_line.group("cur")) * 1e-3  # mA -> A
@@ -429,7 +433,7 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
                 voltage_v=volt_val,
                 voltage_angle_deg=_normalize_number(m_compact_line.group("ang2")) if m_compact_line.group("ang2") else None,
                 impedance_ohm=_normalize_number(m_compact_line.group("imp")) * 1e-3,  # mΩ → Ω
-                impedance_angle_deg=_normalize_number(m_compact_line.group("ang2")) if m_compact_line.group("ang2") else None,
+                impedance_angle_deg=_normalize_number(m_compact_line.group("ang3")) if m_compact_line.group("ang3") else None,
             )
             key = (
                 row.distance_m or math.inf,
@@ -608,29 +612,6 @@ def _relative_spread(values: Sequence[float]) -> float:
     return (max(values) - min(values)) / med
 
 
-def _interpolate_at_distance(rows: List[ParsedRow], target: float) -> Optional[float]:
-    """Linearly interpolate voltage at a target distance (used for 1 m prospective)."""
-    with_dist = [r for r in rows if r.distance_m is not None and r.voltage_v is not None]
-    if not with_dist:
-        return None
-    closest = min(with_dist, key=lambda r: abs(r.distance_m - target))
-    if abs(closest.distance_m - target) < 1e-6:
-        return closest.voltage_v
-    # find second nearest on opposite side if possible
-    candidates = sorted(with_dist, key=lambda r: r.distance_m)
-    lower = [r for r in candidates if r.distance_m <= target]
-    upper = [r for r in candidates if r.distance_m >= target]
-    if lower and upper:
-        r1 = lower[-1]
-        r2 = upper[0]
-        if r1.distance_m == r2.distance_m:
-            return r1.voltage_v
-        x1, y1 = r1.distance_m, r1.voltage_v
-        x2, y2 = r2.distance_m, r2.voltage_v
-        return y1 + (target - x1) * (y2 - y1) / (x2 - x1)
-    return closest.voltage_v
-
-
 def build_items_from_rows(
     measurement_id: int,
     rows: List[ParsedRow],
@@ -644,7 +625,7 @@ def build_items_from_rows(
     Processes rows to generate:
     - Impedance items (deduplicated by distance)
     - Earthing current items (aggregated/median filtered)
-    - Prospective touch voltage items (interpolated/selected at ~1m distance)
+    - Prospective touch voltage items (selected near ~1m distance)
 
     Parameters
     ----------
@@ -667,8 +648,7 @@ def build_items_from_rows(
     """
     rows_with_dist = [r for r in rows if r.distance_m is not None]
     impedance_items: List[Dict[str, object]] = []
-    current_values: List[float] = []
-    current_angles: List[float] = []
+    current_pairs: List[tuple[float, Optional[float]]] = []
     voltage_rows: List[ParsedRow] = []
 
     # Deduplicate impedance rows (exact-ish match)
@@ -696,21 +676,21 @@ def build_items_from_rows(
 
     for row in rows_with_dist:
         if row.current_a is not None:
-            current_values.append(row.current_a)
-            if row.current_angle_deg is not None:
-                current_angles.append(row.current_angle_deg)
+            current_pairs.append((row.current_a, row.current_angle_deg))
         if row.voltage_v is not None and row.distance_m is not None and 0.5 <= row.distance_m <= 1.5:
             voltage_rows.append(row)
 
     # Merge currents: median if spread <= ±20%; else emit distinct values
     earthing_currents: List[Dict[str, object]] = []
-    valid_currents = [c for c in current_values if 0.05 <= abs(c) <= 0.2]
-    chosen_currents = valid_currents if valid_currents else current_values
-    if chosen_currents:
-        spread = _relative_spread(chosen_currents)
+    valid_pairs = [(val, ang) for val, ang in current_pairs if 0.05 <= abs(val) <= 0.2]
+    chosen_pairs = valid_pairs if valid_pairs else current_pairs
+    if chosen_pairs:
+        values = [val for val, _ in chosen_pairs]
+        spread = _relative_spread(values)
         if spread <= 0.4:
-            median_val = float(np.median(chosen_currents))
-            median_angle = float(np.median(current_angles)) if current_angles else None
+            median_val = float(np.median(values))
+            angles = [ang for _, ang in chosen_pairs if ang is not None]
+            median_angle = float(np.median(angles)) if angles else None
             earthing_currents.append(
                 {
                     "measurement_type": "earthing_current",
@@ -722,7 +702,7 @@ def build_items_from_rows(
             )
         else:
             seen_currents: set[tuple[float, Optional[float]]] = set()
-            for val, ang in zip(chosen_currents, current_angles or [None] * len(chosen_currents)):
+            for val, ang in chosen_pairs:
                 key = (round(val, 6), None if ang is None else round(ang, 3))
                 if key in seen_currents:
                     continue

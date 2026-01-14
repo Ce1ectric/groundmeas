@@ -56,6 +56,13 @@ try:
         distance_profile_value,
         value_over_distance,
         value_over_distance_detailed,
+        soil_resistivity_profile,
+        soil_resistivity_profile_detailed,
+        soil_resistivity_curve,
+        layered_earth_forward,
+        invert_layered_earth,
+        invert_soil_resistivity_layers,
+        multilayer_soil_model,
     )
     from .services.export import (
         export_measurements_to_json,
@@ -65,12 +72,20 @@ try:
     from .services.vision_import import import_items_from_images
 
     # visualization
-    from .visualization.plots import plot_imp_over_f, plot_rho_f_model, plot_voltage_vt_epr
+    from .visualization.plots import (
+        plot_imp_over_f,
+        plot_rho_f_model,
+        plot_voltage_vt_epr,
+        plot_soil_model,
+        plot_soil_inversion,
+    )
     from .visualization.vis_plotly import (
         plot_imp_over_f_plotly,
         plot_rho_f_model_plotly,
         plot_voltage_vt_epr_plotly,
         plot_value_over_distance_plotly,
+        plot_soil_model_plotly,
+        plot_soil_inversion_plotly,
     )
     from .visualization.map_vis import generate_map
 except ImportError as e:
@@ -104,14 +119,25 @@ __all__ = [
     "export_measurements_to_json",
     "export_measurements_to_csv",
     "export_measurements_to_xml",
+    "soil_resistivity_profile",
+    "soil_resistivity_profile_detailed",
+    "soil_resistivity_curve",
+    "layered_earth_forward",
+    "invert_layered_earth",
+    "invert_soil_resistivity_layers",
+    "multilayer_soil_model",
     # plotting
     "plot_imp_over_f",
     "plot_rho_f_model",
     "plot_voltage_vt_epr",
+    "plot_soil_model",
+    "plot_soil_inversion",
     "plot_imp_over_f_plotly",
     "plot_rho_f_model_plotly",
     "plot_voltage_vt_epr_plotly",
     "plot_value_over_distance_plotly",
+    "plot_soil_model_plotly",
+    "plot_soil_inversion_plotly",
     "generate_map",
     # analytics helpers
     "value_over_distance",

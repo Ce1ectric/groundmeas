@@ -1,54 +1,62 @@
 # Quickstart (CLI and Python)
 
-Goal: create a database, add a measurement with 10 earthing-impedance items at different distances, read data, import/export JSON, run analytics with two methods, and plot impedance vs distance.
+Goal: create a database, add a measurement with impedance items, run a basic distance-profile analysis, and then run a small soil resistivity survey with a layered-earth inversion.
 
 ## CLI route
 ```bash
-# 1) Create/connect a database (auto-created)
+# 1) Create or connect to a database (auto-created)
 gm-cli --db ./groundmeas.db list-measurements
 
-# 2) Add a measurement interactively (location, method, asset, etc.)
+# 2) Add a measurement interactively (location, method, asset, and metadata)
 gm-cli --db ./groundmeas.db add-measurement
-```
 
-```bash
-# 3) Add 10 earthing_impedance items with varying distance
-for d in 10 20 30 40 50 60 70 80 90 100; do
-  gm-cli --db ./groundmeas.db add-item MEAS_ID \
-    --type earthing_impedance \
-    # you'll be prompted for frequency/value/angle; enter e.g. 50 Hz and a magnitude
-    # enter measurement distance m when prompted (use $d)
-done
-```
+# 3) Add items interactively (repeat for each distance)
+gm-cli --db ./groundmeas.db add-item MEAS_ID
 
-```bash
-# 4) Read back items
+# 4) Read items back
 gm-cli --db ./groundmeas.db list-items MEAS_ID
 
-# 5) Import from JSON (file or folder)
-gm-cli --db ./groundmeas.db import-json data/example_measurement.json
-
-# 6) Export to JSON
-gm-cli --db ./groundmeas.db export-json export/out.json --measurement-id MEAS_ID
-
-# 7) Analytics: distance-profile with two methods
+# 5) Run two distance-profile algorithms
 gm-cli --db ./groundmeas.db distance-profile MEAS_ID --type earthing_impedance --algorithm maximum
 gm-cli --db ./groundmeas.db distance-profile MEAS_ID --type earthing_impedance --algorithm minimum_gradient
 
-# 8) Plot impedance vs distance (static)
+# 6) Plot impedance vs distance (static)
 gm-cli --db ./groundmeas.db plot-impedance MEAS_ID --out plots/impedance.png
+```
+
+Optional soil survey flow:
+```bash
+# 7) Create a soil survey measurement (method wenner or schlumberger)
+gm-cli --db ./groundmeas.db add-measurement
+
+# 8) Add soil_resistivity items (spacing in measurement_distance_m)
+#    Use add-item for each spacing in your survey
+
+gm-cli --db ./groundmeas.db add-item SOIL_MEAS_ID
+
+# 9) Build a depth-resistivity profile
+#    Wenner default uses spacing as a; Schlumberger defaults to AB/2 and MN/2
+
+gm-cli --db ./groundmeas.db soil-profile SOIL_MEAS_ID --method wenner
+
+# 10) Invert a 1-3 layer model
+
+gm-cli --db ./groundmeas.db soil-inversion SOIL_MEAS_ID --layers 2 --method wenner
+
+# 11) Plot the inversion fit
+
+gm-cli --db ./groundmeas.db plot-soil-inversion SOIL_MEAS_ID --layers 2 --out plots/soil_inversion.png
 ```
 
 ## Python route
 ```python
 from groundmeas.db import connect_db, create_measurement, create_item, read_items_by
-from groundmeas.analytics import distance_profile_value, value_over_distance
+from groundmeas.analytics import distance_profile_value
 from groundmeas.plots import plot_value_over_distance
 
-# 1) Connect DB
 connect_db("groundmeas.db")
 
-# 2) Create a measurement with a location
+# 1) Create a staged fault test measurement
 mid = create_measurement({
     "method": "staged_fault_test",
     "asset_type": "substation",
@@ -58,35 +66,53 @@ mid = create_measurement({
     "location": {"name": "Site A", "latitude": 51.0, "longitude": 10.0}
 })
 
-# 3) Add 10 earthing_impedance items
+# 2) Add impedance items at multiple distances
 for idx, dist in enumerate(range(10, 110, 10)):
     create_item({
         "measurement_type": "earthing_impedance",
         "frequency_hz": 50.0,
-        "value": 0.3 + 0.02 * idx,   # sample magnitudes
+        "value": 0.3 + 0.02 * idx,
         "value_angle_deg": 0.0,
-        "unit": "Ω",
+        "unit": "ohm",
         "measurement_distance_m": float(dist),
         "distance_to_current_injection_m": 150.0,
     }, measurement_id=mid)
 
-# 4) Read items back
-items, _ = read_items_by(measurement_id=mid, measurement_type="earthing_impedance")
-print(items)
+# 3) Analyze distance profile
+res = distance_profile_value(mid, algorithm="minimum_gradient")
+print(res["result_value"], res["result_distance_m"])
 
-# 5) Import / Export (helpers)
-from groundmeas.export import export_measurements_to_json
-export_measurements_to_json("export/out.json", id__in=[mid])
-
-# 6) Analytics with two methods
-res_max = distance_profile_value(mid, algorithm="maximum")
-res_grad = distance_profile_value(mid, algorithm="minimum_gradient")
-print("Maximum:", res_max["result_value"], res_max["result_distance_m"])
-print("Min gradient:", res_grad["result_value"], res_grad["result_distance_m"])
-
-# 7) Plot impedance vs distance (Matplotlib)
+# 4) Plot impedance vs distance
 fig = plot_value_over_distance(mid, measurement_type="earthing_impedance")
 fig.savefig("plots/impedance_distance.png")
 ```
 
-Next steps: see the tutorials for deeper workflows and the reference files for full argument lists.
+Optional soil survey (Python):
+```python
+from groundmeas.analytics import soil_resistivity_profile, invert_soil_resistivity_layers
+
+soil_id = create_measurement({
+    "method": "wenner",
+    "asset_type": "substation",
+    "description": "Wenner soil survey",
+    "location": {"name": "Site A"}
+})
+
+spacings = [1.0, 2.0, 4.0, 8.0, 16.0]
+values = [80.0, 75.0, 65.0, 55.0, 50.0]
+for spacing, rho_a in zip(spacings, values):
+    create_item({
+        "measurement_type": "soil_resistivity",
+        "value": rho_a,
+        "unit": "ohm-m",
+        "measurement_distance_m": spacing,
+    }, measurement_id=soil_id)
+
+profile = soil_resistivity_profile(soil_id, method="wenner")
+print(profile[:3])
+
+inv = invert_soil_resistivity_layers(soil_id, method="wenner", layers=2)
+print(inv["rho_layers"], inv["thicknesses_m"])
+```
+
+Next steps: follow the tutorials for realistic, field-level workflows and check the reference pages for full inputs and outputs.

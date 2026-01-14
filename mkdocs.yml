@@ -5,22 +5,7 @@ repo_url: https://github.com/Ce1ectric/groundmeas
 repo_name: Ce1ectric/groundmeas
 
 theme:
-  name: material
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - toc.integrate
-    - content.code.copy
-  palette:
-    - scheme: default
-      primary: teal
-      accent: purple
-    - scheme: slate
-      primary: teal
-      accent: purple
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
+  name: readthedocs
 
 plugins:
   - search

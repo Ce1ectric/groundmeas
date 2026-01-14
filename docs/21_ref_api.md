@@ -1,96 +1,74 @@
 # API Reference
 
-Docstrings follow the pandas/PEP 257 convention. Call `groundmeas.db.connect_db(path)` once per process before using database-backed functions.
+All database-backed functions require `groundmeas.db.connect_db(path)` once per process.
 
-## Database (`groundmeas.db`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `connect_db(path, echo=False)` | Initialize/open SQLite; create tables. | `path` file path; `echo` log SQL |
-| `create_measurement(data)` | Insert measurement (optional nested `location`). Returns ID. | |
-| `create_item(data, measurement_id)` | Insert item linked to a measurement. Returns ID. | |
-| `read_measurements(where=None)` | Raw WHERE string; returns records + IDs (with items, location). | |
-| `read_measurements_by(**filters)` | Filtered read; supports `__lt/__lte/__gt/__gte/__in/__ne`. | |
-| `read_items_by(**filters)` | Filtered read for items; same suffix rules. | |
-| `update_measurement(measurement_id, updates)` | Update measurement (nested `location` allowed). | Returns bool |
-| `update_item(item_id, updates)` | Update one item. | Returns bool |
-| `delete_measurement(measurement_id)` | Delete measurement and items. | Returns bool |
-| `delete_item(item_id)` | Delete one item. | Returns bool |
+## Database (groundmeas.db)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `connect_db` | `path`, `echo` | none | Initialize or open the SQLite database. |
+| `create_measurement` | measurement dict | measurement id | Create a measurement, optionally with nested location. |
+| `create_item` | item dict, `measurement_id` | item id | Create a measurement item. |
+| `read_measurements` | `where` clause | list of measurements, list of ids | Read measurements with nested items and location. |
+| `read_measurements_by` | filters | list of measurements, list of ids | Read measurements with suffix operators (`__lt`, `__in`, etc). |
+| `read_items_by` | filters | list of items, list of ids | Read items with suffix operators. |
+| `update_measurement` | measurement id, updates | bool | Update measurement and optional location. |
+| `update_item` | item id, updates | bool | Update a measurement item. |
+| `delete_measurement` | measurement id | bool | Delete a measurement and its items. |
+| `delete_item` | item id | bool | Delete a single item. |
 
-## Models (`groundmeas.models`)
-| Object | Key fields | Notes |
-| --- | --- | --- |
-| `Location` | `id`, `name`, `latitude`, `longitude`, `altitude`, `measurements` | Site metadata |
-| `Measurement` | `id`, `timestamp`, `location`, `method`, `asset_type`, `voltage_level_kv`, `fault_resistance_ohm`, `operator`, `description`, `items` | Event tied to a location |
-| `MeasurementItem` | `id`, `measurement_id`, `measurement_type`, `value`, `value_angle_deg`, `value_real`, `value_imag`, `unit`, `frequency_hz`, `measurement_distance_m`, `distance_to_current_injection_m`, `additional_resistance_ohm`, `input_impedance_ohm`, `description` | Data point with polar/rectangular support |
-| `_compute_magnitude` | Auto-computes missing polar/rectangular parts; raises `ValueError` if neither is present. | SQLAlchemy event |
+## Analytics (groundmeas.analytics)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `impedance_over_frequency` | measurement id or list | dict | Frequency to impedance map. |
+| `real_imag_over_frequency` | measurement id or list | dict | Frequency to real and imag map. |
+| `distance_profile_value` | measurement id, algorithm, window | dict | Reduce distance profile to one value. |
+| `value_over_distance` | measurement id or list, type | dict | Distance to value map. |
+| `value_over_distance_detailed` | measurement id or list, type | list or dict | Distance, value, frequency points. |
+| `rho_f_model` | measurement ids | tuple | Rho-f coefficients k1 to k5. |
+| `voltage_vt_epr` | measurement id or list, frequency | dict | EPR and touch voltage summary. |
+| `shield_currents_for_location` | location id, frequency | list | Shield current items. |
+| `calculate_split_factor` | earth fault item id, shield item ids | dict | Split factor and current components. |
+| `soil_resistivity_profile` | measurement id, method, value_kind | dict | Depth to apparent resistivity map. |
+| `soil_resistivity_profile_detailed` | measurement id, method, value_kind | list | Detailed depth and spacing points. |
+| `soil_resistivity_curve` | measurement id, method, value_kind | list | Spacing to apparent resistivity points. |
+| `multilayer_soil_model` | `rho_layers`, `thicknesses_m` | dict | Layer table from resistivities and thicknesses. |
+| `layered_earth_forward` | spacings, model params | list | Simulated apparent resistivity. |
+| `invert_layered_earth` | spacings, observed rho, model params | dict | Fitted layers and misfit stats. |
+| `invert_soil_resistivity_layers` | measurement id, model params | dict | Invert from stored soil items. |
 
-## Analytics (`groundmeas.analytics`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `impedance_over_frequency(measurement_ids)` | Map freq → \|Z\| (or per measurement). | Accepts single ID or list |
-| `real_imag_over_frequency(measurement_ids)` | Map freq → `{real, imag}` (or per measurement). | |
-| `distance_profile_value(measurement_id, measurement_type="earthing_impedance", algorithm="maximum", window=3)` | Reduce distance–value profile via algorithm (`maximum`, `62_percent`, `minimum_gradient`, `minimum_stddev`, `inverse`). | Inverse fits `1/Z = a*(1/d) + b` |
-| `rho_f_model(measurement_ids)` | Fit rho–f coefficients `(k1..k5)` using impedance (real/imag) + soil resistivity. | Requires overlap in freq |
-| `voltage_vt_epr(measurement_ids, frequency=50)` | EPR and touch/prospective voltages per ampere. | Needs impedance + current at `frequency` |
-| `shield_currents_for_location(location_id, frequency_hz=None)` | List shield-current items for a location. | Optional frequency filter |
-| `calculate_split_factor(earth_fault_current_id, shield_current_ids)` | Compute split factor and vector sums (mag/angle/real/imag). | Provide shield IDs with consistent reference |
-| `value_over_distance(measurement_ids, measurement_type="earthing_impedance")` | Map distance → value (or per measurement). | |
-| `value_over_distance_detailed(...)` | List of `{distance, value, frequency}` (or dict per measurement). | |
-| `_current_item_to_complex(item)` | Convert an item to a complex current (A). | Prefers real/imag, else magnitude/angle |
+## Export (groundmeas.export)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `export_measurements_to_json` | `path`, filters | none | Write measurements and items to JSON. |
+| `export_measurements_to_csv` | `path`, filters | none | Write measurements to CSV with items as JSON. |
+| `export_measurements_to_xml` | `path`, filters | none | Write measurements and items to XML. |
 
-## Export (`groundmeas.export`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `export_measurements_to_json(path, **filters)` | JSON export (filters match `read_measurements_by`). | |
-| `export_measurements_to_csv(path, **filters)` | One row per measurement; items as JSON string column. | |
-| `export_measurements_to_xml(path, **filters)` | XML with nested `<items>`. | |
+## OCR Import (groundmeas.vision_import)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `import_items_from_images` | images dir, measurement id, options | dict | OCR import of items from images. |
 
-## Matplotlib Plots (`groundmeas.plots`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `plot_imp_over_f(measurement_ids, normalize_freq_hz=None)` | \|Z\| vs frequency (optional normalization). | |
-| `plot_rho_f_model(measurement_ids, rho_f, rho=100)` | Measured vs rho–f model curves. | `rho`: single or list |
-| `plot_voltage_vt_epr(measurement_ids, frequency=50)` | Bars for EPR/Vtp/Vt. | |
-| `plot_value_over_distance(measurement_ids, measurement_type="earthing_impedance")` | Value vs distance. | |
+## Matplotlib plots (groundmeas.plots)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `plot_imp_over_f` | measurement id or list, normalize | figure | Impedance vs frequency plot. |
+| `plot_rho_f_model` | measurement ids, rho_f, rho | figure | Rho-f model plot. |
+| `plot_voltage_vt_epr` | measurement ids, frequency | figure | EPR and touch voltage plot. |
+| `plot_value_over_distance` | measurement id or list, type | figure | Value vs distance plot. |
+| `plot_soil_model` | `rho_layers`, `thicknesses_m`, max depth | figure | Layered soil model plot. |
+| `plot_soil_inversion` | measurement id, inversion options | figure | Observed vs fitted resistivity plot. |
 
-## Plotly (`groundmeas.vis_plotly`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `plot_imp_over_f_plotly(...)` | Interactive \|Z\| vs frequency. | |
-| `plot_rho_f_model_plotly(...)` | Measured + rho–f model curves. | |
-| `plot_voltage_vt_epr_plotly(...)` | Bars for EPR/Vtp/Vt. | |
-| `plot_value_over_distance_plotly(..., show_all_frequencies=False, target_frequency=None)` | Distance plots; optionally split by frequency. | |
+## Plotly plots (groundmeas.vis_plotly)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `plot_imp_over_f_plotly` | measurement id or list, normalize | figure | Interactive impedance plot. |
+| `plot_rho_f_model_plotly` | measurement ids, rho_f, rho | figure | Interactive rho-f plot. |
+| `plot_voltage_vt_epr_plotly` | measurement ids, frequency | figure | Interactive EPR plot. |
+| `plot_value_over_distance_plotly` | measurement id or list, options | figure | Interactive distance plot. |
+| `plot_soil_model_plotly` | `rho_layers`, `thicknesses_m`, max depth | figure | Interactive soil model plot. |
+| `plot_soil_inversion_plotly` | measurement id, inversion options | figure | Interactive inversion plot. |
 
-## Maps (`groundmeas.map_vis`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `generate_map(measurements, output_file="measurements_map.html", open_browser=True)` | Folium map for measurements with valid GPS. | |
-
-## OCR Import (`groundmeas.vision_import`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `_normalize_number`, `_parse_value_angle_unit`, `_read_api_key`, `_image_to_base64`, `preprocess_image` | Internal helpers. | |
-| `ocr_image(path, lang="eng", provider_model="tesseract"| "openai:<model>"| "ollama:<model>", api_key_env="OPENAI_API_KEY", timeout=120, max_dim=1400)` | Run OCR. | |
-| `parse_measurement_rows(text)` | Extract distance–current–voltage–impedance rows; normalize units; infer impedance if possible. | |
-| `_relative_spread(values)`, `_interpolate_at_distance(rows, target)` | Helper calculations. | |
-| `build_items_from_rows(measurement_id, rows, measurement_type, frequency_hz, distance_to_current_injection_m=None)` | Assemble payloads for impedance, earthing currents, prospective touch voltage near 1 m. | |
-| `import_items_from_images(images_dir, measurement_id, measurement_type="earthing_impedance", frequency_hz=50, distance_to_current_injection_m=None, ocr_provider="tesseract", api_key_env="OPENAI_API_KEY", ocr_timeout=120, ocr_max_dim=1400)` | Batch OCR import; returns summary (`created_item_ids`, `skipped`, `parsed_row_count`). | |
-
-## CLI helpers (`groundmeas.cli`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `_resolve_db`, `_save_default_db` | DB path resolution and persistence. | |
-| `_prompt_text`, `_prompt_float`, `_prompt_choice` | Prompt helpers (prompt_toolkit). | |
-| `_measurement_types`, `_existing_locations`, `_existing_measurement_values`, `_existing_item_units`, `_existing_item_values` | Suggestion helpers from DB. | |
-| `_load_measurement`, `_load_item`, `_dump_or_print`, `_print_measurement_summary` | ID loading, JSON output, console summary. | |
-| `_main` | Entry point for `python -m groundmeas.cli`. | |
-
-## Dashboard (`groundmeas.dashboard`)
-| Function | Description | Key args/notes |
-| --- | --- | --- |
-| `resolve_db_path()` | Resolve DB path from env/config/default. | |
-| `init_db()` | Connect DB; show errors in UI. | |
-| `main()` | Streamlit app layout (map, selection, tabs). | |
-
-## Extension
-No additional extension modules; all analytics are in `groundmeas.services.analytics`.
+## Maps (groundmeas.map_vis)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `generate_map` | measurements, output file, open_browser | none | Generate a Folium map. |

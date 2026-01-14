@@ -1,54 +1,53 @@
 # Contributing to groundmeas
 
-We welcome contributions! Here's how you can help.
+We welcome contributions. Follow these steps to set up a local development environment.
 
-## Development Setup
+## Development setup
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/Ce1ectric/groundmeas.git
-    cd groundmeas
-    ```
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Ce1ectric/groundmeas.git
+   cd groundmeas
+   ```
 
-2.  **Install dependencies** (using Poetry):
-    ```bash
-    poetry install
-    ```
+2. Install dependencies (Poetry):
+   ```bash
+   poetry install
+   ```
 
-3.  **Activate the environment**:
-    ```bash
-    poetry shell
-    ```
+3. Activate the environment:
+   ```bash
+   poetry shell
+   ```
 
-## Running Tests
+## Running tests
 
-We use `pytest` for testing.
+We use `pytest`.
 
 ```bash
 pytest
 ```
 
-## Building Documentation
+## Building documentation
 
-We use `mkdocs` with `mkdocstrings` for documentation.
+We use MkDocs with the Read the Docs theme and mkdocstrings.
 
-1.  **Install doc dependencies**:
-    ```bash
-    poetry add -D mkdocs mkdocs-material mkdocstrings[python]
-    ```
+1. Install doc dependencies:
+   ```bash
+   poetry add -D mkdocs mkdocstrings[python]
+   ```
 
-2.  **Serve documentation locally**:
-    ```bash
-    mkdocs serve
-    ```
-    Open `http://127.0.0.1:8000` in your browser.
+2. Serve documentation locally:
+   ```bash
+   mkdocs serve
+   ```
 
-3.  **Build static site**:
-    ```bash
-    mkdocs build
-    ```
+3. Build the static site:
+   ```bash
+   mkdocs build
+   ```
 
-## Release Process
+## Release process
 
 Use the included script to release a new version:
 
