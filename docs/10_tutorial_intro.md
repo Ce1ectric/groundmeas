@@ -131,3 +131,4 @@ gm-cli soil-inversion SOIL_MEAS_ID --layers 2 --method wenner
 - Missing `measurement_distance_m` prevents distance-based analytics.
 - Schlumberger spacing defaults to AB/2 and MN/2; set `ab_is_full` or `mn_is_full` if you store full spacings.
 - Use JSON export as a backup before editing or deleting data.
+- For algorithm selection and behavior details, see the [Distance profile reduction](15_analytics.md#distance-profile-reduction) section.

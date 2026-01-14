@@ -9,6 +9,7 @@ Documentation: https://ce1ectric.github.io/groundmeas/
 - CLI workflows for creating, editing, importing, and exporting measurements.
 - Streamlit dashboard with map selection and interactive plots.
 - Analytics for impedance profiles, touch voltages, split factors, and multilayer soil models.
+- Distance-profile reduction with maximum, 62 percent, minimum gradient, minimum stddev, and inverse (1/Z) methods.
 - Apparent resistivity simulation and 1-3 layer inversion for Wenner and Schlumberger surveys.
 - Import and export to JSON, CSV, XML, plus OCR import from images.
 

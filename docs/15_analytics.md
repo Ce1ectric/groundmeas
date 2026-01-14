@@ -67,13 +67,15 @@ gm-cli real-imag-over-frequency 1 2 3 --json-out out.json
 ## Distance profile reduction
 
 ### Physical background
-Fall-of-Potential tests measure impedance versus distance. A reduction algorithm extracts the characteristic impedance from the curve.
+Fall-of-Potential tests measure impedance versus distance between the voltage probe and the earthing system. As the probe moves away, the measured impedance approaches the "remote earth" value. In practice the curve can flatten slowly, show a shallow maximum, or contain noise from soil inhomogeneity, coupling, and probe placement. Reduction algorithms estimate one characteristic impedance from the distance series.
 
-Inverse extrapolation formula:
+Inverse extrapolation formula (1/Z method):
 
 $$
 \frac{1}{Z} = a \cdot \frac{1}{d} + b
 $$
+
+At infinite distance (1/d -> 0), 1/Z approaches the intercept b, so the extrapolated impedance is Z_infinity = 1/b.
 
 ### Function overview
 - `distance_profile_value` reduces a distance profile to one value using several algorithms.
@@ -85,9 +87,67 @@ $$
 
 ### General workflow
 1. Verify impedance items have `measurement_distance_m` and `value`.
-2. Choose a reduction algorithm.
-3. Run the reduction and inspect result distance.
-4. Compare with other algorithms if needed.
+2. If multiple frequencies exist, filter to a single frequency first.
+3. Choose a reduction algorithm that matches the test geometry and data quality.
+4. Run the reduction and inspect `result_distance_m` and `details`.
+5. Compare with other algorithms if needed.
+
+### Algorithm behavior in groundmeas
+
+#### Maximum
+The maximum method returns the measured point with the highest impedance value. It assumes the survey captured the true maximum of the distance curve. If the maximum was missed, the result will be too low. This can be a conservative choice when the maximum is clearly identified.
+
+Implementation details:
+- Uses the single point with `max(value)`.
+- `details.point` includes the chosen point.
+
+#### 62 percent (IEEE 80)
+IEEE Std 80 describes a colinear arrangement of electrode, current probe, and potential probe in homogeneous soil. Under those assumptions, the potential contributions cancel at 62% of the current-probe distance, so Z at 0.62 * D is the earthing impedance.
+
+Implementation details:
+- Requires `distance_to_current_injection_m` on the items.
+- Target distance = 0.62 * distance_to_current_injection_m.
+- Uses linear interpolation of the nearest distances (up to 3 points).
+- `result_distance_m` equals the target distance; `details.used_points` lists the interpolation points.
+
+#### Minimum gradient
+The minimum-gradient method finds the location where the slope dZ/dd is closest to zero. The idea is that a flat section of the curve indicates the remote-earth region, so the impedance at that distance is the characteristic value.
+
+Implementation details:
+- Computes numerical gradients from the sorted distance series.
+- Picks the point with the smallest absolute gradient.
+- `details.gradient` records the gradient value at that point.
+
+#### Minimum standard deviation
+This method scans the curve with a fixed-size window and finds the segment with the smallest standard deviation. A stable segment indicates a flat, remote-earth region. The algorithm returns the maximum value within the best window to remain conservative while reducing sensitivity to single outliers.
+
+Implementation details:
+- Uses `window` points per segment.
+- Picks the window with the lowest `stddev(values)`.
+- Returns the maximum value inside that window.
+- `details.window_points` and `details.stddev` explain the chosen segment.
+
+#### Inverse extrapolation (1/Z)
+The inverse method fits a straight line to 1/Z versus 1/d and extrapolates to infinite distance. This is useful when the curve is still rising and remote earth is not clearly reached, but it can overestimate if the data range is short or noisy.
+
+Implementation details:
+- Fits a line to x = 1/d and y = 1/Z.
+- Extrapolates to x = 0 to get y = b, then Z_infinity = 1/b.
+- Returns `result_distance_m = inf` to indicate extrapolation.
+- Requires non-zero distances and values.
+
+### Example curve (minimum standard deviation)
+
+![Minimum standard deviation window example](assets/std_dev.png)
+
+This plot shows the minimum standard deviation window used to select a stable region of the distance curve.
+
+### Choosing an algorithm
+- Use 62% when the geometry matches IEEE 80 assumptions (colinear probes, homogeneous soil) and you have a reliable injection distance.
+- Use minimum gradient when the curve flattens clearly and noise is low.
+- Use minimum standard deviation when the curve is noisy but you expect a stable plateau; increase `window` to smooth more.
+- Use maximum when you intentionally search for and confirm the peak in the curve.
+- Use inverse when remote earth is not fully reached; treat it as an extrapolation that can be conservative.
 
 ### Python API examples
 
@@ -113,6 +173,17 @@ result = distance_profile_value(1, algorithm="62_percent")
 print(result)
 ```
 
+Scenario C: minimum standard deviation with a larger window
+```python
+from groundmeas.db import connect_db
+from groundmeas.analytics import distance_profile_value
+
+connect_db("groundmeas.db")
+
+result = distance_profile_value(1, algorithm="minimum_stddev", window=5)
+print(result["result_value"], result["details"]["stddev"])
+```
+
 ### CLI examples
 
 Scenario A: minimum gradient
@@ -126,9 +197,10 @@ gm-cli distance-profile 1 --type earthing_impedance --algorithm inverse
 ```
 
 ### Additional notes
-- The 62 percent method requires `distance_to_current_injection_m`.
-- Use `minimum_stddev` when noise is high.
-- Results depend on distance coverage; short curves can bias the fit.
+- The 62 percent method requires consistent `distance_to_current_injection_m` values; mixed values trigger a warning and the first value is used.
+- Duplicate distances are deduplicated by choosing the point closest to linear interpolation between neighbors.
+- For inverse, distances and values must be non-zero.
+- Results depend on distance coverage; short or sparse curves can bias any reduction.
 
 ## Rho-f model fitting
 
