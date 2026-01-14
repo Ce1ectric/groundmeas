@@ -1,1217 +1,1007 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Christian Ehlert" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Analytics - groundmeas</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Analytics";
+        var mkdocs_page_input_path = "15_analytics.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
 
-<!doctype html>
-<html lang="en" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Grounding System Measurements & Analysis">
-      
-      
-        <meta name="author" content="Christian Ehlert">
-      
-      
-      
-        <link rel="prev" href="../14_import_export/">
-      
-      
-        <link rel="next" href="../16_dashboard/">
-      
-      
-        
-      
-      
-      <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
-    
-    
-      
-        <title>Analytics - groundmeas</title>
-      
-    
-    
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
+<body class="wy-body-for-nav" role="document">
 
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
-    
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-
-    
-    
-  </head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#analytics" class="md-skip">
-          Skip to content
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-    
-      
-
-<header class="md-header" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="groundmeas" class="md-header__button md-logo" aria-label="groundmeas" data-md-component="logo">
-      
-  
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            groundmeas
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Analytics
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Search">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Initializing search
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> groundmeas
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
 </div>
-      
-    
-    
-      <div class="md-header__source">
-        <a href="https://github.com/Ce1ectric/groundmeas" title="Go to repository" class="md-source" data-md-component="source">
-  <div class="md-source__icon md-icon">
-    
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
-  </div>
-  <div class="md-source__repository">
-    Ce1ectric/groundmeas
-  </div>
-</a>
       </div>
-    
-  </nav>
-  
-</header>
-    
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-          
-            
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../00_index/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Home
 
-      </a>
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../00_index/">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../02_quickstart/">Quickstart</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../01_datamodels/">Data Model</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../10_tutorial_intro/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11_create_measurements/">Create Measurements</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../12_read_measurements/">Read Measurements</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../13_change_measurements/">Change Measurements</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../14_import_export/">Import & Export</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Analytics</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#impedance-over-frequency">Impedance over frequency</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background">Physical background</a>
     </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../02_quickstart/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Quickstart
-
-      </a>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview">Function overview</a>
     </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../01_datamodels/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Data Model
-
-      </a>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs">Inputs and outputs</a>
     </li>
-  
-
-      
-        
-  
-  
-  
-    
-  
-  
-    
-    
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../10_tutorial_intro/" class="md-tabs__link">
-          
-  
-  
-  Tutorials
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../20_ref_intro/" class="md-tabs__link">
-          
-  
-  
-  Reference
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../99_contributing/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Contributing
-
-      </a>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow">General workflow</a>
     </li>
-  
-
-      
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#distance-profile-reduction">Distance profile reduction</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_1">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_1">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_1">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_1">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#algorithm-behavior-in-groundmeas">Algorithm behavior in groundmeas</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#maximum">Maximum</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#62-percent-ieee-80">62 percent (IEEE 80)</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#minimum-gradient">Minimum gradient</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#minimum-standard-deviation">Minimum standard deviation</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#inverse-extrapolation-1z">Inverse extrapolation (1/Z)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#example-curve-minimum-standard-deviation">Example curve (minimum standard deviation)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#choosing-an-algorithm">Choosing an algorithm</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_1">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_1">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_1">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#rho-f-model-fitting">Rho-f model fitting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_2">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_2">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_2">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_2">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_2">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_2">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_2">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#voltage-touch-voltage-and-epr">Voltage, touch voltage, and EPR</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_3">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_3">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_3">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_3">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_3">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_3">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_3">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shield-currents-and-split-factor">Shield currents and split factor</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_4">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_4">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_4">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_4">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_4">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_4">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_4">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#value-over-distance-mappings">Value over distance mappings</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_5">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_5">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_5">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_5">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_5">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_5">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_5">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#soil-resistivity-profiles">Soil resistivity profiles</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_6">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_6">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_6">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_6">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_6">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_6">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_6">Additional notes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#layered-earth-model-and-inversion">Layered earth model and inversion</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#physical-background_7">Physical background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#function-overview_7">Function overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#inputs-and-outputs_7">Inputs and outputs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#general-workflow_7">General workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#python-api-examples_7">Python API examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cli-examples_7">CLI examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#additional-notes_7">Additional notes</a>
+    </li>
+        </ul>
+    </li>
     </ul>
-  </div>
-</nav>
-          
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href=".." title="groundmeas" class="md-nav__button md-logo" aria-label="groundmeas" data-md-component="logo">
-      
-  
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
-
-    </a>
-    groundmeas
-  </label>
-  
-    <div class="md-nav__source">
-      <a href="https://github.com/Ce1ectric/groundmeas" title="Go to repository" class="md-source" data-md-component="source">
-  <div class="md-source__icon md-icon">
-    
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
-  </div>
-  <div class="md-source__repository">
-    Ce1ectric/groundmeas
-  </div>
-</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../16_dashboard/">Dashboard</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../20_ref_intro/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../21_ref_api/">API</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../22_ref_cli/">CLI</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../99_contributing/">Contributing</a>
+                </li>
+              </ul>
+      </div>
     </div>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../00_index/" class="md-nav__link">
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">groundmeas</a>
         
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Home
-  
-
-    
-  </span>
-  
-  
-
-      </a>
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Tutorials</li>
+      <li class="breadcrumb-item active">Analytics</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/Ce1ectric/groundmeas/edit/master/docs/15_analytics.md">Edit on Ce1ectric/groundmeas</a>
     </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../02_quickstart/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Quickstart
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../01_datamodels/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Data Model
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-        
-        
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Tutorials
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Tutorials
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../10_tutorial_intro/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../11_create_measurements/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Create Measurements
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../12_read_measurements/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Read Measurements
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../13_change_measurements/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Change Measurements
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../14_import_export/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Import & Export
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Analytics
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Analytics
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#core-formulas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Core formulas
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#distance-profile-reduction" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Distance profile reduction
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#impedance-and-realimag-over-frequency" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Impedance and real/imag over frequency
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rhof-fitting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rho–f fitting
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#touch-voltages-and-epr" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Touch voltages and EPR
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#shield-currents-and-split-factor" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shield currents and split factor
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#distance-based-mappings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Distance-based mappings
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#plotting-helpers-analytics-outputs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Plotting helpers (analytics outputs)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example-python" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Example (Python)
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../16_dashboard/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Dashboard
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reference
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Reference
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../20_ref_intro/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../21_ref_api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../22_ref_cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../99_contributing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contributing
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
   </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-          
-          
-            <div class="md-content" data-md-component="content">
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
               
-              <article class="md-content__inner md-typeset">
-                
-                  
-
-
-  
-  
-
-
-<h1 id="analytics">Analytics</h1>
-<p>Groundmeas provides physics-aware analytics for impedance profiles, touch voltages, shield currents, and model fitting. Functions are available via both the Python API (<code>groundmeas.analytics</code>) and CLI commands.</p>
-<h2 id="core-formulas">Core formulas</h2>
-<p>Earthing impedance:</p>
-<div class="arithmatex">\[
-Z_E(f) = \frac{V_{EPR}(f)}{I_E(f)}
-\]</div>
-<p>Earth Potential Rise:</p>
-<div class="arithmatex">\[
-EPR = Z_E \cdot I_E
-\]</div>
-<p>Rho–f model:</p>
-<div class="arithmatex">\[
-Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \cdot f
-\]</div>
-<p>Inverse extrapolation (Fall-of-Potential):</p>
+                <h1 id="analytics">Analytics</h1>
+<p>This tutorial provides detailed, function-by-function guidance for the analytics module. Each section includes background, inputs and outputs, workflows, Python API examples, CLI examples, and practical notes.</p>
+<h2 id="impedance-over-frequency">Impedance over frequency</h2>
+<h3 id="physical-background">Physical background</h3>
+<p>Impedance varies with frequency due to inductive and capacitive effects. Frequency curves are used for comparing measurements and fitting the rho-f model.</p>
+<h3 id="function-overview">Function overview</h3>
+<ul>
+<li><code>impedance_over_frequency</code> maps frequency to impedance magnitude.</li>
+<li><code>real_imag_over_frequency</code> maps frequency to real and imaginary components.</li>
+</ul>
+<h3 id="inputs-and-outputs">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>impedance_over_frequency</code></td>
+<td>measurement id or list</td>
+<td>dict</td>
+<td>Map frequency to impedance magnitude.</td>
+</tr>
+<tr>
+<td><code>real_imag_over_frequency</code></td>
+<td>measurement id or list</td>
+<td>dict</td>
+<td>Map frequency to real and imaginary values.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow">General workflow</h3>
+<ol>
+<li>Ensure impedance items have <code>frequency_hz</code> populated.</li>
+<li>Query impedance or real/imag maps.</li>
+<li>Compare curves across measurements.</li>
+<li>Use the result for plotting or further modeling.</li>
+</ol>
+<h3 id="python-api-examples">Python API examples</h3>
+<p>Scenario A: single measurement
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">impedance_over_frequency</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">imp_map</span> <span class="o">=</span> <span class="n">impedance_over_frequency</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">imp_map</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: multiple measurements and real/imag
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">real_imag_over_frequency</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">ri_map</span> <span class="o">=</span> <span class="n">real_imag_over_frequency</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">ri_map</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</code></pre></div></p>
+<h3 id="cli-examples">CLI examples</h3>
+<p>Scenario A: single measurement
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>gm-cli<span class="w"> </span>impedance-over-frequency<span class="w"> </span><span class="m">1</span>
+</code></pre></div></p>
+<p>Scenario B: multiple measurements
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>gm-cli<span class="w"> </span>real-imag-over-frequency<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>--json-out<span class="w"> </span>out.json
+</code></pre></div></p>
+<h3 id="additional-notes">Additional notes</h3>
+<ul>
+<li>Missing <code>frequency_hz</code> values are skipped.</li>
+<li>If impedance values are stored as real and imag, ensure the <code>value</code> field is populated or use the real/imag function.</li>
+<li>Use the Plotly dashboard for quick visual comparison.</li>
+</ul>
+<h2 id="distance-profile-reduction">Distance profile reduction</h2>
+<h3 id="physical-background_1">Physical background</h3>
+<p>Fall-of-Potential tests measure impedance versus distance between the voltage probe and the earthing system. As the probe moves away, the measured impedance approaches the "remote earth" value. In practice the curve can flatten slowly, show a shallow maximum, or contain noise from soil inhomogeneity, coupling, and probe placement. Reduction algorithms estimate one characteristic impedance from the distance series.</p>
+<p>Inverse extrapolation formula (1/Z method):</p>
 <div class="arithmatex">\[
 \frac{1}{Z} = a \cdot \frac{1}{d} + b
 \]</div>
-<h2 id="distance-profile-reduction">Distance profile reduction</h2>
-<p>Function: <code>distance_profile_value(measurement_id, measurement_type="earthing_impedance", algorithm=..., window=3)</code></p>
-<p>Algorithms and when to use them:
-- <code>maximum</code>: conservative; picks the largest measured value.
-- <code>62_percent</code>: classic Fall-of-Potential for homogeneous soil; needs <code>distance_to_current_injection_m</code>.
-- <code>minimum_gradient</code>: finds the flattest segment (|dZ/dd| minimal); good for mildly noisy curves.
-- <code>minimum_stddev</code>: sliding window with lowest variance, then takes its peak; robust to noise/outliers.
-- <code>inverse</code>: fits the inverse relation above and evaluates at infinite distance; use when measurements extend far from the electrode.</p>
-<p>CLI: <code>gm-cli distance-profile MEAS_ID --type earthing_impedance --algorithm minimum_gradient</code></p>
-<h2 id="impedance-and-realimag-over-frequency">Impedance and real/imag over frequency</h2>
-<p>Functions:
-- <code>impedance_over_frequency(measurement_ids)</code>
-- <code>real_imag_over_frequency(measurement_ids)</code></p>
-<p>CLI:
-- <code>gm-cli impedance-over-frequency MEAS_ID [--json-out file]</code>
-- <code>gm-cli real-imag-over-frequency MEAS_ID [--json-out file]</code></p>
-<p>Use cases: plotting Bode-like curves, preparing data for the rho–f fit, comparing multiple measurements.</p>
-<h2 id="rhof-fitting">Rho–f fitting</h2>
-<p>Function: <code>rho_f_model(measurement_ids)</code> → <code>(k1, k2, k3, k4, k5)</code></p>
-<p>Requirements: overlapping impedance data (real/imag) and soil resistivity items. The least-squares fit enforces a real impedance at f=0 via the k1·rho term.</p>
-<p>CLI: <code>gm-cli rho-f-model ID1 ID2 ... [--json-out file]</code></p>
-<h2 id="touch-voltages-and-epr">Touch voltages and EPR</h2>
-<p>Function: <code>voltage_vt_epr(measurement_ids, frequency=50)</code></p>
-<p>Inputs:
-- <code>earthing_impedance</code> at the specified frequency
-- <code>earthing_current</code> at the same frequency
-- Optional: <code>prospective_touch_voltage</code>, <code>touch_voltage</code></p>
-<p>Outputs per measurement:
-- <code>epr</code>
-- <code>vtp_min</code>, <code>vtp_max</code> (if prospective touch voltage present)
-- <code>vt_min</code>, <code>vt_max</code> (if touch voltage present)</p>
-<p>CLI: <code>gm-cli voltage-vt-epr MEAS_ID --frequency 50 [--json-out file]</code></p>
-<h2 id="shield-currents-and-split-factor">Shield currents and split factor</h2>
-<p>Functions:
-- <code>shield_currents_for_location(location_id, frequency_hz=None)</code>
-- <code>calculate_split_factor(earth_fault_current_id, shield_current_ids)</code></p>
-<p>Purpose: quantify how much of the earth fault current is diverted through cable shields versus the local earthing system.</p>
-<p>CLI:
-- <code>gm-cli shield-currents LOCATION_ID [--frequency Hz]</code>
-- <code>gm-cli calculate-split-factor --earth-fault-id ID --shield-id ID1 --shield-id ID2 ...</code></p>
-<p>Output includes magnitude/angle and real/imag components for shield sum, earth fault current, and local earthing current, plus the split factor.</p>
-<h2 id="distance-based-mappings">Distance-based mappings</h2>
-<p>Functions:
-- <code>value_over_distance(measurement_ids, measurement_type="earthing_impedance")</code>
-- <code>value_over_distance_detailed(...)</code></p>
-<p>Use for plotting Fall-of-Potential or soil profiles. See plotting helpers below.</p>
-<h2 id="plotting-helpers-analytics-outputs">Plotting helpers (analytics outputs)</h2>
+<p>At infinite distance (1/d -&gt; 0), 1/Z approaches the intercept b, so the extrapolated impedance is Z_infinity = 1/b.</p>
+<h3 id="function-overview_1">Function overview</h3>
 <ul>
-<li><code>plot_imp_over_f</code>, <code>plot_rho_f_model</code>, <code>plot_voltage_vt_epr</code>, <code>plot_value_over_distance</code> (Matplotlib)</li>
-<li>Plotly equivalents in <code>groundmeas.vis_plotly</code> for interactive use and in the dashboard.</li>
+<li><code>distance_profile_value</code> reduces a distance profile to one value using several algorithms.</li>
 </ul>
-<p>CLI plot commands:
-- <code>plot-impedance</code>
-- <code>plot-rho-f-model</code>
-- <code>plot-voltage-vt-epr</code></p>
-<h2 id="example-python">Example (Python)</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">distance_profile_value</span><span class="p">,</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">impedance_over_frequency</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">rho_f_model</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">voltage_vt_epr</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">dp</span> <span class="o">=</span> <span class="n">distance_profile_value</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">measurement_type</span><span class="o">=</span><span class="s2">&quot;earthing_impedance&quot;</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;minimum_gradient&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Characteristic impedance:&quot;</span><span class="p">,</span> <span class="n">dp</span><span class="p">[</span><span class="s2">&quot;result_value&quot;</span><span class="p">],</span> <span class="s2">&quot;at&quot;</span><span class="p">,</span> <span class="n">dp</span><span class="p">[</span><span class="s2">&quot;result_distance_m&quot;</span><span class="p">],</span> <span class="s2">&quot;m&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">imp</span> <span class="o">=</span> <span class="n">impedance_over_frequency</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">coeffs</span> <span class="o">=</span> <span class="n">rho_f_model</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Rho–f coefficients:&quot;</span><span class="p">,</span> <span class="n">coeffs</span><span class="p">)</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="n">vt</span> <span class="o">=</span> <span class="n">voltage_vt_epr</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">frequency</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;EPR and touch voltages:&quot;</span><span class="p">,</span> <span class="n">vt</span><span class="p">)</span>
-</code></pre></div>
-
-
-
-
-
-
-
-
-
-
-
-
-                
-              </article>
+<h3 id="inputs-and-outputs_1">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>distance_profile_value</code></td>
+<td>measurement id, algorithm, window</td>
+<td>dict</td>
+<td>Return characteristic value and metadata.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_1">General workflow</h3>
+<ol>
+<li>Verify impedance items have <code>measurement_distance_m</code> and <code>value</code>.</li>
+<li>If multiple frequencies exist, filter to a single frequency first.</li>
+<li>Choose a reduction algorithm that matches the test geometry and data quality.</li>
+<li>Run the reduction and inspect <code>result_distance_m</code> and <code>details</code>.</li>
+<li>Compare with other algorithms if needed.</li>
+</ol>
+<h3 id="algorithm-behavior-in-groundmeas">Algorithm behavior in groundmeas</h3>
+<h4 id="maximum">Maximum</h4>
+<p>The maximum method returns the measured point with the highest impedance value. It assumes the survey captured the true maximum of the distance curve. If the maximum was missed, the result will be too low. This can be a conservative choice when the maximum is clearly identified.</p>
+<p>Implementation details:
+- Uses the single point with <code>max(value)</code>.
+- <code>details.point</code> includes the chosen point.</p>
+<h4 id="62-percent-ieee-80">62 percent (IEEE 80)</h4>
+<p>IEEE Std 80 describes a colinear arrangement of electrode, current probe, and potential probe in homogeneous soil. Under those assumptions, the potential contributions cancel at 62% of the current-probe distance, so Z at 0.62 * D is the earthing impedance.</p>
+<p>Implementation details:
+- Requires <code>distance_to_current_injection_m</code> on the items.
+- Target distance = 0.62 * distance_to_current_injection_m.
+- Uses linear interpolation of the nearest distances (up to 3 points).
+- <code>result_distance_m</code> equals the target distance; <code>details.used_points</code> lists the interpolation points.</p>
+<h4 id="minimum-gradient">Minimum gradient</h4>
+<p>The minimum-gradient method finds the location where the slope dZ/dd is closest to zero. The idea is that a flat section of the curve indicates the remote-earth region, so the impedance at that distance is the characteristic value.</p>
+<p>Implementation details:
+- Computes numerical gradients from the sorted distance series.
+- Picks the point with the smallest absolute gradient.
+- <code>details.gradient</code> records the gradient value at that point.</p>
+<h4 id="minimum-standard-deviation">Minimum standard deviation</h4>
+<p>This method scans the curve with a fixed-size window and finds the segment with the smallest standard deviation. A stable segment indicates a flat, remote-earth region. The algorithm returns the maximum value within the best window to remain conservative while reducing sensitivity to single outliers.</p>
+<p>Implementation details:
+- Uses <code>window</code> points per segment.
+- Picks the window with the lowest <code>stddev(values)</code>.
+- Returns the maximum value inside that window.
+- <code>details.window_points</code> and <code>details.stddev</code> explain the chosen segment.</p>
+<h4 id="inverse-extrapolation-1z">Inverse extrapolation (1/Z)</h4>
+<p>The inverse method fits a straight line to 1/Z versus 1/d and extrapolates to infinite distance. This is useful when the curve is still rising and remote earth is not clearly reached, but it can overestimate if the data range is short or noisy.</p>
+<p>Implementation details:
+- Fits a line to x = 1/d and y = 1/Z.
+- Extrapolates to x = 0 to get y = b, then Z_infinity = 1/b.
+- Returns <code>result_distance_m = inf</code> to indicate extrapolation.
+- Requires non-zero distances and values.</p>
+<h3 id="example-curve-minimum-standard-deviation">Example curve (minimum standard deviation)</h3>
+<p><img alt="Minimum standard deviation window example" src="../assets/std_dev.png" /></p>
+<p>This plot shows the minimum standard deviation window used to select a stable region of the distance curve.</p>
+<h3 id="choosing-an-algorithm">Choosing an algorithm</h3>
+<ul>
+<li>Use 62% when the geometry matches IEEE 80 assumptions (colinear probes, homogeneous soil) and you have a reliable injection distance.</li>
+<li>Use minimum gradient when the curve flattens clearly and noise is low.</li>
+<li>Use minimum standard deviation when the curve is noisy but you expect a stable plateau; increase <code>window</code> to smooth more.</li>
+<li>Use maximum when you intentionally search for and confirm the peak in the curve.</li>
+<li>Use inverse when remote earth is not fully reached; treat it as an extrapolation that can be conservative.</li>
+</ul>
+<h3 id="python-api-examples_1">Python API examples</h3>
+<p>Scenario A: maximum method
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">distance_profile_value</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">distance_profile_value</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;maximum&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;result_value&quot;</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;result_distance_m&quot;</span><span class="p">])</span>
+</code></pre></div></p>
+<p>Scenario B: 62 percent method
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">distance_profile_value</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">distance_profile_value</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;62_percent&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario C: minimum standard deviation with a larger window
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">distance_profile_value</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">distance_profile_value</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;minimum_stddev&quot;</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;result_value&quot;</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;details&quot;</span><span class="p">][</span><span class="s2">&quot;stddev&quot;</span><span class="p">])</span>
+</code></pre></div></p>
+<h3 id="cli-examples_1">CLI examples</h3>
+<p>Scenario A: minimum gradient
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>gm-cli<span class="w"> </span>distance-profile<span class="w"> </span><span class="m">1</span><span class="w"> </span>--type<span class="w"> </span>earthing_impedance<span class="w"> </span>--algorithm<span class="w"> </span>minimum_gradient
+</code></pre></div></p>
+<p>Scenario B: inverse extrapolation
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>gm-cli<span class="w"> </span>distance-profile<span class="w"> </span><span class="m">1</span><span class="w"> </span>--type<span class="w"> </span>earthing_impedance<span class="w"> </span>--algorithm<span class="w"> </span>inverse
+</code></pre></div></p>
+<h3 id="additional-notes_1">Additional notes</h3>
+<ul>
+<li>The 62 percent method requires consistent <code>distance_to_current_injection_m</code> values; mixed values trigger a warning and the first value is used.</li>
+<li>Duplicate distances are deduplicated by choosing the point closest to linear interpolation between neighbors.</li>
+<li>For inverse, distances and values must be non-zero.</li>
+<li>Results depend on distance coverage; short or sparse curves can bias any reduction.</li>
+</ul>
+<h2 id="rho-f-model-fitting">Rho-f model fitting</h2>
+<h3 id="physical-background_2">Physical background</h3>
+<p>The rho-f model links impedance to soil resistivity and frequency. It uses complex coefficients fitted from data.</p>
+<div class="arithmatex">\[
+Z(\rho, f) = k_1 \cdot \rho + (k_2 + j k_3) \cdot f + (k_4 + j k_5) \cdot \rho \cdot f
+\]</div>
+<h3 id="function-overview_2">Function overview</h3>
+<ul>
+<li><code>rho_f_model</code> fits k1 to k5 from impedance and soil resistivity data.</li>
+</ul>
+<h3 id="inputs-and-outputs_2">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rho_f_model</code></td>
+<td>measurement ids</td>
+<td>tuple</td>
+<td>Fit coefficients k1 to k5.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_2">General workflow</h3>
+<ol>
+<li>Ensure impedance data and soil resistivity data overlap in frequency.</li>
+<li>Call the fit function with one or more measurements.</li>
+<li>Validate coefficients by plotting model curves.</li>
+</ol>
+<h3 id="python-api-examples_2">Python API examples</h3>
+<p>Scenario A: single measurement
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">rho_f_model</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">k1</span><span class="p">,</span> <span class="n">k2</span><span class="p">,</span> <span class="n">k3</span><span class="p">,</span> <span class="n">k4</span><span class="p">,</span> <span class="n">k5</span> <span class="o">=</span> <span class="n">rho_f_model</span><span class="p">([</span><span class="mi">1</span><span class="p">])</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">k1</span><span class="p">,</span> <span class="n">k2</span><span class="p">,</span> <span class="n">k3</span><span class="p">,</span> <span class="n">k4</span><span class="p">,</span> <span class="n">k5</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: combined fit
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">rho_f_model</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="n">coeffs</span> <span class="o">=</span> <span class="n">rho_f_model</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)</span>
+</code></pre></div></p>
+<h3 id="cli-examples_2">CLI examples</h3>
+<p>Scenario A: one measurement
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>gm-cli<span class="w"> </span>rho-f-model<span class="w"> </span><span class="m">1</span>
+</code></pre></div></p>
+<p>Scenario B: multiple measurements
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>gm-cli<span class="w"> </span>rho-f-model<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>--json-out<span class="w"> </span>rho_f.json
+</code></pre></div></p>
+<h3 id="additional-notes_2">Additional notes</h3>
+<ul>
+<li>The fit requires real and imag impedance values plus soil resistivity values.</li>
+<li>If frequencies do not overlap, the fit may fail or return poor coefficients.</li>
+<li>Use <code>plot-rho-f-model</code> to inspect the fit visually.</li>
+</ul>
+<h2 id="voltage-touch-voltage-and-epr">Voltage, touch voltage, and EPR</h2>
+<h3 id="physical-background_3">Physical background</h3>
+<p>Earth Potential Rise follows impedance and current.</p>
+<div class="arithmatex">\[
+EPR = Z_E \cdot I_E
+\]</div>
+<h3 id="function-overview_3">Function overview</h3>
+<ul>
+<li><code>voltage_vt_epr</code> computes EPR and touch voltage summaries per measurement.</li>
+</ul>
+<h3 id="inputs-and-outputs_3">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>voltage_vt_epr</code></td>
+<td>measurement id or list, frequency</td>
+<td>dict</td>
+<td>EPR and touch voltage summary.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_3">General workflow</h3>
+<ol>
+<li>Ensure impedance and current items share the same frequency.</li>
+<li>Call the function with one or more measurements.</li>
+<li>Inspect EPR and voltage ranges.</li>
+</ol>
+<h3 id="python-api-examples_3">Python API examples</h3>
+<p>Scenario A: single measurement
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">voltage_vt_epr</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">voltage_vt_epr</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">frequency</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: multiple measurements
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">voltage_vt_epr</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">voltage_vt_epr</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">frequency</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span>
+</code></pre></div></p>
+<h3 id="cli-examples_3">CLI examples</h3>
+<p>Scenario A: one measurement
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>gm-cli<span class="w"> </span>voltage-vt-epr<span class="w"> </span><span class="m">1</span><span class="w"> </span>--frequency<span class="w"> </span><span class="m">50</span>
+</code></pre></div></p>
+<p>Scenario B: multiple measurements
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>gm-cli<span class="w"> </span>voltage-vt-epr<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span>--frequency<span class="w"> </span><span class="m">50</span><span class="w"> </span>--json-out<span class="w"> </span>vt.json
+</code></pre></div></p>
+<h3 id="additional-notes_3">Additional notes</h3>
+<ul>
+<li>If current or impedance data is missing, outputs will be incomplete.</li>
+<li>Use consistent units for current and impedance values.</li>
+</ul>
+<h2 id="shield-currents-and-split-factor">Shield currents and split factor</h2>
+<h3 id="physical-background_4">Physical background</h3>
+<p>Earth fault current can split between cable shields and the local earthing system. The split factor quantifies that ratio.</p>
+<h3 id="function-overview_4">Function overview</h3>
+<ul>
+<li><code>shield_currents_for_location</code> lists shield current items for a location.</li>
+<li><code>calculate_split_factor</code> computes the split factor and derived currents.</li>
+</ul>
+<h3 id="inputs-and-outputs_4">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shield_currents_for_location</code></td>
+<td>location id, frequency</td>
+<td>list</td>
+<td>Shield current items.</td>
+</tr>
+<tr>
+<td><code>calculate_split_factor</code></td>
+<td>earth fault item id, shield item ids</td>
+<td>dict</td>
+<td>Split factor and current components.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_4">General workflow</h3>
+<ol>
+<li>Identify a location and available shield current items.</li>
+<li>Select the earth fault current item.</li>
+<li>Compute the split factor using selected shield currents.</li>
+</ol>
+<h3 id="python-api-examples_4">Python API examples</h3>
+<p>Scenario A: list shield currents
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">shield_currents_for_location</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="n">shield_items</span> <span class="o">=</span> <span class="n">shield_currents_for_location</span><span class="p">(</span><span class="n">location_id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">frequency_hz</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">shield_items</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: compute split factor
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">calculate_split_factor</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">calculate_split_factor</span><span class="p">(</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    <span class="n">earth_fault_current_id</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    <span class="n">shield_current_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">201</span><span class="p">,</span> <span class="mi">202</span><span class="p">],</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="p">)</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</code></pre></div></p>
+<h3 id="cli-examples_4">CLI examples</h3>
+<p>Scenario A: list shield currents
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>gm-cli<span class="w"> </span>shield-currents<span class="w"> </span><span class="m">1</span><span class="w"> </span>--frequency<span class="w"> </span><span class="m">50</span>
+</code></pre></div></p>
+<p>Scenario B: split factor
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>gm-cli<span class="w"> </span>calculate-split-factor<span class="w"> </span>--earth-fault-id<span class="w"> </span><span class="m">100</span><span class="w"> </span>--shield-id<span class="w"> </span><span class="m">201</span><span class="w"> </span>--shield-id<span class="w"> </span><span class="m">202</span>
+</code></pre></div></p>
+<h3 id="additional-notes_4">Additional notes</h3>
+<ul>
+<li>Use consistent reference direction and frequency across shield current items.</li>
+<li>Mixed polar and rectangular values are supported, but avoid mixing units.</li>
+</ul>
+<h2 id="value-over-distance-mappings">Value over distance mappings</h2>
+<h3 id="physical-background_5">Physical background</h3>
+<p>Not applicable. These functions provide distance-based mappings for plotting and QA.</p>
+<h3 id="function-overview_5">Function overview</h3>
+<ul>
+<li><code>value_over_distance</code> returns a simple distance to value map.</li>
+<li><code>value_over_distance_detailed</code> returns distance, value, and frequency points.</li>
+</ul>
+<h3 id="inputs-and-outputs_5">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>value_over_distance</code></td>
+<td>measurement id or list, type</td>
+<td>dict</td>
+<td>Distance to value map.</td>
+</tr>
+<tr>
+<td><code>value_over_distance_detailed</code></td>
+<td>measurement id or list, type</td>
+<td>list or dict</td>
+<td>Detailed points with frequency.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_5">General workflow</h3>
+<ol>
+<li>Filter by measurement type (impedance, resistance, soil resistivity).</li>
+<li>Use the simple map for quick plots or checks.</li>
+<li>Use the detailed map when frequency separation matters.</li>
+</ol>
+<h3 id="python-api-examples_5">Python API examples</h3>
+<p>Scenario A: simple map
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">value_over_distance</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="n">dist_map</span> <span class="o">=</span> <span class="n">value_over_distance</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">measurement_type</span><span class="o">=</span><span class="s2">&quot;earthing_impedance&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">dist_map</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: detailed map
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">value_over_distance_detailed</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="n">points</span> <span class="o">=</span> <span class="n">value_over_distance_detailed</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">measurement_type</span><span class="o">=</span><span class="s2">&quot;earthing_impedance&quot;</span><span class="p">)</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">points</span><span class="p">[</span><span class="mi">1</span><span class="p">][:</span><span class="mi">3</span><span class="p">])</span>
+</code></pre></div></p>
+<h3 id="cli-examples_5">CLI examples</h3>
+<p>Scenario A: export and inspect
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>gm-cli<span class="w"> </span>export-json<span class="w"> </span>out.json<span class="w"> </span>--measurement-id<span class="w"> </span><span class="m">1</span>
+</code></pre></div></p>
+<p>Scenario B: list items for a specific type
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>gm-cli<span class="w"> </span>list-items<span class="w"> </span><span class="m">1</span><span class="w"> </span>--type<span class="w"> </span>earthing_impedance
+</code></pre></div></p>
+<h3 id="additional-notes_5">Additional notes</h3>
+<ul>
+<li>There is no direct CLI command for these functions; use export or list-items for equivalent data.</li>
+<li>Missing <code>measurement_distance_m</code> values are ignored.</li>
+</ul>
+<h2 id="soil-resistivity-profiles">Soil resistivity profiles</h2>
+<h3 id="physical-background_6">Physical background</h3>
+<p>Wenner and Schlumberger arrays estimate apparent resistivity from field measurements.</p>
+<p>Wenner:</p>
+<div class="arithmatex">\[
+\rho_a = 2 \pi a R
+\]</div>
+<p>Schlumberger:</p>
+<div class="arithmatex">\[
+\rho_a = \pi \frac{AB^2 - MN^2}{4 MN} R
+\]</div>
+<h3 id="function-overview_6">Function overview</h3>
+<ul>
+<li><code>soil_resistivity_profile_detailed</code> returns depth and spacing detail.</li>
+<li><code>soil_resistivity_profile</code> returns depth to resistivity map.</li>
+<li><code>soil_resistivity_curve</code> returns spacing to resistivity points.</li>
+</ul>
+<h3 id="inputs-and-outputs_6">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>soil_resistivity_profile_detailed</code></td>
+<td>measurement id, method, options</td>
+<td>list</td>
+<td>Detailed depth and spacing points.</td>
+</tr>
+<tr>
+<td><code>soil_resistivity_profile</code></td>
+<td>measurement id, method, options</td>
+<td>dict</td>
+<td>Depth to resistivity map.</td>
+</tr>
+<tr>
+<td><code>soil_resistivity_curve</code></td>
+<td>measurement id, method, options</td>
+<td>list</td>
+<td>Spacing to resistivity points.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_6">General workflow</h3>
+<ol>
+<li>Store soil resistivity or resistance values with spacing.</li>
+<li>Choose Wenner or Schlumberger method.</li>
+<li>Build a depth profile for QA.</li>
+<li>Use the spacing curve for inversion.</li>
+</ol>
+<h3 id="python-api-examples_6">Python API examples</h3>
+<p>Scenario A: Wenner resistivity values
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">soil_resistivity_profile</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="n">profile</span> <span class="o">=</span> <span class="n">soil_resistivity_profile</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;wenner&quot;</span><span class="p">)</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">profile</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: Schlumberger resistance values
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">soil_resistivity_profile_detailed</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="n">profile</span> <span class="o">=</span> <span class="n">soil_resistivity_profile_detailed</span><span class="p">(</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>    <span class="n">measurement_id</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;schlumberger&quot;</span><span class="p">,</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>    <span class="n">value_kind</span><span class="o">=</span><span class="s2">&quot;resistance&quot;</span><span class="p">,</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>    <span class="n">ab_is_full</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>    <span class="n">mn_is_full</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a><span class="p">)</span>
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">profile</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+</code></pre></div></p>
+<h3 id="cli-examples_6">CLI examples</h3>
+<p>Scenario A: Wenner profile
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>gm-cli<span class="w"> </span>soil-profile<span class="w"> </span><span class="m">2</span><span class="w"> </span>--method<span class="w"> </span>wenner
+</code></pre></div></p>
+<p>Scenario B: Schlumberger profile with resistance values
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>gm-cli<span class="w"> </span>soil-profile<span class="w"> </span><span class="m">3</span><span class="w"> </span>--method<span class="w"> </span>schlumberger<span class="w"> </span>--value-kind<span class="w"> </span>resistance
+</code></pre></div></p>
+<h3 id="additional-notes_6">Additional notes</h3>
+<ul>
+<li>By default, Schlumberger spacing uses AB/2 and MN/2. Set <code>ab_is_full</code> or <code>mn_is_full</code> if you store full spacings.</li>
+<li>If units are missing, <code>value_kind=auto</code> assumes resistance.</li>
+</ul>
+<h2 id="layered-earth-model-and-inversion">Layered earth model and inversion</h2>
+<h3 id="physical-background_7">Physical background</h3>
+<p>Layered earth models approximate soil resistivity changes with depth. Apparent resistivity curves are simulated with digital filters or an integral engine.</p>
+<h3 id="function-overview_7">Function overview</h3>
+<ul>
+<li><code>LayeredEarthModel</code> validates layer resistivities and thicknesses.</li>
+<li><code>multilayer_soil_model</code> builds a layer table for reporting.</li>
+<li><code>layered_earth_forward</code> simulates apparent resistivity for Wenner or Schlumberger.</li>
+<li><code>invert_layered_earth</code> inverts spacing and apparent resistivity arrays.</li>
+<li><code>invert_soil_resistivity_layers</code> inverts directly from stored soil items.</li>
+</ul>
+<h3 id="inputs-and-outputs_7">Inputs and outputs</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LayeredEarthModel</code></td>
+<td><code>rho_layers</code>, <code>thicknesses_m</code></td>
+<td>object</td>
+<td>Validated layered earth model.</td>
+</tr>
+<tr>
+<td><code>multilayer_soil_model</code></td>
+<td><code>rho_layers</code>, <code>thicknesses_m</code></td>
+<td>dict</td>
+<td>Layer table and parameters.</td>
+</tr>
+<tr>
+<td><code>layered_earth_forward</code></td>
+<td>spacings, model params</td>
+<td>list</td>
+<td>Simulated apparent resistivity curve.</td>
+</tr>
+<tr>
+<td><code>invert_layered_earth</code></td>
+<td>spacings, observed rho, params</td>
+<td>dict</td>
+<td>Fitted layers and misfit stats.</td>
+</tr>
+<tr>
+<td><code>invert_soil_resistivity_layers</code></td>
+<td>measurement id, params</td>
+<td>dict</td>
+<td>Invert from stored soil survey.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="general-workflow_7">General workflow</h3>
+<ol>
+<li>Choose 1 to 3 layers based on curve complexity.</li>
+<li>Set initial resistivities and thicknesses.</li>
+<li>Simulate the curve to sanity check the model.</li>
+<li>Run inversion and inspect misfit.</li>
+<li>Increase layer count only if needed.</li>
+</ol>
+<h3 id="python-api-examples_7">Python API examples</h3>
+<p>Scenario A: forward simulation
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">layered_earth_forward</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">spacings</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">]</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="n">resistivities</span> <span class="o">=</span> <span class="p">[</span><span class="mf">100.0</span><span class="p">,</span> <span class="mf">30.0</span><span class="p">]</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="n">thicknesses</span> <span class="o">=</span> <span class="p">[</span><span class="mf">2.0</span><span class="p">]</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="n">pred</span> <span class="o">=</span> <span class="n">layered_earth_forward</span><span class="p">(</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    <span class="n">spacings_m</span><span class="o">=</span><span class="n">spacings</span><span class="p">,</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>    <span class="n">rho_layers</span><span class="o">=</span><span class="n">resistivities</span><span class="p">,</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>    <span class="n">thicknesses_m</span><span class="o">=</span><span class="n">thicknesses</span><span class="p">,</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;wenner&quot;</span><span class="p">,</span>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="p">)</span>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">pred</span><span class="p">)</span>
+</code></pre></div></p>
+<p>Scenario B: inversion from stored survey
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_db</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">groundmeas.analytics</span><span class="w"> </span><span class="kn">import</span> <span class="n">invert_soil_resistivity_layers</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="n">connect_db</span><span class="p">(</span><span class="s2">&quot;groundmeas.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="n">inv</span> <span class="o">=</span> <span class="n">invert_soil_resistivity_layers</span><span class="p">(</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="n">measurement_id</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;wenner&quot;</span><span class="p">,</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="n">layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="n">initial_rho</span><span class="o">=</span><span class="p">[</span><span class="mf">120.0</span><span class="p">,</span> <span class="mf">35.0</span><span class="p">],</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>    <span class="n">initial_thicknesses</span><span class="o">=</span><span class="p">[</span><span class="mf">2.5</span><span class="p">],</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>    <span class="n">max_iter</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>    <span class="n">damping</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="p">)</span>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">inv</span><span class="p">[</span><span class="s2">&quot;rho_layers&quot;</span><span class="p">],</span> <span class="n">inv</span><span class="p">[</span><span class="s2">&quot;thicknesses_m&quot;</span><span class="p">],</span> <span class="n">inv</span><span class="p">[</span><span class="s2">&quot;misfit&quot;</span><span class="p">])</span>
+</code></pre></div></p>
+<h3 id="cli-examples_7">CLI examples</h3>
+<p>Scenario A: simulate a model
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>gm-cli<span class="w"> </span>soil-model<span class="w"> </span>--rho<span class="w"> </span><span class="m">100</span><span class="w"> </span>--rho<span class="w"> </span><span class="m">30</span><span class="w"> </span>--thickness<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span>--method<span class="w"> </span>wenner<span class="w"> </span>--spacing<span class="w"> </span><span class="m">1</span><span class="w"> </span>--spacing<span class="w"> </span><span class="m">2</span><span class="w"> </span>--spacing<span class="w"> </span><span class="m">4</span>
+</code></pre></div></p>
+<p>Scenario B: invert a model
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>gm-cli<span class="w"> </span>soil-inversion<span class="w"> </span><span class="m">2</span><span class="w"> </span>--layers<span class="w"> </span><span class="m">2</span><span class="w"> </span>--method<span class="w"> </span>wenner<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span>--initial-rho<span class="w"> </span><span class="m">120</span><span class="w"> </span>--initial-rho<span class="w"> </span><span class="m">35</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">  </span>--initial-thickness<span class="w"> </span><span class="m">2</span>.5
+</code></pre></div></p>
+<h3 id="additional-notes_7">Additional notes</h3>
+<ul>
+<li>The filter forward engine assumes MN is small compared to AB for Schlumberger.</li>
+<li>Use <code>forward=integral</code> when MN is not negligible (requires SciPy).</li>
+<li>Inversion can be sensitive to initial guesses; start with 1 layer and add complexity gradually.</li>
+<li>Use <code>backend="mlx"</code> on Apple hardware if MLX is installed for speed.</li>
+</ul>
+              
             </div>
-          
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../14_import_export/" class="btn btn-neutral float-left" title="Import & Export"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../16_dashboard/" class="btn btn-neutral float-right" title="Dashboard">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
   </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
 </footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/Ce1ectric/groundmeas" class="fa fa-code-fork" style="color: #fcfcfc"> Ce1ectric/groundmeas</a>
+        </span>
     
     
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <span><a href="../14_import_export/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="../javascripts/mathjax.js"></script>
-      
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-      
+      <span><a href="../16_dashboard/" style="color: #fcfcfc">Next &raquo;</a></span>
     
-  </body>
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/mathjax.js"></script>
+      <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
 </html>
