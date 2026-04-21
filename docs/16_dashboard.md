@@ -32,6 +32,44 @@ Not applicable. The dashboard is a user interface for the analytics already desc
 3. Open the Soil Inversion tab and run the inversion.
 4. Review the fitted curve and layer table.
 
+## Map and location grouping
+
+The map draws **one marker per location**, not per measurement. Sites
+that were visited several times (repeat campaigns, different
+frequencies, different operators) therefore no longer stack invisibly
+on top of each other — the marker tooltip reports how many measurements
+are stored at that site, and the popup lists their IDs.
+
+Selecting measurements works in two steps:
+
+1. **Click a marker on the map.** Every measurement recorded at that
+   location is loaded into the *Selected Measurements for Analysis*
+   dropdown. In the default mode the click replaces the previous
+   selection. Tick *Multi-select mode (append to selection)* to add
+   sites incrementally without losing earlier picks.
+2. **Refine per site.** When a focused location carries more than one
+   measurement, an extra multiselect *Pick measurements from this
+   location* appears. Any measurement you remove there is dropped from
+   the global selection, while measurements from other sites remain
+   untouched. This lets you, for example, compare tower 17 against
+   tower 42 while only using two out of five campaigns at tower 17.
+
+Marker colours encode the asset type at a site: red for substations,
+green for overhead-line towers, blue for other single types, and gray
+for sites that mix several asset types.
+
+Internally the view relies on the pure helper
+`groundmeas.ui.dashboard.group_measurements_by_location`, which groups
+the measurement dicts returned by `read_measurements_by()` primarily
+by ``(case-insensitive name, round(lat, 5), round(lon, 5))`` and falls
+back to `Location.id` only when coordinates are unavailable. This
+matters in practice because `create_measurement` inserts a fresh
+`Location` row on every call — a site visited three times typically
+ends up with three distinct `location.id` values despite sharing the
+same name and coordinates. Grouping by coordinates collapses them
+into a single marker, and every group exposes a ``location_ids``
+list so duplicate rows can be spotted and cleaned up later.
+
 ## Python API examples
 
 ### Scenario A: compare impedance across sites

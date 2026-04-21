@@ -3,12 +3,17 @@ groundmeas.dashboard
 ====================
 
 Streamlit dashboard for interactive visualization and analysis.
+
+The map view groups measurements by their :class:`Location` so that
+sites carrying several measurement campaigns are represented by a
+single marker. Clicking a marker exposes every measurement attached
+to the site and lets the user pick any subset for downstream analysis.
 """
 
 import os
 import json
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 
 import folium
 import pandas as pd
@@ -77,6 +82,130 @@ def _parse_float_list(text: str) -> List[float]:
     return [float(part) for part in parts]
 
 
+def group_measurements_by_location(
+    measurements: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Group measurements by their physical site for the map view.
+
+    The underlying ``create_measurement`` call inserts a fresh
+    :class:`Location` row for every measurement, so a site that has
+    been visited several times typically shows up under multiple
+    ``location.id`` values despite sharing the same name and
+    coordinates. Grouping by id alone would therefore produce one
+    marker per measurement — exactly the problem this helper is
+    designed to avoid.
+
+    To deduplicate properly, measurements are primarily grouped by the
+    tuple ``(case-insensitive name, round(lat, 5), round(lon, 5))``.
+    Only when coordinates are missing does the helper fall back to
+    ``location.id``. Measurements without any location or without
+    coordinates *and* without an id are skipped.
+
+    Parameters
+    ----------
+    measurements : list of dict
+        Measurement dicts as returned by ``read_measurements_by``.
+
+    Returns
+    -------
+    list of dict
+        One entry per unique site, each with:
+
+        - ``location_key``: internal grouping key
+        - ``location``: the first location dict seen for the site
+          (name, latitude, longitude, …)
+        - ``measurements``: list of measurement dicts at that site
+        - ``measurement_ids``: list of measurement primary keys
+        - ``location_ids``: sorted list of distinct ``location.id``
+          values that map to this site (useful when cleaning up
+          duplicate Location rows in the database)
+        - ``asset_types``: sorted list of distinct asset types at the site
+
+        Groups are returned in a stable order (sites with coordinates
+        sorted by name / coordinates, id-only fallbacks afterwards).
+    """
+    groups: Dict[Any, Dict[str, Any]] = {}
+    for meas in measurements:
+        loc = meas.get("location")
+        if not loc:
+            continue
+
+        lat = loc.get("latitude")
+        lon = loc.get("longitude")
+        loc_id = loc.get("id")
+
+        if lat is not None and lon is not None:
+            name_part = (loc.get("name") or "").strip().lower()
+            key: Any = (
+                "coord",
+                name_part,
+                round(float(lat), 5),
+                round(float(lon), 5),
+            )
+        elif loc_id is not None:
+            # No coordinates — fall back to id so we still deduplicate
+            # exact duplicates of the same row.
+            key = ("id", loc_id)
+        else:
+            # No way to identify the site — skip silently.
+            continue
+
+        group = groups.setdefault(
+            key,
+            {
+                "location_key": key,
+                "location": loc,
+                "measurements": [],
+                "measurement_ids": [],
+                "location_ids": set(),
+                "asset_types": set(),
+            },
+        )
+        group["measurements"].append(meas)
+        if meas.get("id") is not None:
+            group["measurement_ids"].append(meas["id"])
+        if loc_id is not None:
+            group["location_ids"].add(loc_id)
+        atype = meas.get("asset_type")
+        if atype:
+            group["asset_types"].add(atype)
+
+    # Materialise sets as sorted lists and order groups deterministically:
+    # coordinate-keyed sites first (sorted by name then coords), then
+    # id-only fallbacks.
+    def _sort_key(item: Dict[str, Any]):
+        k = item["location_key"]
+        if isinstance(k, tuple) and k and k[0] == "coord":
+            return (0, k[1], k[2], k[3])
+        return (1, str(k))
+
+    result: List[Dict[str, Any]] = []
+    for group in sorted(groups.values(), key=_sort_key):
+        group["asset_types"] = sorted(group["asset_types"])
+        group["location_ids"] = sorted(group["location_ids"])
+        result.append(group)
+    return result
+
+
+def _location_marker_color(asset_types: List[str]) -> str:
+    """
+    Pick a folium marker colour from the asset types present at a site.
+
+    If the site carries a single asset type, the historical colour map
+    is reused. Mixed sites fall back to ``"gray"``.
+    """
+    asset_colors = {
+        "substation": "red",
+        "overhead_line_tower": "green",
+    }
+    if len(asset_types) == 1:
+        return asset_colors.get(asset_types[0], "blue")
+    if not asset_types:
+        return "blue"
+    return "gray"
+
+
 def init_db():
     """
     Initialize the database connection.
@@ -129,40 +258,59 @@ def main():
 
     st.sidebar.write(f"Showing {len(filtered_measurements)} measurements")
 
+    # Group measurements by location: a site with several measurements
+    # should show up as a single marker. Clicking it exposes every
+    # measurement taken at that site.
+    location_groups = group_measurements_by_location(filtered_measurements)
+
     # --- Main Area: Map ---
 
     # Calculate center
-    if filtered_measurements:
-        lats = [m["location"]["latitude"] for m in filtered_measurements]
-        longs = [m["location"]["longitude"] for m in filtered_measurements]
-        center = [sum(lats)/len(lats), sum(longs)/len(longs)]
+    if location_groups:
+        lats = [g["location"]["latitude"] for g in location_groups]
+        longs = [g["location"]["longitude"] for g in location_groups]
+        center = [sum(lats) / len(lats), sum(longs) / len(longs)]
     else:
-        center = [51.1657, 10.4515] # Germany center approx
+        center = [51.1657, 10.4515]  # Germany center approx
 
     m = folium.Map(location=center, zoom_start=6)
 
-    # Add markers
+    # Add markers: one per location, labelled with a stable index so the
+    # returned folium tooltip can be resolved back to the group.
     # We use a FeatureGroup to allow potential future layer controls
-    fg = folium.FeatureGroup(name="Measurements")
+    fg = folium.FeatureGroup(name="Locations")
 
-    for meas in filtered_measurements:
-        loc = meas["location"]
-        # Tooltip shows basic info
-        tooltip = f"ID: {meas['id']} - {loc['name']}"
+    group_by_index = {idx: g for idx, g in enumerate(location_groups)}
 
-        # We can color code by type
-        color = "blue"
-        if meas.get("asset_type") == "substation":
-            color = "red"
-        elif meas.get("asset_type") == "overhead_line_tower":
-            color = "green"
+    for idx, group in group_by_index.items():
+        loc = group["location"]
+        n = len(group["measurement_ids"])
+        meas_word = "measurement" if n == 1 else "measurements"
+        tooltip = f"Loc #{idx}: {loc.get('name', '?')} ({n} {meas_word})"
+
+        ids_preview = ", ".join(str(i) for i in group["measurement_ids"][:10])
+        if len(group["measurement_ids"]) > 10:
+            ids_preview += ", …"
+        loc_ids = group.get("location_ids") or []
+        if len(loc_ids) > 1:
+            loc_id_line = (
+                f"Location IDs ({len(loc_ids)} duplicates): "
+                f"{', '.join(str(i) for i in loc_ids)}"
+            )
+        else:
+            loc_id_line = f"Location ID: {loc_ids[0] if loc_ids else '-'}"
+        popup_html = (
+            f"<b>{loc.get('name', '?')}</b><br>"
+            f"{loc_id_line}<br>"
+            f"Asset types: {', '.join(group['asset_types']) or '-'}<br>"
+            f"Measurements ({n}): {ids_preview}"
+        )
 
         folium.Marker(
             location=[loc["latitude"], loc["longitude"]],
             tooltip=tooltip,
-            icon=folium.Icon(color=color),
-            # We embed the ID in the popup or just rely on the click return
-            # st_folium returns the last clicked object info
+            popup=folium.Popup(popup_html, max_width=320),
+            icon=folium.Icon(color=_location_marker_color(group["asset_types"])),
         ).add_to(fg)
 
     fg.add_to(m)
@@ -170,60 +318,116 @@ def main():
     # Render map with st_folium
     # returned_objects=["last_object_clicked"] allows us to see what was clicked
     st.write("### Map Overview")
-    st.info("Click on a marker to see details below. Use the multiselect box for batch analysis.")
+    st.info(
+        "Click a marker to load every measurement at that location. "
+        "Use the dropdown below to refine the selection for analysis."
+    )
 
-    map_data = st_folium(m, width=None, height=500, returned_objects=["last_object_clicked_tooltip"])
+    map_data = st_folium(
+        m, width=None, height=500, returned_objects=["last_object_clicked_tooltip"]
+    )
 
     # --- Interaction Logic ---
 
-    # 1. Handle Map Click (Single Selection)
-    selected_id_from_map = None
+    # 1. Handle Map Click — resolve the clicked location group
+    clicked_group = None
     if map_data and map_data.get("last_object_clicked_tooltip"):
         tooltip_text = map_data["last_object_clicked_tooltip"]
-        # Parse ID from "ID: 123 - Name"
         try:
-            selected_id_from_map = int(tooltip_text.split(":")[1].split("-")[0].strip())
+            idx = int(tooltip_text.split("#", 1)[1].split(":", 1)[0].strip())
+            clicked_group = group_by_index.get(idx)
         except (ValueError, IndexError):
             pass
 
-    # 2. Multi-Selection Widget
-    all_ids = [m["id"] for m in filtered_measurements]
-
-    # Ensure the widget key exists in session state
+    # Ensure session-state keys exist
     if "multiselect_ids" not in st.session_state:
         st.session_state["multiselect_ids"] = []
+    if "last_clicked_tooltip" not in st.session_state:
+        st.session_state["last_clicked_tooltip"] = None
+    if "focused_location_key" not in st.session_state:
+        st.session_state["focused_location_key"] = None
 
     # Checkbox for multi-select behavior (simulating Shift+Click)
-    multi_select_mode = st.checkbox("Multi-select mode (append to selection)", value=False, help="If checked, clicking a marker adds it to the selection. Otherwise, it replaces the selection.")
+    multi_select_mode = st.checkbox(
+        "Multi-select mode (append to selection)",
+        value=False,
+        help=(
+            "If checked, clicking a marker adds every measurement at "
+            "that location to the current selection. Otherwise the "
+            "selection is replaced."
+        ),
+    )
 
-    # Update logic
-    if selected_id_from_map:
-        # We need to check if this click is "new" or if we already handled it.
-        if "last_clicked_tooltip" not in st.session_state:
-            st.session_state["last_clicked_tooltip"] = None
-
+    if clicked_group is not None:
         current_tooltip = map_data.get("last_object_clicked_tooltip")
-
         if current_tooltip != st.session_state["last_clicked_tooltip"]:
-            # New click detected
+            # New click detected — load all measurements at that site
             st.session_state["last_clicked_tooltip"] = current_tooltip
+            st.session_state["focused_location_key"] = clicked_group["location_key"]
 
-            current_selection = st.session_state["multiselect_ids"]
+            clicked_ids = list(clicked_group["measurement_ids"])
+            current_selection = list(st.session_state["multiselect_ids"])
 
             if multi_select_mode:
-                if selected_id_from_map not in current_selection:
-                    st.session_state["multiselect_ids"] = current_selection + [selected_id_from_map]
+                merged = current_selection + [
+                    i for i in clicked_ids if i not in current_selection
+                ]
+                if merged != current_selection:
+                    st.session_state["multiselect_ids"] = merged
                     st.rerun()
             else:
-                # Exclusive selection
-                if current_selection != [selected_id_from_map]:
-                    st.session_state["multiselect_ids"] = [selected_id_from_map]
+                if current_selection != clicked_ids:
+                    st.session_state["multiselect_ids"] = clicked_ids
                     st.rerun()
+
+    # 2. Per-location filter — only shown when a site has more than one measurement
+    focused_key = st.session_state.get("focused_location_key")
+    focused_group = next(
+        (g for g in location_groups if g["location_key"] == focused_key),
+        None,
+    )
+    if focused_group is not None and len(focused_group["measurement_ids"]) > 1:
+        loc_name = focused_group["location"].get("name", "?")
+        st.write(
+            f"#### Measurements at **{loc_name}** "
+            f"({len(focused_group['measurement_ids'])} total)"
+        )
+        current_selection = list(st.session_state["multiselect_ids"])
+        default_for_location = [
+            i for i in focused_group["measurement_ids"] if i in current_selection
+        ] or list(focused_group["measurement_ids"])
+        picked = st.multiselect(
+            "Pick measurements from this location",
+            options=focused_group["measurement_ids"],
+            default=default_for_location,
+            key=f"location_picker_{focused_key}",
+            help=(
+                "Narrow the analysis to a subset of the measurements "
+                "recorded at this location."
+            ),
+        )
+        # Sync back: measurements selected here must appear in the
+        # global selection; ones unpicked at this location must be
+        # dropped. Measurements from other locations stay untouched so
+        # multi-select mode keeps working across sites.
+        other_locations = [
+            i
+            for i in current_selection
+            if i not in focused_group["measurement_ids"]
+        ]
+        new_selection = other_locations + list(picked)
+        if new_selection != current_selection:
+            st.session_state["multiselect_ids"] = new_selection
+            st.rerun()
+
+    all_ids = [
+        mid for group in location_groups for mid in group["measurement_ids"]
+    ]
 
     selected_ids = st.multiselect(
         "Selected Measurements for Analysis",
         options=all_ids,
-        key="multiselect_ids"
+        key="multiselect_ids",
     )
 
     # Sync back to session state (if user removed something via UI)
