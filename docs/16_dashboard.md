@@ -60,13 +60,15 @@ for sites that mix several asset types.
 
 Internally the view relies on the pure helper
 `groundmeas.ui.dashboard.group_measurements_by_location`, which groups
-the measurement dicts returned by `read_measurements_by()` by
-`Location.id` (or by `(name, rounded lat, rounded lon)` when the id is
-missing) and returns the measurement IDs, asset types and the
-underlying location object for each site. The helper is covered by
-unit tests in `tests/test_dashboard.py` and is safe to reuse outside
-Streamlit — for example in notebooks when you need to know how many
-measurements a site carries.
+the measurement dicts returned by `read_measurements_by()` primarily
+by ``(case-insensitive name, round(lat, 5), round(lon, 5))`` and falls
+back to `Location.id` only when coordinates are unavailable. This
+matters in practice because `create_measurement` inserts a fresh
+`Location` row on every call — a site visited three times typically
+ends up with three distinct `location.id` values despite sharing the
+same name and coordinates. Grouping by coordinates collapses them
+into a single marker, and every group exposes a ``location_ids``
+list so duplicate rows can be spotted and cleaned up later.
 
 ## Python API examples
 

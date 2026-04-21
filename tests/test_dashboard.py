@@ -116,7 +116,7 @@ def _loc(id_=None, name="Site", lat=1.0, lon=2.0):
 
 def test_group_measurements_by_location_multiple_per_site():
     """Two measurements on the same location must collapse into one group."""
-    loc = _loc(id_=10, name="Substation A")
+    loc = _loc(id_=10, name="Substation A", lat=52.0, lon=9.0)
     measurements = [
         {"id": 1, "asset_type": "substation", "location": loc, "items": []},
         {"id": 2, "asset_type": "substation", "location": loc, "items": []},
@@ -124,58 +124,143 @@ def test_group_measurements_by_location_multiple_per_site():
     groups = dashboard.group_measurements_by_location(measurements)
     assert len(groups) == 1
     g = groups[0]
-    assert g["location_key"] == 10
     assert g["measurement_ids"] == [1, 2]
+    assert g["location_ids"] == [10]
     assert g["asset_types"] == ["substation"]
 
 
-def test_group_measurements_by_location_distinct_sites():
-    """Distinct locations must yield one group each, ordered by id."""
+def test_group_measurements_by_location_duplicate_location_rows():
+    """
+    Regression test: create_measurement inserts a fresh Location row
+    on every call, so a site visited three times can end up with three
+    distinct ``location.id`` values that all share the same name and
+    coordinates. They must still collapse into one marker.
+    """
+    name = "UW Kirchdorf"
+    lat, lon = 52.4321, 9.8765
     measurements = [
-        {"id": 1, "asset_type": "substation", "location": _loc(id_=20, name="B"), "items": []},
-        {"id": 2, "asset_type": "overhead_line_tower", "location": _loc(id_=10, name="A"), "items": []},
-        {"id": 3, "asset_type": "substation", "location": _loc(id_=20, name="B"), "items": []},
+        {
+            "id": mid,
+            "asset_type": "substation",
+            "fault_resistance_ohm": r,
+            "location": _loc(id_=lid, name=name, lat=lat, lon=lon),
+            "items": [],
+        }
+        for mid, lid, r in [(101, 1, 0.5), (102, 2, 1.0), (103, 3, 2.0)]
     ]
     groups = dashboard.group_measurements_by_location(measurements)
-    assert [g["location_key"] for g in groups] == [10, 20]
-    assert groups[0]["measurement_ids"] == [2]
-    assert groups[1]["measurement_ids"] == [1, 3]
-    # Group for B has a single asset type; group for A too
-    assert groups[0]["asset_types"] == ["overhead_line_tower"]
-    assert groups[1]["asset_types"] == ["substation"]
+    assert len(groups) == 1, "duplicate Locations must collapse into one site"
+    g = groups[0]
+    assert g["measurement_ids"] == [101, 102, 103]
+    assert g["location_ids"] == [1, 2, 3]
+    assert g["asset_types"] == ["substation"]
 
 
-def test_group_measurements_by_location_skips_without_coords():
-    """Locations without usable coordinates must be skipped silently."""
+def test_group_measurements_by_location_case_insensitive_name():
+    """
+    Site names should group case-insensitively so ``"UW Kirchdorf"`` and
+    ``"uw kirchdorf"`` stored on different rows don't split the marker.
+    """
+    lat, lon = 52.0, 9.0
     measurements = [
-        {"id": 1, "asset_type": "cable", "location": None, "items": []},
         {
-            "id": 2,
-            "asset_type": "cable",
-            "location": {"id": 5, "name": "No coords", "latitude": None, "longitude": 0.0},
+            "id": 1,
+            "asset_type": "substation",
+            "location": _loc(id_=1, name="UW Kirchdorf", lat=lat, lon=lon),
             "items": [],
         },
-        {"id": 3, "asset_type": "cable", "location": _loc(id_=7), "items": []},
-    ]
-    groups = dashboard.group_measurements_by_location(measurements)
-    assert [g["location_key"] for g in groups] == [7]
-
-
-def test_group_measurements_by_location_fallback_key_without_id():
-    """Measurements sharing name + coordinates must group when id is missing."""
-    loc = _loc(id_=None, name="Unnamed", lat=48.0, lon=11.0)
-    measurements = [
-        {"id": 1, "asset_type": "cable", "location": dict(loc), "items": []},
-        {"id": 2, "asset_type": "cable", "location": dict(loc), "items": []},
+        {
+            "id": 2,
+            "asset_type": "substation",
+            "location": _loc(id_=2, name="  uw kirchdorf  ", lat=lat, lon=lon),
+            "items": [],
+        },
     ]
     groups = dashboard.group_measurements_by_location(measurements)
     assert len(groups) == 1
     assert groups[0]["measurement_ids"] == [1, 2]
 
 
+def test_group_measurements_by_location_distinct_sites():
+    """Physically distinct sites must remain in separate groups."""
+    measurements = [
+        {
+            "id": 1,
+            "asset_type": "substation",
+            "location": _loc(id_=20, name="B", lat=53.0, lon=10.0),
+            "items": [],
+        },
+        {
+            "id": 2,
+            "asset_type": "overhead_line_tower",
+            "location": _loc(id_=10, name="A", lat=52.0, lon=9.0),
+            "items": [],
+        },
+        {
+            "id": 3,
+            "asset_type": "substation",
+            "location": _loc(id_=21, name="B", lat=53.0, lon=10.0),
+            "items": [],
+        },
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert len(groups) == 2
+    by_name = {g["location"]["name"]: g for g in groups}
+    assert by_name["A"]["measurement_ids"] == [2]
+    assert by_name["A"]["location_ids"] == [10]
+    assert by_name["B"]["measurement_ids"] == [1, 3]
+    # Duplicate Location rows for the same physical site must be
+    # exposed so the user can clean them up.
+    assert by_name["B"]["location_ids"] == [20, 21]
+
+
+def test_group_measurements_by_location_skips_without_identifier():
+    """Measurements without coords and without id must be dropped."""
+    measurements = [
+        {"id": 1, "asset_type": "cable", "location": None, "items": []},
+        {
+            "id": 2,
+            "asset_type": "cable",
+            "location": {"id": None, "name": "x", "latitude": None, "longitude": None},
+            "items": [],
+        },
+        {
+            "id": 3,
+            "asset_type": "cable",
+            "location": _loc(id_=7, lat=48.0, lon=11.0),
+            "items": [],
+        },
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert len(groups) == 1
+    assert groups[0]["measurement_ids"] == [3]
+
+
+def test_group_measurements_by_location_id_only_fallback():
+    """When coordinates are missing but id is set, group by id."""
+    measurements = [
+        {
+            "id": 1,
+            "asset_type": "cable",
+            "location": {"id": 99, "name": "No coords", "latitude": None, "longitude": None},
+            "items": [],
+        },
+        {
+            "id": 2,
+            "asset_type": "cable",
+            "location": {"id": 99, "name": "No coords", "latitude": None, "longitude": None},
+            "items": [],
+        },
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert len(groups) == 1
+    assert groups[0]["measurement_ids"] == [1, 2]
+    assert groups[0]["location_ids"] == [99]
+
+
 def test_group_measurements_mixed_asset_types_are_reported():
     """A site with different asset types must expose all of them."""
-    loc = _loc(id_=30, name="Mixed")
+    loc = _loc(id_=30, name="Mixed", lat=52.0, lon=9.0)
     measurements = [
         {"id": 1, "asset_type": "substation", "location": loc, "items": []},
         {"id": 2, "asset_type": "cable", "location": loc, "items": []},

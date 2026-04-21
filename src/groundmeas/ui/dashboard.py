@@ -86,13 +86,21 @@ def group_measurements_by_location(
     measurements: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     """
-    Group measurements by their Location for the map view.
+    Group measurements by their physical site for the map view.
 
-    Measurements without a location or without valid coordinates are
-    skipped. Locations are identified by ``location.id`` when available;
-    otherwise a fallback key based on ``(name, rounded lat, rounded lon)``
-    is used so that entries stored without a primary key still collapse
-    into one marker.
+    The underlying ``create_measurement`` call inserts a fresh
+    :class:`Location` row for every measurement, so a site that has
+    been visited several times typically shows up under multiple
+    ``location.id`` values despite sharing the same name and
+    coordinates. Grouping by id alone would therefore produce one
+    marker per measurement — exactly the problem this helper is
+    designed to avoid.
+
+    To deduplicate properly, measurements are primarily grouped by the
+    tuple ``(case-insensitive name, round(lat, 5), round(lon, 5))``.
+    Only when coordinates are missing does the helper fall back to
+    ``location.id``. Measurements without any location or without
+    coordinates *and* without an id are skipped.
 
     Parameters
     ----------
@@ -102,33 +110,46 @@ def group_measurements_by_location(
     Returns
     -------
     list of dict
-        One entry per unique location, each with:
+        One entry per unique site, each with:
 
-        - ``location_key``: internal grouping key (int id or fallback tuple)
-        - ``location``: the location dict (name, latitude, longitude, …)
+        - ``location_key``: internal grouping key
+        - ``location``: the first location dict seen for the site
+          (name, latitude, longitude, …)
         - ``measurements``: list of measurement dicts at that site
         - ``measurement_ids``: list of measurement primary keys
+        - ``location_ids``: sorted list of distinct ``location.id``
+          values that map to this site (useful when cleaning up
+          duplicate Location rows in the database)
         - ``asset_types``: sorted list of distinct asset types at the site
 
-        Groups are returned in a stable order (numeric ids first, then
-        fallback keys by name).
+        Groups are returned in a stable order (sites with coordinates
+        sorted by name / coordinates, id-only fallbacks afterwards).
     """
     groups: Dict[Any, Dict[str, Any]] = {}
     for meas in measurements:
         loc = meas.get("location")
         if not loc:
             continue
-        if loc.get("latitude") is None or loc.get("longitude") is None:
-            continue
 
-        key: Any = loc.get("id")
-        if key is None:
-            key = (
-                "__fallback__",
-                loc.get("name", ""),
-                round(float(loc["latitude"]), 6),
-                round(float(loc["longitude"]), 6),
+        lat = loc.get("latitude")
+        lon = loc.get("longitude")
+        loc_id = loc.get("id")
+
+        if lat is not None and lon is not None:
+            name_part = (loc.get("name") or "").strip().lower()
+            key: Any = (
+                "coord",
+                name_part,
+                round(float(lat), 5),
+                round(float(lon), 5),
             )
+        elif loc_id is not None:
+            # No coordinates — fall back to id so we still deduplicate
+            # exact duplicates of the same row.
+            key = ("id", loc_id)
+        else:
+            # No way to identify the site — skip silently.
+            continue
 
         group = groups.setdefault(
             key,
@@ -137,28 +158,32 @@ def group_measurements_by_location(
                 "location": loc,
                 "measurements": [],
                 "measurement_ids": [],
+                "location_ids": set(),
                 "asset_types": set(),
             },
         )
         group["measurements"].append(meas)
         if meas.get("id") is not None:
             group["measurement_ids"].append(meas["id"])
+        if loc_id is not None:
+            group["location_ids"].add(loc_id)
         atype = meas.get("asset_type")
         if atype:
             group["asset_types"].add(atype)
 
-    # Materialise ``asset_types`` as a sorted list and provide a
-    # deterministic ordering of groups: numeric ids first, then fallback
-    # tuples sorted by name / coordinates.
+    # Materialise sets as sorted lists and order groups deterministically:
+    # coordinate-keyed sites first (sorted by name then coords), then
+    # id-only fallbacks.
     def _sort_key(item: Dict[str, Any]):
         k = item["location_key"]
-        if isinstance(k, tuple):
-            return (1, str(k))
-        return (0, k)
+        if isinstance(k, tuple) and k and k[0] == "coord":
+            return (0, k[1], k[2], k[3])
+        return (1, str(k))
 
     result: List[Dict[str, Any]] = []
     for group in sorted(groups.values(), key=_sort_key):
         group["asset_types"] = sorted(group["asset_types"])
+        group["location_ids"] = sorted(group["location_ids"])
         result.append(group)
     return result
 
@@ -266,9 +291,17 @@ def main():
         ids_preview = ", ".join(str(i) for i in group["measurement_ids"][:10])
         if len(group["measurement_ids"]) > 10:
             ids_preview += ", …"
+        loc_ids = group.get("location_ids") or []
+        if len(loc_ids) > 1:
+            loc_id_line = (
+                f"Location IDs ({len(loc_ids)} duplicates): "
+                f"{', '.join(str(i) for i in loc_ids)}"
+            )
+        else:
+            loc_id_line = f"Location ID: {loc_ids[0] if loc_ids else '-'}"
         popup_html = (
             f"<b>{loc.get('name', '?')}</b><br>"
-            f"Location ID: {loc.get('id', '-')}<br>"
+            f"{loc_id_line}<br>"
             f"Asset types: {', '.join(group['asset_types']) or '-'}<br>"
             f"Measurements ({n}): {ids_preview}"
         )
