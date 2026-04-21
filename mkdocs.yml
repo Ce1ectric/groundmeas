@@ -15,7 +15,7 @@ plugins:
           paths: [src]
 
 nav:
-  - Home: 00_index.md
+  - Home: index.md
   - Quickstart: 02_quickstart.md
   - Data Model: 01_datamodels.md
   - Tutorials:
