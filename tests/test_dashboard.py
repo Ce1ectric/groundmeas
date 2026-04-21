@@ -110,6 +110,88 @@ def test_parse_float_list():
     assert dashboard._parse_float_list("1, 2; 3") == [1.0, 2.0, 3.0]
 
 
+def _loc(id_=None, name="Site", lat=1.0, lon=2.0):
+    return {"id": id_, "name": name, "latitude": lat, "longitude": lon}
+
+
+def test_group_measurements_by_location_multiple_per_site():
+    """Two measurements on the same location must collapse into one group."""
+    loc = _loc(id_=10, name="Substation A")
+    measurements = [
+        {"id": 1, "asset_type": "substation", "location": loc, "items": []},
+        {"id": 2, "asset_type": "substation", "location": loc, "items": []},
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert len(groups) == 1
+    g = groups[0]
+    assert g["location_key"] == 10
+    assert g["measurement_ids"] == [1, 2]
+    assert g["asset_types"] == ["substation"]
+
+
+def test_group_measurements_by_location_distinct_sites():
+    """Distinct locations must yield one group each, ordered by id."""
+    measurements = [
+        {"id": 1, "asset_type": "substation", "location": _loc(id_=20, name="B"), "items": []},
+        {"id": 2, "asset_type": "overhead_line_tower", "location": _loc(id_=10, name="A"), "items": []},
+        {"id": 3, "asset_type": "substation", "location": _loc(id_=20, name="B"), "items": []},
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert [g["location_key"] for g in groups] == [10, 20]
+    assert groups[0]["measurement_ids"] == [2]
+    assert groups[1]["measurement_ids"] == [1, 3]
+    # Group for B has a single asset type; group for A too
+    assert groups[0]["asset_types"] == ["overhead_line_tower"]
+    assert groups[1]["asset_types"] == ["substation"]
+
+
+def test_group_measurements_by_location_skips_without_coords():
+    """Locations without usable coordinates must be skipped silently."""
+    measurements = [
+        {"id": 1, "asset_type": "cable", "location": None, "items": []},
+        {
+            "id": 2,
+            "asset_type": "cable",
+            "location": {"id": 5, "name": "No coords", "latitude": None, "longitude": 0.0},
+            "items": [],
+        },
+        {"id": 3, "asset_type": "cable", "location": _loc(id_=7), "items": []},
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert [g["location_key"] for g in groups] == [7]
+
+
+def test_group_measurements_by_location_fallback_key_without_id():
+    """Measurements sharing name + coordinates must group when id is missing."""
+    loc = _loc(id_=None, name="Unnamed", lat=48.0, lon=11.0)
+    measurements = [
+        {"id": 1, "asset_type": "cable", "location": dict(loc), "items": []},
+        {"id": 2, "asset_type": "cable", "location": dict(loc), "items": []},
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert len(groups) == 1
+    assert groups[0]["measurement_ids"] == [1, 2]
+
+
+def test_group_measurements_mixed_asset_types_are_reported():
+    """A site with different asset types must expose all of them."""
+    loc = _loc(id_=30, name="Mixed")
+    measurements = [
+        {"id": 1, "asset_type": "substation", "location": loc, "items": []},
+        {"id": 2, "asset_type": "cable", "location": loc, "items": []},
+    ]
+    groups = dashboard.group_measurements_by_location(measurements)
+    assert groups[0]["asset_types"] == ["cable", "substation"]
+
+
+def test_location_marker_color_rules():
+    assert dashboard._location_marker_color(["substation"]) == "red"
+    assert dashboard._location_marker_color(["overhead_line_tower"]) == "green"
+    assert dashboard._location_marker_color(["cable"]) == "blue"
+    assert dashboard._location_marker_color(["substation", "cable"]) == "gray"
+    assert dashboard._location_marker_color([]) == "blue"
+
+
 def test_main_runs_with_stubs(monkeypatch):
     dummy = DummyStreamlit(button_sequence=[True, True, True, True, True, True])
     dummy.session_state["multiselect_ids"] = [1]

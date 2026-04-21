@@ -32,6 +32,42 @@ Not applicable. The dashboard is a user interface for the analytics already desc
 3. Open the Soil Inversion tab and run the inversion.
 4. Review the fitted curve and layer table.
 
+## Map and location grouping
+
+The map draws **one marker per location**, not per measurement. Sites
+that were visited several times (repeat campaigns, different
+frequencies, different operators) therefore no longer stack invisibly
+on top of each other — the marker tooltip reports how many measurements
+are stored at that site, and the popup lists their IDs.
+
+Selecting measurements works in two steps:
+
+1. **Click a marker on the map.** Every measurement recorded at that
+   location is loaded into the *Selected Measurements for Analysis*
+   dropdown. In the default mode the click replaces the previous
+   selection. Tick *Multi-select mode (append to selection)* to add
+   sites incrementally without losing earlier picks.
+2. **Refine per site.** When a focused location carries more than one
+   measurement, an extra multiselect *Pick measurements from this
+   location* appears. Any measurement you remove there is dropped from
+   the global selection, while measurements from other sites remain
+   untouched. This lets you, for example, compare tower 17 against
+   tower 42 while only using two out of five campaigns at tower 17.
+
+Marker colours encode the asset type at a site: red for substations,
+green for overhead-line towers, blue for other single types, and gray
+for sites that mix several asset types.
+
+Internally the view relies on the pure helper
+`groundmeas.ui.dashboard.group_measurements_by_location`, which groups
+the measurement dicts returned by `read_measurements_by()` by
+`Location.id` (or by `(name, rounded lat, rounded lon)` when the id is
+missing) and returns the measurement IDs, asset types and the
+underlying location object for each site. The helper is covered by
+unit tests in `tests/test_dashboard.py` and is safe to reuse outside
+Streamlit — for example in notebooks when you need to know how many
+measurements a site carries.
+
 ## Python API examples
 
 ### Scenario A: compare impedance across sites

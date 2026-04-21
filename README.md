@@ -7,7 +7,10 @@ Documentation: https://ce1ectric.github.io/groundmeas/
 ## Features
 - Data management with SQLite and SQLModel.
 - CLI workflows for creating, editing, importing, and exporting measurements.
-- Streamlit dashboard with map selection and interactive plots.
+- Streamlit dashboard with map selection and interactive plots. The map
+  groups measurements by location, so sites with several campaigns show
+  up as a single marker and all measurements at that site can be
+  picked for analysis.
 - Analytics for impedance profiles, touch voltages, split factors, and multilayer soil models.
 - Distance-profile reduction with maximum, 62 percent, minimum gradient, minimum stddev, and inverse (1/Z) methods.
 - Apparent resistivity simulation and 1-3 layer inversion for Wenner and Schlumberger surveys.
