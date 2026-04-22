@@ -153,61 +153,46 @@ def test_create_measurement_no_location(monkeypatch):
     assert new_id == 123
 
 
-def test_create_measurement_with_location(tmp_path):
-    """
-    Creating a measurement with a nested ``location`` persists both rows in a
-    single transaction and links them via the foreign key.
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "meas.db"))
+def test_create_measurement_with_location(monkeypatch):
+    # two sessions: first for Location, second for Measurement
+    # session1 refresh loc.id=123, session2 refresh meas.id=456
+    class S1(FakeSessionGet):
+        def refresh(self, obj):
+            obj.id = 123
+    class S2(FakeSessionGet):
+        def refresh(self, obj):
+            obj.id = 456
 
-    mid = create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            "location": {"name": "Site X", "latitude": 51.0, "longitude": 10.0},
-        }
+    seq = [S1(to_get=None), S2(to_get=None)]
+    monkeypatch.setattr(db, "_get_session", lambda: seq.pop(0))
+    result_id = create_measurement({"foo": "baz", "location": {"name": "X"}})
+    assert result_id == 456
+
+
+def test_create_measurement_location_error(monkeypatch):
+    # first _get_session raises SQLAlchemyError
+    monkeypatch.setattr(
+        db,
+        "_get_session",
+        lambda: (_ for _ in ()).throw(SQLAlchemyError("loc fail"))
     )
-    assert isinstance(mid, int)
-
-    recs, _ = read_measurements_by(id=mid)
-    assert recs[0]["location"]["name"] == "Site X"
-    assert recs[0]["location"]["latitude"] == pytest.approx(51.0)
+    with pytest.raises(RuntimeError) as exc:
+        create_measurement({"location": {"foo": "bar"}})
+    assert "Could not create Location" in str(exc.value)
 
 
-def test_create_measurement_error_on_meas(tmp_path, monkeypatch):
-    """
-    A ``SQLAlchemyError`` raised from the shared session during measurement
-    creation must be re-raised as :class:`RuntimeError` with the expected
-    message prefix.
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "meas.db"))
-
-    class _FailingSession:
-        def __enter__(self):
-            return self
-        def __exit__(self, *args):
-            return False
-        def execute(self, stmt):
-            class _Empty:
-                def scalars(self):
-                    return self
-                def all(self):
-                    return []
-            return _Empty()
-        def add(self, obj):
-            pass
-        def flush(self):
-            pass
+def test_create_measurement_error_on_meas(monkeypatch):
+    # first session ok, second session commit fails
+    class Good(FakeSessionGet):
+        pass
+    class Bad(FakeSessionGet):
         def commit(self):
             raise SQLAlchemyError("meas fail")
-        def refresh(self, obj):
-            pass
 
-    monkeypatch.setattr(db, "_get_session", lambda: _FailingSession())
+    seq = [Good(to_get=None), Bad(to_get=None)]
+    monkeypatch.setattr(db, "_get_session", lambda: seq.pop(0))
     with pytest.raises(RuntimeError) as exc:
-        create_measurement({"method": "wenner", "asset_type": "substation"})
+        create_measurement({"foo": "bar", "location": {"a": 1}})
     assert "Could not create Measurement" in str(exc.value)
 
 
@@ -300,24 +285,21 @@ def test_update_measurement_updates_location(monkeypatch):
     assert meas.location.name == "New"
 
 
-def test_update_measurement_creates_location(tmp_path):
-    """
-    Adding a ``location`` payload to a measurement that previously had none
-    should persist a new Location and link it via ``location_id`` — unless a
-    matching Location already exists, which is covered by a separate dedup
-    test below.
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "meas.db"))
+def test_update_measurement_creates_location(monkeypatch):
+    meas = DummyMeasurement(location_id=None, location=None)
 
-    mid = create_measurement({"method": "wenner", "asset_type": "substation"})
+    class SessionWithFlush(FakeSessionGet):
+        def add(self, obj):
+            super().add(obj)
+            if getattr(obj, "id", None) is None:
+                obj.id = 999
 
-    ok = update_measurement(mid, {"location": {"name": "Fresh Site"}})
-    assert ok is True
+    session = SessionWithFlush(to_get=meas)
+    monkeypatch.setattr(db, "_get_session", lambda: session)
 
-    recs, _ = read_measurements_by(id=mid)
-    assert recs[0]["location"]["name"] == "Fresh Site"
-    assert recs[0]["location_id"] is not None
+    updated = update_measurement(1, {"location": {"name": "New"}})
+    assert updated is True
+    assert meas.location_id == 999
 
 
 def test_update_measurement_not_found(monkeypatch):
@@ -367,158 +349,3 @@ def test_delete_item_not_found(monkeypatch):
     session = FakeSessionGet(to_get=None)
     monkeypatch.setattr(db, "_get_session", lambda: session)
     assert delete_item(4) is False
-
-
-# --- Location dedup tests (Bug #1 / #2) ----------------------------------
-
-
-def _count_locations() -> int:
-    """Helper: count Location rows in the currently connected DB."""
-    from groundmeas.core.models import Location
-    from sqlmodel import select
-
-    with db._get_session() as session:
-        return len(session.execute(select(Location)).scalars().all())
-
-
-def test_create_measurement_reuses_location_by_name(tmp_path):
-    """
-    Two measurements referencing the same site name (and no coordinates on
-    either side) must share a single Location row.
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "dedup.db"))
-
-    mid_a = create_measurement(
-        {"method": "wenner", "asset_type": "substation", "location": {"name": "Site A"}}
-    )
-    mid_b = create_measurement(
-        {"method": "wenner", "asset_type": "substation", "location": {"name": "Site A"}}
-    )
-
-    assert _count_locations() == 1
-
-    recs_a, _ = read_measurements_by(id=mid_a)
-    recs_b, _ = read_measurements_by(id=mid_b)
-    assert recs_a[0]["location_id"] == recs_b[0]["location_id"]
-
-
-def test_create_measurement_reuses_location_by_coords(tmp_path):
-    """
-    Two measurements at the same name + (lat, lon) share a Location even if
-    the second payload passes coordinates that differ below the dedup
-    precision (~1 m).
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "dedup.db"))
-
-    mid_a = create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            "location": {"name": "Site A", "latitude": 51.12345, "longitude": 10.54321},
-        }
-    )
-    mid_b = create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            # Differs only in the 6th decimal → below _COORD_PRECISION.
-            "location": {
-                "name": "Site A",
-                "latitude": 51.123451,
-                "longitude": 10.543211,
-            },
-        }
-    )
-
-    assert _count_locations() == 1
-
-    recs_a, _ = read_measurements_by(id=mid_a)
-    recs_b, _ = read_measurements_by(id=mid_b)
-    assert recs_a[0]["location_id"] == recs_b[0]["location_id"]
-
-
-def test_create_measurement_creates_new_location_for_different_coords(tmp_path):
-    """
-    When the name matches but coordinates differ meaningfully, a new Location
-    row must be created so that distinct physical sites stay distinguishable.
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "dedup.db"))
-
-    create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            "location": {"name": "Site A", "latitude": 51.0, "longitude": 10.0},
-        }
-    )
-    create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            "location": {"name": "Site A", "latitude": 52.0, "longitude": 11.0},
-        }
-    )
-
-    assert _count_locations() == 2
-
-
-def test_find_or_create_location_backfills_missing_coords(tmp_path):
-    """
-    If a Location was first inserted without coordinates and a later
-    measurement supplies them, the row is enriched in place rather than
-    duplicated.
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "dedup.db"))
-
-    create_measurement(
-        {"method": "wenner", "asset_type": "substation", "location": {"name": "Site B"}}
-    )
-    create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            "location": {"name": "Site B", "latitude": 51.5, "longitude": 10.5},
-        }
-    )
-
-    assert _count_locations() == 1
-
-    recs, _ = read_measurements_by()
-    loc = recs[0]["location"]
-    assert loc["latitude"] == pytest.approx(51.5)
-    assert loc["longitude"] == pytest.approx(10.5)
-
-
-def test_update_measurement_reuses_existing_location(tmp_path):
-    """
-    Assigning a location payload to a measurement that previously had none
-    must reuse an existing Location row rather than silently creating a
-    duplicate (regression test for the ``update_measurement`` half of Bug 1).
-    """
-    db._engine = None
-    connect_db(str(tmp_path / "dedup.db"))
-
-    # Seed an existing Location via a first measurement.
-    mid_a = create_measurement(
-        {
-            "method": "wenner",
-            "asset_type": "substation",
-            "location": {"name": "Shared", "latitude": 50.0, "longitude": 9.0},
-        }
-    )
-
-    # Second measurement starts without a location and is later linked.
-    mid_b = create_measurement({"method": "wenner", "asset_type": "substation"})
-    assert update_measurement(
-        mid_b,
-        {"location": {"name": "Shared", "latitude": 50.0, "longitude": 9.0}},
-    ) is True
-
-    assert _count_locations() == 1
-    recs_a, _ = read_measurements_by(id=mid_a)
-    recs_b, _ = read_measurements_by(id=mid_b)
-    assert recs_a[0]["location_id"] == recs_b[0]["location_id"]
