@@ -1,0 +1,66 @@
+# .pre-commit-config.yaml
+#
+# Local pre-commit configuration for groundmeas.
+#
+# Install once with::
+#
+#     poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
+#
+# After that, ``black`` and the standard Keep-a-Changelog hygiene checks
+# run on every commit, while the changelog and CITATION.cff guards run on
+# every push (mirroring the CI gate without slowing down WIP commits).
+
+# Files that are generated, vendored or otherwise outside our control.
+# Hooks that would auto-fix these have to skip them.
+exclude: |
+  (?x)^(
+    THIRD_PARTY_LICENSES_RAW\.txt|
+    THIRD_PARTY_NOTICES\.md|
+    src/groundmeas/__pycache__/.*|
+    site/.*|
+    dist/.*
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+
+  - repo: local
+    hooks:
+      # Mirrors the CI gate in .github/workflows/ci-cd.yml.
+      # Runs on push, not on every commit, so iterative WIP commits stay
+      # fast. Bypass in an emergency with ``git push --no-verify``.
+      - id: check-changelog
+        name: Check CHANGELOG [Unreleased] block
+        description: >-
+          Reject pushes that change files under src/groundmeas/ without
+          touching the CHANGELOG.md [Unreleased] block.
+        entry: python scripts/check_changelog.py --base origin/main
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Soft validation of CITATION.cff. Only triggers when the file is
+      # actually part of the push.
+      - id: cffconvert-validate
+        name: Validate CITATION.cff
+        description: >-
+          Run cffconvert --validate on CITATION.cff so a broken file is
+          caught before it reaches CI / Zenodo.
+        entry: cffconvert --validate
+        language: system
+        pass_filenames: false
+        files: ^CITATION\.cff$
+        stages: [pre-push]

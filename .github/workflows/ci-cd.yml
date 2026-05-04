@@ -20,12 +20,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Need full history so the changelog check can diff against
+          # the PR's base ref.
+          fetch-depth: 0
 
       - name: Set up Python
         id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+
+      - name: Check CHANGELOG [Unreleased] block
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
+        run: |
+          python scripts/check_changelog.py \
+            --base "origin/${{ github.base_ref }}"
+
+      - name: Validate CITATION.cff
+        uses: citation-file-format/cffconvert-github-action@2.0.0
+        with:
+          args: "--validate"
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
