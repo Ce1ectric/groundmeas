@@ -30,6 +30,21 @@ During regular work, add your entry under the matching category in
 
 ## [Unreleased]
 
+### Fixed
+
+- `scripts/release.py` now adds `THIRD_PARTY_NOTICES.md` and
+  `THIRD_PARTY_LICENSES_RAW.txt` to the release commit. In `1.5.0`
+  these files were regenerated as part of the release flow but
+  excluded from `git add`, so the published tarball shipped with the
+  pre-release notices. The next patch release will carry the
+  up-to-date files.
+- `.pre-commit-config.yaml` `cffconvert-validate` hook switched from
+  ``language: system`` to ``language: python`` with
+  ``additional_dependencies: [cffconvert]``. The previous variant
+  required `cffconvert` on the system `PATH`, which was not the case
+  outside an activated Poetry venv and caused the pre-push hook to
+  fail with ``Executable `cffconvert` not found``.
+
 ---
 
 ## [1.5.0] — 2026-05-04

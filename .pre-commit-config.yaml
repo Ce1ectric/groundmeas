@@ -52,15 +52,18 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      # Soft validation of CITATION.cff. Only triggers when the file is
-      # actually part of the push.
+      # Validation of CITATION.cff. Only triggers when the file is part
+      # of the push. ``language: python`` with ``additional_dependencies``
+      # makes pre-commit build a self-contained venv for the hook, so it
+      # works regardless of whether the user has activated Poetry's venv.
       - id: cffconvert-validate
         name: Validate CITATION.cff
         description: >-
           Run cffconvert --validate on CITATION.cff so a broken file is
           caught before it reaches CI / Zenodo.
         entry: cffconvert --validate
-        language: system
+        language: python
+        additional_dependencies: ["cffconvert>=2,<3"]
         pass_filenames: false
         files: ^CITATION\.cff$
         stages: [pre-push]
