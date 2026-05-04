@@ -30,6 +30,10 @@ During regular work, add your entry under the matching category in
 
 ## [Unreleased]
 
+---
+
+## [1.5.0] — 2026-05-04
+
 ### Added
 
 - `CHANGELOG.md` (this file) with a Keep-a-Changelog structure, an
@@ -231,7 +235,8 @@ back-filled by category.
 
 ---
 
-[Unreleased]: https://github.com/Ce1ectric/groundmeas/compare/v1.4.3...HEAD
+[Unreleased]: https://github.com/Ce1ectric/groundmeas/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Ce1ectric/groundmeas/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Ce1ectric/groundmeas/compare/v1.4.1...v1.4.3
 [1.4.1]: https://github.com/Ce1ectric/groundmeas/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Ce1ectric/groundmeas/compare/v1.3.4...v1.4.0
