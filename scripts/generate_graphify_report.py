@@ -245,19 +245,10 @@ def _render_communities(
     for cid in sorted_cids:
         member_ids = communities[cid]
         coh = cohesion.get(cid)
-        coh_str = (
-            f" (cohesion {coh:.2f})"
-            if isinstance(coh, (int, float))
-            else ""
-        )
-        out.append(
-            f"### Community {cid} — "
-            f"{len(member_ids)} nodes{coh_str}"
-        )
+        coh_str = f" (cohesion {coh:.2f})" if isinstance(coh, (int, float)) else ""
+        out.append(f"### Community {cid} — " f"{len(member_ids)} nodes{coh_str}")
         out.append("")
-        ranked = sorted(
-            member_ids, key=lambda nid: -degree.get(nid, 0)
-        )[:top_members]
+        ranked = sorted(member_ids, key=lambda nid: -degree.get(nid, 0))[:top_members]
         for nid in ranked:
             node = id2node.get(nid, {})
             label = _short(node.get("label", "?"), 70)
@@ -348,10 +339,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--top-members",
         type=int,
         default=8,
-        help=(
-            "Number of top-degree members listed per community "
-            "(default: 8)"
-        ),
+        help=("Number of top-degree members listed per community " "(default: 8)"),
     )
     args = parser.parse_args(argv)
 

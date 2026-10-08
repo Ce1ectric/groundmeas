@@ -25,8 +25,12 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # tests/data holds instrument exports that must stay byte-exact
+      # (HGT1 reports pad their columns and end with CRLF)
       - id: trailing-whitespace
+        exclude: ^tests/data/
       - id: end-of-file-fixer
+        exclude: ^tests/data/
       - id: check-yaml
         # mkdocs.yml uses !!python/name tags (Material emoji, mermaid fences)
         args: [--unsafe]

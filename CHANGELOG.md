@@ -257,7 +257,9 @@ During regular work, add your entry under the matching category in
   (`towers run --no-pdf`, `towers import-db`). Publishing waits for all of
   them.
 - pre-commit: `check-yaml` runs with `--unsafe` because `mkdocs.yml` uses
-  `!!python/name` tags.
+  `!!python/name` tags; `tests/data/` is excluded from the whitespace hooks
+  (the instrument exports must stay byte-exact). The files of the audit
+  passes are formatted with black 25.1 so that the pre-push hooks pass.
 - `gm-cli towers install-browser` explains that the `pdf` extra is missing
   instead of failing with `No module named playwright`.
 - New runtime dependencies `openpyxl` (Excel workbooks of the tower

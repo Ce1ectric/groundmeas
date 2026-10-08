@@ -282,8 +282,11 @@ def test_init_db_reconnects_on_path_change(monkeypatch, tmp_path):
 
     # Stub Streamlit primitives that ``init_db`` would otherwise touch.
     class _Stub:
-        def error(self, *a, **kw): pass
-        def info(self, *a, **kw): pass
+        def error(self, *a, **kw):
+            pass
+
+        def info(self, *a, **kw):
+            pass
 
     monkeypatch.setattr(dashboard, "st", _Stub())
     monkeypatch.setattr(dashboard, "connect_db", fake_connect_db)
@@ -329,8 +332,11 @@ def test_init_db_short_circuits_on_same_path(monkeypatch, tmp_path):
         core_db._engine_path = None
 
     class _Stub:
-        def error(self, *a, **kw): pass
-        def info(self, *a, **kw): pass
+        def error(self, *a, **kw):
+            pass
+
+        def info(self, *a, **kw):
+            pass
 
     monkeypatch.setattr(dashboard, "st", _Stub())
     monkeypatch.setattr(dashboard, "connect_db", fake_connect_db)
@@ -435,9 +441,7 @@ def _git_tracked_artefacts():
     if not (repo_root / ".git").exists():
         return None
     try:
-        tracked = subprocess.check_output(
-            ["git", "ls-files"], cwd=repo_root, text=True
-        )
+        tracked = subprocess.check_output(["git", "ls-files"], cwd=repo_root, text=True)
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
     tracked_set = set(tracked.splitlines())

@@ -55,7 +55,9 @@ def test_groundmeas_db_shim_emits_deprecationwarning():
     import importlib
 
     shim = importlib.import_module("groundmeas.db")
-    with pytest.warns(DeprecationWarning, match="groundmeas.db is a compatibility shim"):
+    with pytest.warns(
+        DeprecationWarning, match="groundmeas.db is a compatibility shim"
+    ):
         _ = shim.connect_db
 
 
@@ -89,7 +91,9 @@ def test_groundmeas_analytics_shim_emits_deprecationwarning():
     import importlib
 
     shim = importlib.import_module("groundmeas.analytics")
-    with pytest.warns(DeprecationWarning, match="groundmeas.analytics is a compatibility shim"):
+    with pytest.warns(
+        DeprecationWarning, match="groundmeas.analytics is a compatibility shim"
+    ):
         _ = shim.distance_profile_value
 
 
@@ -109,6 +113,7 @@ def test_groundmeas_analytics_shim_star_import_still_works():
         warnings.simplefilter("ignore", DeprecationWarning)
         dpv = getattr(shim, "distance_profile_value")
     from groundmeas.services.analytics import distance_profile_value as canonical
+
     assert dpv is canonical
 
 

@@ -115,9 +115,7 @@ def make_shim(
         if name.startswith("_") and name not in extra:
             # Private symbols (``_get_session`` and friends) must not
             # trigger the deprecation warning.
-            raise AttributeError(
-                f"module {shim_name!r} has no attribute {name!r}"
-            )
+            raise AttributeError(f"module {shim_name!r} has no attribute {name!r}")
         if name in all_names or hasattr(canonical, name):
             _warnings.warn(
                 f"{shim_name} is a compatibility shim and will be removed in a "

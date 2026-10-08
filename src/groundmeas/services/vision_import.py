@@ -320,15 +320,12 @@ def ocr_image(
         # We surface those as a single ``RuntimeError`` so callers can
         # handle them uniformly.
         if not isinstance(data, dict):
-            raise RuntimeError(
-                f"OpenAI OCR response is not a JSON object: {data!r}"
-            )
+            raise RuntimeError(f"OpenAI OCR response is not a JSON object: {data!r}")
         choices = data.get("choices") or []
         if not choices:
             err = data.get("error")
             raise RuntimeError(
-                f"OpenAI OCR response has no choices "
-                f"(error={err!r}, raw={data!r})"
+                f"OpenAI OCR response has no choices " f"(error={err!r}, raw={data!r})"
             )
         first = choices[0] or {}
         finish_reason = first.get("finish_reason")

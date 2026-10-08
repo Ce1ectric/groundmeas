@@ -123,9 +123,10 @@ def test_no_runtime_artefacts_on_disk() -> None:
     root = _repo_root()
     offenders = [p for p in JUNK_FILES if (root / p).exists()]
     offenders += [p for p in JUNK_DIRS if (root / p).is_dir()]
-    assert not offenders, (
-        "Repo-root junk still on disk (pass 7 forcing function):\n  "
-        + "\n  ".join(sorted(offenders))
+    assert (
+        not offenders
+    ), "Repo-root junk still on disk (pass 7 forcing function):\n  " + "\n  ".join(
+        sorted(offenders)
     )
 
 
@@ -191,7 +192,8 @@ def test_gitignore_filters_runtime_artefacts() -> None:
         "test_write_check.tmp",
     )
     missing = [p for p in required_patterns if p not in text]
-    assert not missing, (
-        "The pass-6/7 .gitignore hygiene patterns went missing:\n  "
-        + "\n  ".join(missing)
+    assert (
+        not missing
+    ), "The pass-6/7 .gitignore hygiene patterns went missing:\n  " + "\n  ".join(
+        missing
     )

@@ -83,8 +83,7 @@ def test_tutorial_uses_canonical_imports(rel_path: str) -> None:
                 offenders.append(f"{rel_path}:{lineno}: {stripped}")
     assert not offenders, (
         "Tutorial pages must use canonical imports "
-        "(`import groundmeas as gm`); shim imports found:\n  "
-        + "\n  ".join(offenders)
+        "(`import groundmeas as gm`); shim imports found:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -154,9 +153,7 @@ def test_changelog_has_pass8_block() -> None:
     changelog = _repo_root() / "CHANGELOG.md"
     text = changelog.read_text(encoding="utf-8")
     # Tolerate the exact heading variant a maintainer might choose.
-    assert "Audit pass 8" in text or "audit pass 8" in text, (
-        "CHANGELOG.md must record the 2026-05-24 pass-8 implementation."
-    )
-    assert "2026-05-24" in text, (
-        "CHANGELOG.md pass-8 block must be dated 2026-05-24."
-    )
+    assert (
+        "Audit pass 8" in text or "audit pass 8" in text
+    ), "CHANGELOG.md must record the 2026-05-24 pass-8 implementation."
+    assert "2026-05-24" in text, "CHANGELOG.md pass-8 block must be dated 2026-05-24."

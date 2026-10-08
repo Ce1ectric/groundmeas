@@ -2310,9 +2310,7 @@ def rho_f_model(
     # ``max - min`` is smallest while still covering one depth per
     # measurement.  Complexity O(D · n) with D = total number of depth
     # entries across all measurements.
-    best_combo, best_spread = _select_minimum_spread_depths(
-        measurement_ids, rho_map
-    )
+    best_combo, best_spread = _select_minimum_spread_depths(measurement_ids, rho_map)
     _SPREAD_WARN_LIMIT_M = 0.5
     if best_spread > _SPREAD_WARN_LIMIT_M:
         warnings.warn(
