@@ -18,6 +18,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, get_args
 
+import click
 import typer
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -65,8 +66,10 @@ from ..visualization.plots import (
     plot_voltage_vt_epr,
 )
 from ..visualization.map_vis import generate_map
+from ..towers.cli import app as towers_app
 
 app = typer.Typer(help="CLI for managing groundmeas data")
+app.add_typer(towers_app, name="towers")
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path.home() / ".config" / "groundmeas" / "config.json"
@@ -334,6 +337,10 @@ def _print_measurement_summary(
 # ─── APP CALLBACK ───────────────────────────────────────────────────────────────
 
 
+_COMMANDS_WITHOUT_DATABASE = frozenset({"towers"})
+"""Sub-commands that connect to the database themselves, if at all."""
+
+
 @app.callback()
 def _connect(
     db: Optional[str] = typer.Option(
@@ -344,6 +351,11 @@ def _connect(
     )
 ) -> None:
     """Connect to the database before running any command."""
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None and ctx.invoked_subcommand in _COMMANDS_WITHOUT_DATABASE:
+        # the tower workflow is file based; `towers import-db` connects itself
+        ctx.obj = {"db": db}
+        return
     db_path = _resolve_db(db)
     db_parent = Path(db_path).expanduser().resolve().parent
     db_parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+    <title>{{ t.html_title }}</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="protocol.css">
+</head>
+
+<body>
+    <div class="report-header">
+        {% if company_logo %}<img src="{{ company_logo }}" alt="{{ t.logo_alt }}" class="logo">{% else %}<span></span>{% endif %}
+        <div class="header">{{ t.protocol_header }}</div>
+    </div>
+    <div class="section">
+        <h2>{{ t.section_installation }}</h2>
+        <div class="data-field">
+            <div class="label">
+                <p>{{ t.label_line }}</p>
+                <p>{{ t.label_tower }}</p>
+                <p>{{ t.label_device }}</p>
+                <p>{{ t.label_date }}</p>
+            </div>
+            <div class="value">
+                <p>{{ line_number }}</p>
+                <p>{{ tower }}</p>
+                <p>{{ measuring_device }}</p>
+                <p>{{ date }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="section">
+        <h2>{{ t.section_setup }}</h2>
+        <div class="data-field">
+            <div class="label">
+                <p>{{ t.label_weather }}</p>
+                <p>{{ t.label_current_probe_distance }}</p>
+                <p>{{ t.label_angle_probe_current_electrode }}</p>
+                <p>{{ t.label_angle_line_current_electrode }}</p>
+                <p>{{ t.label_measuring_current }}</p>
+            </div>
+            <div class="value">
+                <p>{{ weather }}</p>
+                <p>{{ distance_current_probe }}{% if distance_current_probe != "" %} m{% endif %}</p>
+                <p>{{ angle_current_probe_voltage_probe }}{% if angle_current_probe_voltage_probe != "" %} °{% endif %}</p>
+                <p>{{ angle_current_probe_line }}{% if angle_current_probe_line != "" %} °{% endif %}</p>
+                <p>{{ grounding_impedance_current | int }} mA</p>
+            </div>
+        </div>
+    </div>
+    <div class="section">
+        <h2>{{ t.section_map }}</h2>
+        <img src="{{ map_image }}" alt="{{ t.map_missing }}" class="map">
+    </div>
+    <div class="section">
+        <h2>{{ t.section_measurements }}</h2>
+        <h3>{{ t.heading_impedances }}</h3>
+        <div id="table-placeholder-impedance">
+            <table>
+                <thead>
+                    <tr>
+                        <th>{{ t.col_distance }}</th>
+                        <th>{{ t.col_ze | safe }}</th>
+                        <th>{{ t.col_ra | safe }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key in impedances_table.Distanz %}
+                    <tr>
+                        <td>{{ key|int }}</td>
+                        <td>{{ num(impedances_table.ZE[loop.index0]) }}</td>
+                        <td>{{ num(impedances_table.RA[loop.index0]) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <h3>{{ t.heading_touch_voltages }}</h3>
+        <div id="table-placeholder-touchvoltages">
+            <table>
+                <thead>
+                    <tr>
+                        <th>{{ t.col_measuring_point }}</th>
+                        <th>{{ t.col_ut | safe }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for index in range(touchvoltages_table.Ort|length) %}
+                    <tr>
+                        <td>{{ touchvoltages_table.Ort[index] }}</td>
+                        <td>{{ num(touchvoltages_table.UT[index]) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+    <div class="section plots">
+        <h2>{{ t.section_plots }}</h2>
+        <h3>{{ t.heading_plot_ze | safe }}</h3>
+        <img src="{{ x_y_ZE_image }}" alt="{{ t.plot_ze_missing }}" class="x_y_plot">
+
+        <!-- The footing-resistance diagram is created as well and can be shown again here:
+        <h3>{{ t.heading_plot_ra | safe }}</h3>
+        <img src="{{ x_y_RA_image }}" alt="{{ t.plot_ra_missing }}" class="x_y_plot">
+        -->
+        <h3>{{ t.heading_plot_us | safe }}</h3>
+        <img src="{{ x_y_US_image }}" alt="{{ t.plot_us_missing }}" class="x_y_plot">
+
+        <h3>{{ t.heading_plot_ut }}</h3>
+        <img src="{{ x_y_UT_bar_image }}" alt="{{ t.plot_ut_missing }}" class="x_y_plot">
+
+    </div>
+
+    <div class="section">
+        <h2>{{ t.section_assessment }}</h2>
+        <table class="data-table">
+            <tbody>
+                <tr>
+                    <td class="label">{{ t.label_visual_findings }}</td>
+                    <td>{{ visual_findings }}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_clearing_time }}</td>
+                    <td>{{ num(tripping_time) }} s{% if tripping_hint %}<br><small>{{ tripping_hint }}</small>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_ud_curve | safe }}</td>
+                    <td>{{ UD_curve }}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_ud_value | safe }}</td>
+                    <td>{{ UD_value|int }} V</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_fault_current }}</td>
+                    <td>{{ num(Ik) }} kA</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_reduction_factor }}</td>
+                    <td>{{ num(r) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_relevant_current }}</td>
+                    <td>{{ num(IE) }} kA</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_earthing_impedance }}</td>
+                    <td>
+                        {% if grounding_impedance_62 == "" %}
+                            {{ t.not_measured }}
+                        {% else %}
+                            {{ num(grounding_impedance_62) }} Ohm
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_footing_resistance }}</td>
+                    <td>
+                        {% if residual_resistance_62 == "" %}
+                            {{ t.not_measured }}
+                        {% else %}
+                            {{ num(residual_resistance_62) }} Ohm{% if ra_hinweis %} ({{ ra_hinweis }}){% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_ut_max }}</td>
+                    <td>{{ UT_max_measured|int }} V</td>
+                </tr>
+                <tr>
+                    <td class="label">{{ t.label_design_ok }}</td>
+                    <td>{{ final_evaluation }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+
+    <div class="section">
+        <h2>{{ t.section_contacts }}</h2>
+        <div class="signatures">
+            <div class="signature-block">
+                <div class="data-field">
+                    <div class="label">
+                        <p>{{ t.heading_measurement_by }}</p>
+                        <p>{{ t.label_first_name }}</p>
+                        <p>{{ t.label_last_name }}</p>
+                        <p>{{ t.label_company }}</p>
+                    </div>
+                    <div class="value">
+                        <p>&nbsp;</p>
+                        <p>{{ first_name }}</p>
+                        <p>{{ family_name }}</p>
+                        <p>{{ company }}</p>
+                    </div>
+                </div>
+                <div class="signature-placeholder">
+                    <span class="signature-caption">{{ t.signature }}</span>
+                </div>
+            </div>
+            <div class="signature-block">
+                <div class="data-field">
+                    <div class="label">
+                        <p>{{ t.heading_evaluation_by }}</p>
+                        <p>{{ t.label_first_name }}</p>
+                        <p>{{ t.label_last_name }}</p>
+                        <p>{{ t.label_company }}</p>
+                    </div>
+                    <div class="value">
+                        <p>&nbsp;</p>
+                        <p>{{ eval_first_name }}</p>
+                        <p>{{ eval_family_name }}</p>
+                        <p>{{ eval_company }}</p>
+                    </div>
+                </div>
+                <div class="signature-placeholder">
+                    <span class="signature-caption">{{ t.signature }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

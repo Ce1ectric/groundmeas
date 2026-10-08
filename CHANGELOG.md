@@ -92,6 +92,36 @@ During regular work, add your entry under the matching category in
   `--timezone Europe/Berlin`. Replaces the OCR path for these instruments
   (roadmap item *Native importers for common instruments*).
 
+- **`groundmeas.towers` and `gm-cli towers`** — the campaign evaluation
+  of overhead-line towers, moved from `tower-grounding-measurement` 0.2
+  (which is discontinued). A campaign is a flat folder of COMPANO 100 /
+  HGT1 exports, a measurement-description and a grid-data workbook and a
+  JSON configuration. `gm-cli towers run --config config.json` evaluates
+  every tower (earthing impedance with the conservative 62 % method,
+  footing resistance, touch and step voltages at the earth-fault current,
+  permissible touch voltage after EN 50522 / EN 50341, short-circuit
+  current from the line model, clearing time from the line-protection
+  table) and writes one JSON result per tower, an Excel summary,
+  HTML/PDF protocols in German or English (`--print`, `--worker N`,
+  `--no-pdf`), a ZIP archive (`--zip`) and a statistics report
+  (`--stats`). Further commands: `gm-cli towers demo DIR [--language de]`
+  (synthetic campaign), `gm-cli towers example-config`,
+  `gm-cli towers install-browser` and `gm-cli towers flatten SRC DEST
+  [--apply] [--report mapping.csv]` (copies a delivery with one folder
+  per line and tower into the flat layout; the former
+  `scripts/flatten_measurements.py`). The `towers` commands do not open
+  the groundmeas database. Results are identical to
+  `tower-grounding-measurement` 0.2 (JSON results and Excel summary of
+  the demo campaign compared field by field); touch voltages in the
+  results are still rounded up (`np.ceil`). The configuration file is
+  taken from `--config`, `GROUNDMEAS_TOWER_CONFIG` (the former
+  `TOWER_GROUNDING_CONFIG` is still read) or `./config.json`; the PDF
+  browser from `GROUNDMEAS_BROWSER` (formerly
+  `TOWER_GROUNDING_BROWSER`). Python API: `groundmeas.towers`
+  (`calculate_summary`, `GroundingSystemAnalysis`, `read_config`, ...).
+- **Optional extra `groundmeas[pdf]`** (Playwright) for the PDF protocols;
+  without it `gm-cli towers run --no-pdf` writes HTML protocols.
+
 ### Changed (Tower-grounding integration — 2026-10)
 
 - **`impedance_over_frequency` returns one value per frequency from all
@@ -125,6 +155,19 @@ During regular work, add your entry under the matching category in
   frequency (the first one is used, as before); `real_imag_over_frequency`
   warns when several items share a frequency (the last one is used, as
   before).
+
+### Internal (Tower-grounding integration — 2026-10)
+
+- New runtime dependencies `openpyxl` (Excel workbooks of the tower
+  campaigns) and `jinja2` (protocol templates); `playwright` only in the
+  `pdf` extra.
+- `click` is pinned to `<8.2`: with click 8.2 the pinned `typer` 0.15
+  crashes when rendering `--help` (`Parameter.make_metavar() missing
+  'ctx'`).
+- The synthetic instrument exports for the tests live in `tests/data/`
+  (re-included in `.gitignore`, kept byte-exact via `.gitattributes`).
+  The tower tests (`tests/test_towers_*.py`) build their campaigns with
+  the demo generator; no measured data is part of the repository.
 
 ### Fixed (Audit pass 8 — implemented 2026-05-24)
 
