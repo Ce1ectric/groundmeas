@@ -68,8 +68,14 @@ def test_existing_helpers(monkeypatch):
 
 
 def test_existing_helpers_error(monkeypatch):
-    monkeypatch.setattr(cli, "read_measurements_by", lambda **kwargs: (_ for _ in ()).throw(Exception("fail")))
-    monkeypatch.setattr(cli, "read_items_by", lambda **kwargs: (_ for _ in ()).throw(Exception("fail")))
+    monkeypatch.setattr(
+        cli,
+        "read_measurements_by",
+        lambda **kwargs: (_ for _ in ()).throw(Exception("fail")),
+    )
+    monkeypatch.setattr(
+        cli, "read_items_by", lambda **kwargs: (_ for _ in ()).throw(Exception("fail"))
+    )
     assert cli._existing_locations() == []
     assert cli._existing_measurement_values("operator") == []
     assert cli._existing_item_units("earthing_impedance") == []
@@ -115,7 +121,9 @@ def test_load_measurement_not_found(monkeypatch):
 
 
 def test_load_measurement_success(monkeypatch):
-    monkeypatch.setattr(cli, "read_measurements_by", lambda **kwargs: ([{"id": 1}], None))
+    monkeypatch.setattr(
+        cli, "read_measurements_by", lambda **kwargs: ([{"id": 1}], None)
+    )
     assert cli._load_measurement(1)["id"] == 1
 
 
@@ -151,7 +159,14 @@ def test_print_measurement_summary(capsys):
             "description": "note",
             "operator": "op",
         },
-        [{"id": 1, "measurement_type": "earthing_impedance", "value": 1.0, "unit": "ohm"}],
+        [
+            {
+                "id": 1,
+                "measurement_type": "earthing_impedance",
+                "value": 1.0,
+                "unit": "ohm",
+            }
+        ],
     )
     out = capsys.readouterr().out
     assert "Measurement id=1" in out
@@ -170,15 +185,31 @@ def test_connect_callback(tmp_path, monkeypatch, capsys):
 def test_add_measurement(monkeypatch, capsys):
     monkeypatch.setattr(cli, "_existing_locations", lambda: ["Site"])
     monkeypatch.setattr(cli, "_existing_measurement_values", lambda field: [])
-    monkeypatch.setattr(cli, "_existing_item_values", lambda field, measurement_type=None: [])
+    monkeypatch.setattr(
+        cli, "_existing_item_values", lambda field, measurement_type=None: []
+    )
     monkeypatch.setattr(cli, "_existing_item_units", lambda measurement_type: [])
 
-    monkeypatch.setattr(cli, "_prompt_text", _seq(["Site", "desc", "op", "ohm", "item desc"]))
-    monkeypatch.setattr(cli, "_prompt_float", _seq([1.0, 2.0, 3.0, 10.0, 0.5, 50.0, 100.0, 0.0, 1.0, 2.0, 0.1]))
+    monkeypatch.setattr(
+        cli, "_prompt_text", _seq(["Site", "desc", "op", "ohm", "item desc"])
+    )
+    monkeypatch.setattr(
+        cli,
+        "_prompt_float",
+        _seq([1.0, 2.0, 3.0, 10.0, 0.5, 50.0, 100.0, 0.0, 1.0, 2.0, 0.1]),
+    )
     monkeypatch.setattr(
         cli,
         "_prompt_choice",
-        _seq(["staged_fault_test", "cable", "earthing_impedance", "magnitude_angle", "done"]),
+        _seq(
+            [
+                "staged_fault_test",
+                "cable",
+                "earthing_impedance",
+                "magnitude_angle",
+                "done",
+            ]
+        ),
     )
 
     created = {"measurement": None, "items": []}
@@ -215,7 +246,17 @@ def test_list_items(monkeypatch, capsys):
     monkeypatch.setattr(
         cli,
         "read_items_by",
-        lambda **kwargs: ([{"id": 1, "measurement_type": "earthing_impedance", "value": 1.5, "unit": "ohm"}], None),
+        lambda **kwargs: (
+            [
+                {
+                    "id": 1,
+                    "measurement_type": "earthing_impedance",
+                    "value": 1.5,
+                    "unit": "ohm",
+                }
+            ],
+            None,
+        ),
     )
     cli.list_items(1)
     out = capsys.readouterr().out
@@ -247,10 +288,14 @@ def test_cli_delete_item_not_found(monkeypatch):
 
 
 def test_add_item(monkeypatch):
-    monkeypatch.setattr(cli, "_prompt_choice", _seq(["earthing_impedance", "magnitude_angle"]))
+    monkeypatch.setattr(
+        cli, "_prompt_choice", _seq(["earthing_impedance", "magnitude_angle"])
+    )
     monkeypatch.setattr(cli, "_prompt_float", _seq([50.0, 10.0, 0.0, 1.0, 2.0, 0.1]))
     monkeypatch.setattr(cli, "_prompt_text", _seq(["ohm", "desc"]))
-    monkeypatch.setattr(cli, "_existing_item_values", lambda field, measurement_type=None: [])
+    monkeypatch.setattr(
+        cli, "_existing_item_values", lambda field, measurement_type=None: []
+    )
     monkeypatch.setattr(cli, "_existing_item_units", lambda measurement_type: [])
     monkeypatch.setattr(cli, "create_item", lambda item, measurement_id: 1)
     cli.add_item(1)
@@ -297,9 +342,13 @@ def test_edit_item(monkeypatch):
         "value_angle_deg": 0.0,
     }
     monkeypatch.setattr(cli, "_load_item", lambda item_id: item)
-    monkeypatch.setattr(cli, "_existing_item_values", lambda field, measurement_type=None: [])
+    monkeypatch.setattr(
+        cli, "_existing_item_values", lambda field, measurement_type=None: []
+    )
     monkeypatch.setattr(cli, "_existing_item_units", lambda measurement_type: [])
-    monkeypatch.setattr(cli, "_prompt_choice", _seq(["earthing_impedance", "real_imag"]))
+    monkeypatch.setattr(
+        cli, "_prompt_choice", _seq(["earthing_impedance", "real_imag"])
+    )
     monkeypatch.setattr(cli, "_prompt_float", _seq([60.0, 1.0, 2.0, 3.0, 4.0, 5.0]))
     monkeypatch.setattr(cli, "_prompt_text", _seq(["ohm", "desc"]))
     monkeypatch.setattr(cli, "update_item", lambda item_id, updates: True)
@@ -309,9 +358,13 @@ def test_edit_item(monkeypatch):
 def test_edit_item_not_found(monkeypatch):
     item = {"measurement_type": "earthing_impedance", "frequency_hz": 50.0}
     monkeypatch.setattr(cli, "_load_item", lambda item_id: item)
-    monkeypatch.setattr(cli, "_existing_item_values", lambda field, measurement_type=None: [])
+    monkeypatch.setattr(
+        cli, "_existing_item_values", lambda field, measurement_type=None: []
+    )
     monkeypatch.setattr(cli, "_existing_item_units", lambda measurement_type: [])
-    monkeypatch.setattr(cli, "_prompt_choice", _seq(["earthing_impedance", "magnitude_angle"]))
+    monkeypatch.setattr(
+        cli, "_prompt_choice", _seq(["earthing_impedance", "magnitude_angle"])
+    )
     monkeypatch.setattr(cli, "_prompt_float", _seq([50.0, 1.0, 2.0, 3.0, 4.0, 5.0]))
     monkeypatch.setattr(cli, "_prompt_text", _seq(["ohm", "desc"]))
     monkeypatch.setattr(cli, "update_item", lambda item_id, updates: False)
@@ -323,7 +376,11 @@ def test_cli_distance_profile_value_inf(monkeypatch, capsys):
     monkeypatch.setattr(
         cli,
         "distance_profile_value",
-        lambda **kwargs: {"result_value": 1.0, "result_distance_m": float("inf"), "algorithm": "inverse"},
+        lambda **kwargs: {
+            "result_value": 1.0,
+            "result_distance_m": float("inf"),
+            "algorithm": "inverse",
+        },
     )
     cli.cli_distance_profile_value(
         1,
@@ -349,10 +406,16 @@ def test_cli_import_from_images_json_out(monkeypatch, tmp_path):
     monkeypatch.setattr(
         cli,
         "import_items_from_images",
-        lambda **kwargs: {"created_item_ids": [1], "skipped": [], "parsed_row_count": 2},
+        lambda **kwargs: {
+            "created_item_ids": [1],
+            "skipped": [],
+            "parsed_row_count": 2,
+        },
     )
     out = tmp_path / "summary.json"
-    cli.cli_import_from_images(1, tmp_path, measurement_type="earthing_impedance", json_out=out)
+    cli.cli_import_from_images(
+        1, tmp_path, measurement_type="earthing_impedance", json_out=out
+    )
     assert json.loads(out.read_text())["parsed_row_count"] == 2
 
 
@@ -360,7 +423,11 @@ def test_cli_import_from_images_skipped(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(
         cli,
         "import_items_from_images",
-        lambda **kwargs: {"created_item_ids": [], "skipped": ["one"], "parsed_row_count": 0},
+        lambda **kwargs: {
+            "created_item_ids": [],
+            "skipped": ["one"],
+            "parsed_row_count": 0,
+        },
     )
     cli.cli_import_from_images(
         1,
@@ -374,8 +441,10 @@ def test_cli_import_from_images_skipped(monkeypatch, tmp_path, capsys):
 
 def test_cli_impedance_over_frequency(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "impedance_over_frequency", lambda ids: {"a": 1})
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(cli, "impedance_over_frequency", lambda ids, **kwargs: {"a": 1})
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_impedance_over_frequency([1])
     assert seen["data"] == {"a": 1}
 
@@ -383,23 +452,33 @@ def test_cli_impedance_over_frequency(monkeypatch):
 def test_cli_real_imag_over_frequency(monkeypatch):
     seen = {}
     monkeypatch.setattr(cli, "real_imag_over_frequency", lambda ids: {"a": 1})
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_real_imag_over_frequency([1])
     assert seen["data"] == {"a": 1}
 
 
 def test_cli_soil_profile(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "soil_resistivity_profile_detailed", lambda **kwargs: [{"depth_m": 1.0}])
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "soil_resistivity_profile_detailed", lambda **kwargs: [{"depth_m": 1.0}]
+    )
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_soil_profile(1)
     assert seen["data"] == [{"depth_m": 1.0}]
 
 
 def test_cli_soil_inversion(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "invert_soil_resistivity_layers", lambda **kwargs: {"layers": []})
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "invert_soil_resistivity_layers", lambda **kwargs: {"layers": []}
+    )
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_soil_inversion(1)
     assert "layers" in seen["data"]
 
@@ -407,40 +486,60 @@ def test_cli_soil_inversion(monkeypatch):
 def test_cli_rho_f_model(monkeypatch):
     seen = {}
     monkeypatch.setattr(cli, "rho_f_model", lambda ids: (1, 2, 3, 4, 5))
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_rho_f_model([1])
     assert seen["data"]["k5"] == 5
 
 
 def test_cli_voltage_vt_epr(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "voltage_vt_epr", lambda ids, frequency=50.0: {"epr": 1.0})
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "voltage_vt_epr", lambda ids, frequency=50.0, **kwargs: {"epr": 1.0}
+    )
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_voltage_vt_epr([1], frequency=60.0)
     assert seen["data"]["epr"] == 1.0
 
 
 def test_cli_shield_currents(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "shield_currents_for_location", lambda **kwargs: [{"id": 1}])
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "shield_currents_for_location", lambda **kwargs: [{"id": 1}]
+    )
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_shield_currents(1)
     assert seen["data"] == [{"id": 1}]
 
 
 def test_cli_calculate_split_factor(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "calculate_split_factor", lambda **kwargs: {"split_factor": 0.5})
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "calculate_split_factor", lambda **kwargs: {"split_factor": 0.5}
+    )
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_calculate_split_factor(earth_fault_current_id=1, shield_current_ids=[2])
     assert seen["data"]["split_factor"] == 0.5
 
 
 def test_cli_soil_model(monkeypatch):
-    monkeypatch.setattr(cli, "multilayer_soil_model", lambda rho_layers, thicknesses_m=None: {"layers": []})
+    monkeypatch.setattr(
+        cli,
+        "multilayer_soil_model",
+        lambda rho_layers, thicknesses_m=None: {"layers": []},
+    )
     monkeypatch.setattr(cli, "layered_earth_forward", lambda **kwargs: [1.0])
     seen = {}
-    monkeypatch.setattr(cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data))
+    monkeypatch.setattr(
+        cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
+    )
     cli.cli_soil_model(rho=[100.0], thicknesses=[], spacings=[1.0])
     assert "predicted_curve" in seen["data"]
 
@@ -517,8 +616,12 @@ def test_import_json_single(tmp_path, monkeypatch, capsys):
     file_path.write_text(json.dumps(payload))
 
     created = {"items": 0}
-    monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
-    monkeypatch.setattr(cli, "create_item", lambda it, measurement_id: created.__setitem__("items", created["items"] + 1))
+
+    def fake_create(measurement, items):
+        created["items"] += len(items)
+        return 1, list(range(len(items)))
+
+    monkeypatch.setattr(cli, "create_measurement_with_items", fake_create)
 
     cli.import_json(file_path)
     assert "Successfully imported" in capsys.readouterr().out
@@ -532,12 +635,12 @@ def test_import_json_directory_merge(tmp_path, monkeypatch, capsys):
     items_path.write_text(json.dumps([{"value": 1}, {"value": 2}]))
 
     created = {"items": 0}
-    monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
-    monkeypatch.setattr(
-        cli,
-        "create_item",
-        lambda it, measurement_id: created.__setitem__("items", created["items"] + 1),
-    )
+
+    def fake_create(measurement, items):
+        created["items"] += len(items)
+        return 1, list(range(len(items)))
+
+    monkeypatch.setattr(cli, "create_measurement_with_items", fake_create)
 
     cli.import_json(tmp_path)
     out = capsys.readouterr().out
@@ -546,44 +649,121 @@ def test_import_json_directory_merge(tmp_path, monkeypatch, capsys):
 
 
 def test_import_json_invalid_json(tmp_path, monkeypatch, capsys):
+    import typer as _typer
+
     bad = tmp_path / "bad.json"
     bad.write_text("{invalid")
     monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
-    cli.import_json(bad)
-    assert "Error reading" in capsys.readouterr().err
+
+    # Bug 9: import-json now exits non-zero when every file failed to parse.
+    with pytest.raises(_typer.Exit) as exc_info:
+        cli.import_json(bad)
+    assert exc_info.value.exit_code == 1
+
+    err = capsys.readouterr().err
+    assert "Error reading" in err
+    assert "finished with 1 failure" in err
 
 
 def test_import_json_unsupported_structure(tmp_path, monkeypatch, capsys):
+    import typer as _typer
+
     bad = tmp_path / "bad2.json"
     bad.write_text(json.dumps("string"))
     monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
-    cli.import_json(bad)
-    assert "Unsupported JSON structure" in capsys.readouterr().out
+
+    with pytest.raises(_typer.Exit) as exc_info:
+        cli.import_json(bad)
+    assert exc_info.value.exit_code == 1
+
+    err = capsys.readouterr().err
+    assert "Unsupported JSON structure" in err
+
+
+def test_import_json_parses_timestamp_and_drops_db_keys(tmp_path, monkeypatch, capsys):
+    import datetime as _dt
+
+    payload = {
+        "id": 7,
+        "location_id": 3,
+        "timestamp": "2026-05-12T11:00:00+02:00",
+        "method": "wenner",
+        "asset_type": "substation",
+        "location": {"id": 3, "name": "Site"},
+        "items": [{"id": 9, "measurement_id": 7, "value": 1.0, "unit": "Ω"}],
+    }
+    file_path = tmp_path / "export.json"
+    file_path.write_text(json.dumps([payload]))
+
+    seen = {}
+
+    def fake_create(measurement, items):
+        seen["m"], seen["items"] = measurement, items
+        return 1, [1]
+
+    monkeypatch.setattr(cli, "create_measurement_with_items", fake_create)
+
+    cli.import_json(file_path)
+    assert "Successfully imported 1" in capsys.readouterr().out
+    assert seen["m"]["timestamp"] == _dt.datetime(2026, 5, 12, 9, 0)
+    assert "id" not in seen["m"] and "location_id" not in seen["m"]
+    assert seen["m"]["location"] == {"name": "Site"}
+    assert seen["items"] == [{"value": 1.0, "unit": "Ω"}]
+
+
+def test_import_json_invalid_timestamp(tmp_path, monkeypatch, capsys):
+    import typer as _typer
+
+    bad = tmp_path / "bad_ts.json"
+    bad.write_text(
+        json.dumps(
+            {"method": "wenner", "asset_type": "substation", "timestamp": "12.05.2026"}
+        )
+    )
+    monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
+
+    with pytest.raises(_typer.Exit):
+        cli.import_json(bad)
+    assert "Invalid timestamp" in capsys.readouterr().err
 
 
 def test_export_json(monkeypatch, tmp_path):
     seen = {}
-    monkeypatch.setattr(cli, "export_measurements_to_json", lambda path, **filters: seen.setdefault("filters", filters))
+    monkeypatch.setattr(
+        cli,
+        "export_measurements_to_json",
+        lambda path, **filters: seen.setdefault("filters", filters),
+    )
     cli.export_json(tmp_path / "out.json", measurement_ids=[1, 2])
     assert seen["filters"]["id__in"] == [1, 2]
 
 
 def test_export_json_no_filters(monkeypatch, tmp_path):
     seen = {}
-    monkeypatch.setattr(cli, "export_measurements_to_json", lambda path, **filters: seen.setdefault("filters", filters))
+    monkeypatch.setattr(
+        cli,
+        "export_measurements_to_json",
+        lambda path, **filters: seen.setdefault("filters", filters),
+    )
     cli.export_json(tmp_path / "out.json", measurement_ids=None)
     assert seen["filters"] == {}
 
 
 def test_cli_map_success(monkeypatch):
-    monkeypatch.setattr(cli, "read_measurements_by", lambda **kwargs: ([{"id": 1}], None))
+    monkeypatch.setattr(
+        cli, "read_measurements_by", lambda **kwargs: ([{"id": 1}], None)
+    )
     monkeypatch.setattr(cli, "generate_map", lambda *args, **kwargs: None)
     cli.cli_map(measurement_ids=None, output=Path("map.html"), open_browser=False)
 
 
 def test_cli_map_error(monkeypatch):
     monkeypatch.setattr(cli, "read_measurements_by", lambda **kwargs: ([], None))
-    monkeypatch.setattr(cli, "generate_map", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("x")))
+    monkeypatch.setattr(
+        cli,
+        "generate_map",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("x")),
+    )
     with pytest.raises(typer.Exit):
         cli.cli_map(output=Path("map.html"))
 
@@ -598,7 +778,11 @@ def test_cli_dashboard_subprocess_error(monkeypatch):
 
 
 def test_cli_dashboard_keyboard_interrupt(monkeypatch):
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()))
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
     cli.cli_dashboard()
 
 
@@ -608,3 +792,103 @@ def test_set_default_db(tmp_path, monkeypatch, capsys):
     cli.set_default_db(tmp_path / "db.sqlite")
     assert cfg.exists()
     assert "Default DB path saved" in capsys.readouterr().out
+
+
+def test_cli_distance_profile_frequency_and_conservative(tmp_path):
+    import datetime as _dt
+
+    from typer.testing import CliRunner
+
+    import groundmeas as gm
+
+    db_path = tmp_path / "ground.db"
+    gm.connect_db(str(db_path))
+    mid = gm.create_measurement(
+        {
+            "timestamp": _dt.datetime(2026, 5, 12),
+            "method": "injection_earth_electrode",
+            "asset_type": "overhead_line_tower",
+            "location": {"name": "Tower 3"},
+        }
+    )
+    profile = {10.0: 0.40, 30.0: 0.50, 60.0: 0.55, 65.0: 0.56, 70.0: 0.58}
+    gm.create_items(
+        [
+            {
+                "measurement_type": "earthing_impedance",
+                "value": z * scale,
+                "unit": "Ω",
+                "frequency_hz": f,
+                "measurement_distance_m": d,
+                "distance_to_current_injection_m": 100.0,
+            }
+            for f, scale in ((50.0, 1.0), (70.0, 1.1))
+            for d, z in profile.items()
+        ],
+        measurement_id=mid,
+    )
+    gm.disconnect_db()
+
+    out = tmp_path / "result.json"
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "--db",
+            str(db_path),
+            "distance-profile",
+            str(mid),
+            "-a",
+            "62_percent",
+            "-f",
+            "50",
+            "--conservative",
+            "--json-out",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(out.read_text())
+    assert data["frequency_hz"] == 50.0
+    assert data["details"]["conservative"] is True
+    assert data["result_value"] == pytest.approx(0.55 + 0.4 * 0.01)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["distance-profile", "1", "-a", "62percent"],
+        ["impedance-over-frequency", "1", "--profile-algorithm", "62percent"],
+        ["voltage-vt-epr", "1", "--profile-algorithm", "62percent"],
+    ],
+)
+def test_cli_rejects_unknown_profile_algorithm(tmp_path, args):
+    from typer.testing import CliRunner
+
+    result = CliRunner().invoke(cli.app, ["--db", str(tmp_path / "g.db"), *args])
+    assert result.exit_code == 2
+    assert "Unsupported algorithm" in result.output
+
+
+def test_cli_import_omicron_rejects_unknown_time_zone(tmp_path):
+    from typer.testing import CliRunner
+
+    data = Path(__file__).parent / "data" / "compano_fall_of_potential.xml"
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "--db",
+            str(tmp_path / "g.db"),
+            "import-omicron",
+            "--location",
+            "X",
+            "--asset-type",
+            "substation",
+            "--ze",
+            str(data),
+            "--timezone",
+            "Europe/Berln",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "unknown time zone" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)

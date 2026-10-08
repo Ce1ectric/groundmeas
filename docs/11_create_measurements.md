@@ -50,13 +50,17 @@ $$
 
 ## Python API examples
 
+These examples use the canonical top-level package
+(`import groundmeas as gm`). The legacy `from groundmeas.db import ...`
+form still works but emits a `DeprecationWarning`.
+
 ### Scenario A: staged fault test
 ```python
-from groundmeas.db import connect_db, create_measurement, create_item, read_items_by
+import groundmeas as gm
 
-connect_db("groundmeas.db")
+gm.connect_db("groundmeas.db")
 
-mid = create_measurement({
+mid = gm.create_measurement({
     "method": "staged_fault_test",
     "asset_type": "substation",
     "voltage_level_kv": 20.0,
@@ -66,7 +70,7 @@ mid = create_measurement({
 })
 
 for dist, value in [(10, 0.40), (30, 0.36), (50, 0.34)]:
-    create_item({
+    gm.create_item({
         "measurement_type": "earthing_impedance",
         "frequency_hz": 50.0,
         "value": value,
@@ -76,7 +80,7 @@ for dist, value in [(10, 0.40), (30, 0.36), (50, 0.34)]:
         "distance_to_current_injection_m": 200.0,
     }, measurement_id=mid)
 
-create_item({
+gm.create_item({
     "measurement_type": "shield_current",
     "frequency_hz": 50.0,
     "value": 45.0,
@@ -84,17 +88,17 @@ create_item({
     "unit": "A",
 }, measurement_id=mid)
 
-items, _ = read_items_by(measurement_id=mid)
+items, _ = gm.read_items_by(measurement_id=mid)
 print(len(items))
 ```
 
 ### Scenario B: soil resistivity survey
 ```python
-from groundmeas.db import connect_db, create_measurement, create_item
+import groundmeas as gm
 
-connect_db("groundmeas.db")
+gm.connect_db("groundmeas.db")
 
-soil_id = create_measurement({
+soil_id = gm.create_measurement({
     "method": "schlumberger",
     "asset_type": "substation",
     "description": "Schlumberger survey",
@@ -103,7 +107,7 @@ soil_id = create_measurement({
 
 # Store AB/2 in measurement_distance_m, MN/2 in distance_to_current_injection_m
 for ab2, mn2, r in [(1.0, 0.5, 12.0), (2.0, 0.5, 10.5), (4.0, 0.5, 9.0)]:
-    create_item({
+    gm.create_item({
         "measurement_type": "soil_resistivity",
         "value": r,
         "unit": "ohm",

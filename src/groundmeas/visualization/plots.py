@@ -313,7 +313,9 @@ def plot_soil_model(
         raise ValueError("No layers available for plotting")
 
     total_thickness = float(model.get("total_thickness_m", 0.0))
-    plot_bottom = float(max_depth_m) if max_depth_m is not None else max(total_thickness, 1.0)
+    plot_bottom = (
+        float(max_depth_m) if max_depth_m is not None else max(total_thickness, 1.0)
+    )
 
     fig, ax = plt.subplots()
     x_step: List[float] = []
@@ -432,7 +434,9 @@ def plot_soil_inversion(
     obs = result.get("observed_curve", [])
     pred = result.get("predicted_curve", [])
     if not obs or not pred:
-        raise ValueError(f"No soil_resistivity data for measurement_id={measurement_id}")
+        raise ValueError(
+            f"No soil_resistivity data for measurement_id={measurement_id}"
+        )
 
     fig, ax = plt.subplots()
     ax.plot(

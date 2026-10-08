@@ -47,14 +47,19 @@ $$
 
 ## Python API examples
 
+The examples below use the canonical top-level package
+(`import groundmeas as gm`). Importing from the legacy
+`groundmeas.db` / `groundmeas.analytics` shims still works but emits a
+`DeprecationWarning` — see the compatibility-shim table in
+`docs/21_ref_api.md`.
+
 ### Scenario A: staged fault test
 ```python
-from groundmeas.db import connect_db, create_measurement, create_item
-from groundmeas.analytics import distance_profile_value
+import groundmeas as gm
 
-connect_db("groundmeas.db")
+gm.connect_db("groundmeas.db")
 
-mid = create_measurement({
+mid = gm.create_measurement({
     "method": "staged_fault_test",
     "asset_type": "substation",
     "description": "Staged fault test",
@@ -62,7 +67,7 @@ mid = create_measurement({
 })
 
 for dist, val in [(10, 0.40), (30, 0.36), (50, 0.34)]:
-    create_item({
+    gm.create_item({
         "measurement_type": "earthing_impedance",
         "frequency_hz": 50.0,
         "value": val,
@@ -72,18 +77,17 @@ for dist, val in [(10, 0.40), (30, 0.36), (50, 0.34)]:
         "distance_to_current_injection_m": 200.0,
     }, measurement_id=mid)
 
-result = distance_profile_value(mid, algorithm="minimum_gradient")
+result = gm.distance_profile_value(mid, algorithm="minimum_gradient")
 print(result["result_value"], result["result_distance_m"])
 ```
 
 ### Scenario B: soil survey
 ```python
-from groundmeas.db import connect_db, create_measurement, create_item
-from groundmeas.analytics import soil_resistivity_profile, invert_soil_resistivity_layers
+import groundmeas as gm
 
-connect_db("groundmeas.db")
+gm.connect_db("groundmeas.db")
 
-soil_id = create_measurement({
+soil_id = gm.create_measurement({
     "method": "wenner",
     "asset_type": "substation",
     "description": "Wenner survey",
@@ -91,17 +95,17 @@ soil_id = create_measurement({
 })
 
 for spacing, rho_a in [(1.0, 80.0), (2.0, 70.0), (4.0, 55.0)]:
-    create_item({
+    gm.create_item({
         "measurement_type": "soil_resistivity",
         "value": rho_a,
         "unit": "ohm-m",
         "measurement_distance_m": spacing,
     }, measurement_id=soil_id)
 
-profile = soil_resistivity_profile(soil_id, method="wenner")
+profile = gm.soil_resistivity_profile(soil_id, method="wenner")
 print(profile)
 
-inv = invert_soil_resistivity_layers(soil_id, method="wenner", layers=2)
+inv = gm.invert_soil_resistivity_layers(soil_id, method="wenner", layers=2)
 print(inv["rho_layers"], inv["thicknesses_m"])
 ```
 

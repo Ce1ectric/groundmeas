@@ -18,6 +18,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, get_args
 
+import click
 import typer
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -26,6 +27,7 @@ from ..core.db import (
     connect_db,
     create_item,
     create_measurement,
+    create_measurement_with_items,
     delete_item,
     delete_measurement,
     read_items_by,
@@ -34,6 +36,12 @@ from ..core.db import (
     update_measurement,
 )
 from ..services.export import export_measurements_to_json
+from ..services.json_import import prepare_measurement_for_import
+from ..services.omicron_import import (
+    import_fall_of_potential,
+    import_soil_resistivity,
+    import_step_touch,
+)
 from ..core.models import MeasurementType
 from ..services.analytics import (
     calculate_split_factor,
@@ -48,6 +56,7 @@ from ..services.analytics import (
     invert_soil_resistivity_layers,
     voltage_vt_epr,
     DX_DEFAULT,
+    _algorithm_key,
 )
 from ..services.vision_import import import_items_from_images
 from ..visualization.plots import (
@@ -58,8 +67,10 @@ from ..visualization.plots import (
     plot_voltage_vt_epr,
 )
 from ..visualization.map_vis import generate_map
+from ..towers.cli import app as towers_app
 
 app = typer.Typer(help="CLI for managing groundmeas data")
+app.add_typer(towers_app, name="towers")
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path.home() / ".config" / "groundmeas" / "config.json"
@@ -170,11 +181,24 @@ def _prompt_choice(
         typer.echo(f"Choose one of: {', '.join(choices)}")
 
 
+def _abort(message: str, code: int = 1) -> "typer.Exit":
+    """
+    Emit ``message`` on stderr and return a :class:`typer.Exit` with ``code``.
+
+    Use as ``raise _abort("...")``. This helper exists because
+    ``typer.Exit`` treats its first positional argument as the exit *code*;
+    passing a string makes Typer raise ``TypeError`` at runtime instead of
+    surfacing the intended error message.
+    """
+    typer.echo(message, err=True)
+    return typer.Exit(code=code)
+
+
 def _load_measurement(measurement_id: int) -> dict[str, Any]:
     """Load a measurement by ID or exit if not found."""
     recs, _ = read_measurements_by(id=measurement_id)
     if not recs:
-        raise typer.Exit(f"Measurement id={measurement_id} not found")
+        raise _abort(f"Measurement id={measurement_id} not found")
     return recs[0]
 
 
@@ -182,7 +206,7 @@ def _load_item(item_id: int) -> dict[str, Any]:
     """Load a measurement item by ID or exit if not found."""
     recs, _ = read_items_by(id=item_id)
     if not recs:
-        raise typer.Exit(f"MeasurementItem id={item_id} not found")
+        raise _abort(f"MeasurementItem id={item_id} not found")
     return recs[0]
 
 
@@ -206,7 +230,9 @@ def _existing_locations() -> List[str]:
         measurements, _ = read_measurements_by()
     except Exception:
         return []
-    names = {m.get("location", {}).get("name") for m in measurements if m.get("location")}
+    names = {
+        m.get("location", {}).get("name") for m in measurements if m.get("location")
+    }
     return sorted({n for n in names if n})
 
 
@@ -244,7 +270,14 @@ def _existing_item_values(field: str, measurement_type: str | None = None) -> Li
 
 
 def _resolve_db(db: Optional[str]) -> str:
-    """Resolve the database path from args, config, or default."""
+    """Resolve the database path from args, config, or default.
+
+    Precedence: explicit ``db`` argument → ``CONFIG_PATH`` (``~/.config``) →
+    ``./groundmeas.db``. A malformed or unreadable config file is logged as
+    a warning and the resolver falls back to the default — it never aborts
+    the CLI so that users can still access the tool and recover via
+    ``set-default-db``.
+    """
     if db:
         return db
     if CONFIG_PATH.exists():
@@ -253,8 +286,15 @@ def _resolve_db(db: Optional[str]) -> str:
             cfg_path = cfg.get("db_path")
             if cfg_path:
                 return cfg_path
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "Failed to read default DB path from %s (%s: %s); "
+                "falling back to ./groundmeas.db. Run `gm-cli set-default-db` "
+                "to rewrite the config.",
+                CONFIG_PATH,
+                type(exc).__name__,
+                exc,
+            )
     return str(Path("groundmeas.db").resolve())
 
 
@@ -264,7 +304,9 @@ def _save_default_db(db_path: str) -> None:
     CONFIG_PATH.write_text(json.dumps({"db_path": db_path}, indent=2))
 
 
-def _print_measurement_summary(mid: int, measurement: dict[str, Any], items: List[dict[str, Any]]) -> None:
+def _print_measurement_summary(
+    mid: int, measurement: dict[str, Any], items: List[dict[str, Any]]
+) -> None:
     """Print a human-readable summary of a measurement and its items."""
     typer.echo("\nSummary")
     typer.echo("-------")
@@ -296,6 +338,31 @@ def _print_measurement_summary(mid: int, measurement: dict[str, Any], items: Lis
 # ─── APP CALLBACK ───────────────────────────────────────────────────────────────
 
 
+def _time_zone(value: Optional[str]) -> Optional[str]:
+    """Typer callback: reject unknown IANA time zones before importing."""
+    if not value:
+        return value
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(f"unknown time zone {value!r}") from exc
+    return value
+
+
+def _profile_algorithm(value: str) -> str:
+    """Typer callback: reject unknown profile algorithms before any work is done."""
+    try:
+        return _algorithm_key(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+_COMMANDS_WITHOUT_DATABASE = frozenset({"towers"})
+"""Sub-commands that connect to the database themselves, if at all."""
+
+
 @app.callback()
 def _connect(
     db: Optional[str] = typer.Option(
@@ -306,11 +373,33 @@ def _connect(
     )
 ) -> None:
     """Connect to the database before running any command."""
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None and ctx.invoked_subcommand in _COMMANDS_WITHOUT_DATABASE:
+        # the tower workflow is file based; `towers import-db` connects itself
+        ctx.obj = {"db": db}
+        return
+    _connect_database(db)
+
+
+def _connect_database(db: Optional[str]) -> str:
+    """Resolve the database path, create its folder and connect.
+
+    Parameters
+    ----------
+    db : str, optional
+        Value of ``--db`` / ``GROUNDMEAS_DB``; see :func:`_resolve_db`.
+
+    Returns
+    -------
+    str
+        Path of the connected database.
+    """
     db_path = _resolve_db(db)
     db_parent = Path(db_path).expanduser().resolve().parent
     db_parent.mkdir(parents=True, exist_ok=True)
     connect_db(db_path)
     typer.echo(f"Connected to {db_path}")
+    return db_path
 
 
 # ─── COMMANDS ───────────────────────────────────────────────────────────────────
@@ -323,7 +412,9 @@ def add_measurement() -> None:
 
     existing_locs = _existing_locations()
     loc_default = existing_locs[0] if existing_locs else None
-    loc_name = _prompt_text("Location name", default=loc_default, completer=_word_choice(existing_locs))
+    loc_name = _prompt_text(
+        "Location name", default=loc_default, completer=_word_choice(existing_locs)
+    )
 
     lat = _prompt_float("Latitude (optional)", default=None)
     lon = _prompt_float("Longitude (optional)", default=None)
@@ -355,8 +446,12 @@ def add_measurement() -> None:
     fault_res_choices = _existing_measurement_values("fault_resistance_ohm")
     operator_choices = _existing_measurement_values("operator")
 
-    voltage = _prompt_float("Voltage level kV (optional)", default=None, suggestions=voltage_choices)
-    fault_res = _prompt_float("Fault resistance Ω (optional)", default=None, suggestions=fault_res_choices)
+    voltage = _prompt_float(
+        "Voltage level kV (optional)", default=None, suggestions=voltage_choices
+    )
+    fault_res = _prompt_float(
+        "Fault resistance Ω (optional)", default=None, suggestions=fault_res_choices
+    )
     description = _prompt_text("Description (optional)", default="")
     operator_default = operator_choices[0] if operator_choices else ""
     operator = _prompt_text(
@@ -372,7 +467,12 @@ def add_measurement() -> None:
         "fault_resistance_ohm": fault_res,
         "description": description or None,
         "operator": operator or None,
-        "location": {"name": loc_name, "latitude": lat, "longitude": lon, "altitude": alt},
+        "location": {
+            "name": loc_name,
+            "latitude": lat,
+            "longitude": lon,
+            "altitude": alt,
+        },
     }
 
     measurement_snapshot = json.loads(json.dumps(measurement_data))
@@ -392,7 +492,9 @@ def add_measurement() -> None:
             break
 
         freq_choices = _existing_item_values("frequency_hz", mtype)
-        freq = _prompt_float("Frequency Hz (optional)", default=50.0, suggestions=freq_choices)
+        freq = _prompt_float(
+            "Frequency Hz (optional)", default=50.0, suggestions=freq_choices
+        )
 
         entry_mode = _prompt_choice(
             "Value entry mode",
@@ -480,7 +582,9 @@ def list_measurements() -> None:
 @app.command("list-items")
 def list_items(
     measurement_id: int = typer.Argument(..., help="Measurement ID"),
-    measurement_type: Optional[str] = typer.Option(None, "--type", help="Filter by measurement_type"),
+    measurement_type: Optional[str] = typer.Option(
+        None, "--type", help="Filter by measurement_type"
+    ),
 ) -> None:
     """List items for a given measurement."""
     filters: dict[str, Any] = {"measurement_id": measurement_id}
@@ -538,7 +642,9 @@ def cli_delete_measurement(
 ) -> None:
     """Delete a measurement and its items."""
     if not force:
-        if not typer.confirm(f"Delete measurement id={measurement_id} and all its items?"):
+        if not typer.confirm(
+            f"Delete measurement id={measurement_id} and all its items?"
+        ):
             typer.echo("Aborted.")
             raise typer.Exit(code=0)
     ok = delete_measurement(measurement_id)
@@ -567,13 +673,17 @@ def cli_delete_item(
 
 @app.command("add-item")
 def add_item(
-    measurement_id: int = typer.Argument(..., help="Measurement ID to attach the item to")
+    measurement_id: int = typer.Argument(
+        ..., help="Measurement ID to attach the item to"
+    )
 ) -> None:
     """Interactive wizard to add a single item to an existing measurement."""
     mtypes = _measurement_types()
     mtype = _prompt_choice("Measurement type", choices=mtypes)
     freq_choices = _existing_item_values("frequency_hz", mtype)
-    freq = _prompt_float("Frequency Hz (optional)", default=50.0, suggestions=freq_choices)
+    freq = _prompt_float(
+        "Frequency Hz (optional)", default=50.0, suggestions=freq_choices
+    )
     entry_mode = _prompt_choice(
         "Value entry mode",
         choices=["magnitude_angle", "real_imag"],
@@ -608,7 +718,9 @@ def add_item(
     if mtype in {"earthing_impedance", "earthing_resistance"}:
         add_res_choices = _existing_item_values("additional_resistance_ohm", mtype)
         item["additional_resistance_ohm"] = _prompt_float(
-            "Additional series resistance Ω (optional)", default=None, suggestions=add_res_choices
+            "Additional series resistance Ω (optional)",
+            default=None,
+            suggestions=add_res_choices,
         )
 
     suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
@@ -633,10 +745,14 @@ def edit_measurement(
     rec = _load_measurement(measurement_id)
     loc = rec.get("location") or {}
 
-    typer.echo(f"Editing measurement id={measurement_id}. Press Enter to keep existing values.")
+    typer.echo(
+        f"Editing measurement id={measurement_id}. Press Enter to keep existing values."
+    )
 
     existing_locs = _existing_locations()
-    loc_name = _prompt_text("Location name", default=loc.get("name"), completer=_word_choice(existing_locs))
+    loc_name = _prompt_text(
+        "Location name", default=loc.get("name"), completer=_word_choice(existing_locs)
+    )
     lat = _prompt_float("Latitude (optional)", default=loc.get("latitude"))
     lon = _prompt_float("Longitude (optional)", default=loc.get("longitude"))
     alt = _prompt_float("Altitude (optional)", default=loc.get("altitude"))
@@ -680,8 +796,12 @@ def edit_measurement(
         default=rec.get("fault_resistance_ohm"),
         suggestions=fault_res_choices,
     )
-    description = _prompt_text("Description (optional)", default=rec.get("description") or "")
-    operator_default = rec.get("operator") or (operator_choices[0] if operator_choices else "")
+    description = _prompt_text(
+        "Description (optional)", default=rec.get("description") or ""
+    )
+    operator_default = rec.get("operator") or (
+        operator_choices[0] if operator_choices else ""
+    )
     operator = _prompt_text(
         "Operator (optional)",
         default=operator_default,
@@ -705,24 +825,36 @@ def edit_measurement(
 
     updated = update_measurement(measurement_id, updates)
     if not updated:
-        raise typer.Exit(f"Measurement id={measurement_id} not found")
+        raise _abort(f"Measurement id={measurement_id} not found")
 
     rec_after = _load_measurement(measurement_id)
     _print_measurement_summary(measurement_id, rec_after, rec_after.get("items", []))
 
 
 @app.command("edit-item")
-def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edit")) -> None:
+def edit_item(
+    item_id: int = typer.Argument(..., help="MeasurementItem ID to edit")
+) -> None:
     """Edit a measurement item with defaults from the database."""
     item = _load_item(item_id)
     mtypes = _measurement_types()
-    mtype = _prompt_choice("Measurement type", choices=mtypes, default=item.get("measurement_type"))
+    mtype = _prompt_choice(
+        "Measurement type", choices=mtypes, default=item.get("measurement_type")
+    )
 
     freq_choices = _existing_item_values("frequency_hz", mtype)
-    freq = _prompt_float("Frequency Hz (optional)", default=item.get("frequency_hz"), suggestions=freq_choices)
+    freq = _prompt_float(
+        "Frequency Hz (optional)",
+        default=item.get("frequency_hz"),
+        suggestions=freq_choices,
+    )
 
     # decide entry mode based on existing data
-    entry_mode_default = "real_imag" if item.get("value_real") is not None or item.get("value_imag") is not None else "magnitude_angle"
+    entry_mode_default = (
+        "real_imag"
+        if item.get("value_real") is not None or item.get("value_imag") is not None
+        else "magnitude_angle"
+    )
     entry_mode = _prompt_choice(
         "Value entry mode",
         choices=["magnitude_angle", "real_imag"],
@@ -734,14 +866,26 @@ def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edi
         val = item.get("value")
         ang = item.get("value_angle_deg")
         value = _prompt_float("Value (magnitude)", default=val)
-        angle = _prompt_float("Angle deg (optional)", default=ang, suggestions=angle_choices)
-        item_updates = {"value": value, "value_angle_deg": angle, "value_real": None, "value_imag": None}
+        angle = _prompt_float(
+            "Angle deg (optional)", default=ang, suggestions=angle_choices
+        )
+        item_updates = {
+            "value": value,
+            "value_angle_deg": angle,
+            "value_real": None,
+            "value_imag": None,
+        }
     else:
         val_r = item.get("value_real")
         val_i = item.get("value_imag")
         value_real = _prompt_float("Real part", default=val_r)
         value_imag = _prompt_float("Imag part", default=val_i)
-        item_updates = {"value_real": value_real, "value_imag": value_imag, "value": None, "value_angle_deg": None}
+        item_updates = {
+            "value_real": value_real,
+            "value_imag": value_imag,
+            "value": None,
+            "value_angle_deg": None,
+        }
 
     dist_choices = _existing_item_values("measurement_distance_m", mtype)
     dist = _prompt_float(
@@ -766,13 +910,17 @@ def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edi
 
     suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
     unit_choices = _existing_item_units(mtype)
-    unit_default = item.get("unit") or (unit_choices[0] if unit_choices else suggested_unit)
+    unit_default = item.get("unit") or (
+        unit_choices[0] if unit_choices else suggested_unit
+    )
     unit = _prompt_text(
         "Unit",
         default=unit_default,
         completer=_word_choice(unit_choices or [suggested_unit]),
     )
-    desc = _prompt_text("Item description (optional)", default=item.get("description") or "")
+    desc = _prompt_text(
+        "Item description (optional)", default=item.get("description") or ""
+    )
 
     updates: dict[str, Any] = {
         "measurement_type": mtype,
@@ -781,13 +929,15 @@ def edit_item(item_id: int = typer.Argument(..., help="MeasurementItem ID to edi
         "description": desc or None,
         "measurement_distance_m": dist,
         "distance_to_current_injection_m": inj,
-        "additional_resistance_ohm": add_res if mtype in {"earthing_impedance", "earthing_resistance"} else None,
+        "additional_resistance_ohm": (
+            add_res if mtype in {"earthing_impedance", "earthing_resistance"} else None
+        ),
     }
     updates.update(item_updates)
 
     updated = update_item(item_id, updates)
     if not updated:
-        raise typer.Exit(f"MeasurementItem id={item_id} not found")
+        raise _abort(f"MeasurementItem id={item_id} not found")
     typer.echo(f"Updated item id={item_id}")
 
 
@@ -802,9 +952,23 @@ def cli_distance_profile_value(
         "--algorithm",
         "-a",
         help="Algorithm: maximum, 62_percent, minimum_gradient, minimum_stddev, inverse",
+        callback=_profile_algorithm,
     ),
     window: int = typer.Option(
         3, "--window", "-w", help="Window size for minimum_stddev (>=2)"
+    ),
+    frequency: Optional[float] = typer.Option(
+        None,
+        "--frequency",
+        "-f",
+        help="Only use items at this frequency (Hz); needed for profiles stored "
+        "at several frequencies",
+    ),
+    conservative: bool = typer.Option(
+        False,
+        "--conservative",
+        help="62_percent only: extrapolate and apply the conservative corrections "
+        "of the tower evaluation",
     ),
     json_out: Optional[Path] = typer.Option(
         None, "--json-out", help="Write result to JSON file"
@@ -812,13 +976,15 @@ def cli_distance_profile_value(
 ) -> None:
     """Calculate a characteristic value from a distance–impedance/voltage profile."""
     if measurement_type not in _measurement_types():
-        raise typer.Exit(f"Unknown measurement_type '{measurement_type}'")
+        raise _abort(f"Unknown measurement_type '{measurement_type}'")
 
     data = distance_profile_value(
         measurement_id=measurement_id,
         measurement_type=measurement_type,
         algorithm=algorithm,
         window=window,
+        frequency_hz=frequency,
+        conservative=conservative,
     )
 
     if json_out:
@@ -842,7 +1008,12 @@ def cli_distance_profile_value(
 @app.command("import-from-images")
 def cli_import_from_images(
     measurement_id: int = typer.Argument(..., help="Measurement ID to attach items to"),
-    images_dir: Path = typer.Argument(..., exists=True, file_okay=False, help="Directory containing measurement images"),
+    images_dir: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=False,
+        help="Directory containing measurement images",
+    ),
     measurement_type: str = typer.Option(
         "earthing_impedance",
         "--type",
@@ -878,11 +1049,15 @@ def cli_import_from_images(
         "--ocr-max-dim",
         help="Max image dimension (pixels) when sending to OCR provider; set 0 to disable downscale",
     ),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write summary to JSON file"),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write summary to JSON file"
+    ),
 ) -> None:
     """Import measurement items from an image directory using OCR."""
     if measurement_type not in {"earthing_impedance", "earthing_resistance"}:
-        raise typer.Exit("measurement_type must be earthing_impedance or earthing_resistance")
+        raise _abort(
+            "measurement_type must be earthing_impedance or earthing_resistance"
+        )
 
     summary = import_items_from_images(
         images_dir=images_dir,
@@ -912,18 +1087,28 @@ def cli_import_from_images(
 @app.command("impedance-over-frequency")
 def cli_impedance_over_frequency(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    profile_algorithm: str = typer.Option(
+        "62_percent",
+        "--profile-algorithm",
+        help="Reduction of distance profiles (one value per frequency)",
+        callback=_profile_algorithm,
+    ),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Return impedance over frequency for the given measurement IDs."""
     ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
-    data = impedance_over_frequency(ids)
+    data = impedance_over_frequency(ids, profile_algorithm=profile_algorithm)
     _dump_or_print(data, json_out)
 
 
 @app.command("real-imag-over-frequency")
 def cli_real_imag_over_frequency(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Return real/imag over frequency for the given measurement IDs."""
     ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
@@ -953,7 +1138,9 @@ def cli_soil_profile(
         "--mn-full/--mn-half",
         help="Interpret Schlumberger MN as full spacing (default: MN/2)",
     ),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Compute a depth-resistivity profile from soil resistivity items."""
     data = soil_resistivity_profile_detailed(
@@ -980,7 +1167,10 @@ def cli_soil_model(
     ),
     method: str = typer.Option("wenner", "--method", help="wenner or schlumberger"),
     spacings: List[float] = typer.Option(
-        [], "--spacing", help="Spacing values for simulation (repeatable)", show_default=False
+        [],
+        "--spacing",
+        help="Spacing values for simulation (repeatable)",
+        show_default=False,
     ),
     mn_m: Optional[float] = typer.Option(
         None, "--mn", help="MN spacing for Schlumberger (full by default)"
@@ -998,13 +1188,13 @@ def cli_soil_model(
     forward: str = typer.Option(
         "filter", "--forward", help="Forward engine: filter or integral"
     ),
-    dx: float = typer.Option(
-        DX_DEFAULT, "--dx", help="Log step for filter engine"
-    ),
+    dx: float = typer.Option(DX_DEFAULT, "--dx", help="Log step for filter engine"),
     n_lam: int = typer.Option(
         6000, "--n-lam", help="Lambda grid size for integral engine"
     ),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Define a layered soil model and optionally simulate apparent resistivity."""
     model = multilayer_soil_model(rho_layers=rho, thicknesses_m=thicknesses or None)
@@ -1066,9 +1256,7 @@ def cli_soil_inversion(
     forward: str = typer.Option(
         "filter", "--forward", help="Forward engine: filter or integral"
     ),
-    dx: float = typer.Option(
-        DX_DEFAULT, "--dx", help="Log step for filter engine"
-    ),
+    dx: float = typer.Option(DX_DEFAULT, "--dx", help="Log step for filter engine"),
     n_lam: int = typer.Option(
         6000, "--n-lam", help="Lambda grid size for integral engine"
     ),
@@ -1088,7 +1276,9 @@ def cli_soil_inversion(
         help="Initial thickness guesses (repeatable)",
         show_default=False,
     ),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Invert a layered-earth model from soil_resistivity data."""
     data = invert_soil_resistivity_layers(
@@ -1117,7 +1307,9 @@ def cli_soil_inversion(
 @app.command("rho-f-model")
 def cli_rho_f_model(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement IDs to fit"),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write coefficients to JSON"),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write coefficients to JSON"
+    ),
 ) -> None:
     """Fit the rho–f model and output coefficients."""
     coeffs = rho_f_model(measurement_ids)
@@ -1135,41 +1327,78 @@ def cli_rho_f_model(
 def cli_voltage_vt_epr(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
     frequency: float = typer.Option(50.0, "--frequency", "-f", help="Frequency in Hz"),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    additional_resistance: Optional[float] = typer.Option(
+        None,
+        "--additional-resistance",
+        help="Only touch voltages measured with this additional resistance (Ω)",
+    ),
+    profile_algorithm: str = typer.Option(
+        "62_percent",
+        "--profile-algorithm",
+        help="Reduction of an earthing-impedance profile",
+        callback=_profile_algorithm,
+    ),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Calculate per-ampere touch voltages and EPR for measurements."""
     ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
-    data = voltage_vt_epr(ids, frequency=frequency)
+    data = voltage_vt_epr(
+        ids,
+        frequency=frequency,
+        profile_algorithm=profile_algorithm,
+        additional_resistance_ohm=additional_resistance,
+    )
     _dump_or_print(data, json_out)
 
 
 @app.command("shield-currents")
 def cli_shield_currents(
     location_id: int = typer.Argument(..., help="Location ID to search under"),
-    frequency_hz: Optional[float] = typer.Option(None, "--frequency", "-f", help="Optional frequency filter"),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    frequency_hz: Optional[float] = typer.Option(
+        None, "--frequency", "-f", help="Optional frequency filter"
+    ),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """List shield_current items available for a location."""
-    data = shield_currents_for_location(location_id=location_id, frequency_hz=frequency_hz)
+    data = shield_currents_for_location(
+        location_id=location_id, frequency_hz=frequency_hz
+    )
     _dump_or_print(data, json_out)
 
 
 @app.command("calculate-split-factor")
 def cli_calculate_split_factor(
-    earth_fault_current_id: int = typer.Option(..., "--earth-fault-id", help="MeasurementItem id for earth_fault_current"),
-    shield_current_ids: List[int] = typer.Option(..., "--shield-id", help="Shield current item id(s)", show_default=False),
-    json_out: Optional[Path] = typer.Option(None, "--json-out", help="Write result to JSON file"),
+    earth_fault_current_id: int = typer.Option(
+        ..., "--earth-fault-id", help="MeasurementItem id for earth_fault_current"
+    ),
+    shield_current_ids: List[int] = typer.Option(
+        ..., "--shield-id", help="Shield current item id(s)", show_default=False
+    ),
+    json_out: Optional[Path] = typer.Option(
+        None, "--json-out", help="Write result to JSON file"
+    ),
 ) -> None:
     """Compute split factor and local earthing current."""
-    data = calculate_split_factor(earth_fault_current_id=earth_fault_current_id, shield_current_ids=shield_current_ids)
+    data = calculate_split_factor(
+        earth_fault_current_id=earth_fault_current_id,
+        shield_current_ids=shield_current_ids,
+    )
     _dump_or_print(data, json_out)
 
 
 @app.command("plot-impedance")
 def cli_plot_impedance(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
-    normalize_freq_hz: Optional[float] = typer.Option(None, "--normalize", help="Normalize by impedance at this frequency"),
-    output: Path = typer.Option(..., "--out", "-o", help="Output image file (e.g., plot.png)"),
+    normalize_freq_hz: Optional[float] = typer.Option(
+        None, "--normalize", help="Normalize by impedance at this frequency"
+    ),
+    output: Path = typer.Option(
+        ..., "--out", "-o", help="Output image file (e.g., plot.png)"
+    ),
 ) -> None:
     """Generate impedance vs frequency plot and save to a file."""
     fig = plot_imp_over_f(measurement_ids, normalize_freq_hz=normalize_freq_hz)
@@ -1186,12 +1415,14 @@ def cli_plot_rho_f_model(
         "--rho-f",
         help="Coefficients k1 k2 k3 k4 k5 (if omitted, they are fitted).",
     ),
-    rho: List[float] = typer.Option([100.0], "--rho", help="Rho values to plot (repeatable)"),
+    rho: List[float] = typer.Option(
+        [100.0], "--rho", help="Rho values to plot (repeatable)"
+    ),
     output: Path = typer.Option(..., "--out", "-o", help="Output image file"),
 ) -> None:
     """Plot measured impedance and rho–f model, save to file."""
     if rho_f_coeffs and len(rho_f_coeffs) != 5:
-        raise typer.Exit("Provide exactly five coefficients for --rho-f")
+        raise _abort("Provide exactly five coefficients for --rho-f")
     coeffs = tuple(rho_f_coeffs) if rho_f_coeffs else rho_f_model(measurement_ids)
     fig = plot_rho_f_model(measurement_ids, coeffs, rho=rho)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -1268,9 +1499,7 @@ def cli_plot_soil_inversion(
     forward: str = typer.Option(
         "filter", "--forward", help="Forward engine: filter or integral"
     ),
-    dx: float = typer.Option(
-        DX_DEFAULT, "--dx", help="Log step for filter engine"
-    ),
+    dx: float = typer.Option(DX_DEFAULT, "--dx", help="Log step for filter engine"),
     n_lam: int = typer.Option(
         6000, "--n-lam", help="Lambda grid size for integral engine"
     ),
@@ -1317,8 +1546,126 @@ def cli_plot_soil_inversion(
     fig.savefig(output)
     typer.echo(f"Wrote {output}")
 
+
+@app.command("import-omicron")
+def cli_import_omicron(
+    location: str = typer.Option(..., "--location", "-l", help="Location name"),
+    asset_type: str = typer.Option(
+        ...,
+        "--asset-type",
+        "-a",
+        help="Asset type, e.g. overhead_line_tower or substation",
+    ),
+    fall_of_potential: Optional[Path] = typer.Option(
+        None,
+        "--fall-of-potential",
+        "--ze",
+        exists=True,
+        dir_okay=False,
+        help="COMPANO 100 XML export with the fall-of-potential test",
+    ),
+    step_touch: Optional[Path] = typer.Option(
+        None,
+        "--step-touch",
+        "--ut",
+        exists=True,
+        dir_okay=False,
+        help="HGT1 StepTouch report (touch voltages)",
+    ),
+    transferred: List[Path] = typer.Option(
+        [],
+        "--transferred",
+        exists=True,
+        dir_okay=False,
+        help="HGT1 report measured elsewhere (e.g. neighbouring tower); repeatable",
+    ),
+    soil: Optional[Path] = typer.Option(
+        None,
+        "--soil",
+        exists=True,
+        dir_okay=False,
+        help="COMPANO 100 XML export with a soil-resistivity measurement",
+    ),
+    current_electrode_distance: Optional[float] = typer.Option(
+        None,
+        "--current-electrode-distance",
+        "-D",
+        help="Distance of the current electrode in m (needed for the 62 % method)",
+    ),
+    per_frequency: bool = typer.Option(
+        True,
+        "--per-frequency/--no-per-frequency",
+        help="Also store the values at the two test frequencies",
+    ),
+    voltage_level_kv: Optional[float] = typer.Option(
+        None, "--voltage-level-kv", help="Nominal voltage in kV"
+    ),
+    operator: Optional[str] = typer.Option(None, "--operator", help="Operator"),
+    timezone: Optional[str] = typer.Option(
+        None,
+        "--timezone",
+        help="IANA time zone of the instrument clock, e.g. Europe/Berlin "
+        "(time stamps are converted to UTC)",
+        callback=_time_zone,
+    ),
+) -> None:
+    """Import OMICRON COMPANO 100 / HGT1 exports of one location.
+
+    Creates one measurement per test: fall of potential (--fall-of-potential),
+    touch voltages (--step-touch, reference current from the COMPANO export),
+    transferred potentials (--transferred) and soil resistivity (--soil).
+    """
+    if not any([fall_of_potential, step_touch, transferred, soil]):
+        raise _abort("Nothing to import: give at least one file option.")
+    common = {
+        "location": location,
+        "asset_type": asset_type,
+        "operator": operator,
+        "voltage_level_kv": voltage_level_kv,
+        "timezone": timezone,
+    }
+    created: List[Tuple[str, int]] = []
+    try:
+        if fall_of_potential is not None:
+            mid = import_fall_of_potential(
+                fall_of_potential,
+                current_electrode_distance_m=current_electrode_distance,
+                per_frequency=per_frequency,
+                **common,
+            )
+            created.append(("fall of potential", mid))
+        if step_touch is not None:
+            mid = import_step_touch(
+                step_touch,
+                compano_xml_path=fall_of_potential,
+                per_frequency=per_frequency,
+                **common,
+            )
+            created.append(("touch voltages", mid))
+        for path in transferred:
+            mid = import_step_touch(
+                path,
+                compano_xml_path=fall_of_potential,
+                per_frequency=per_frequency,
+                transferred=True,
+                **common,
+            )
+            created.append((f"transferred potential ({path.name})", mid))
+        if soil is not None:
+            mid = import_soil_resistivity(soil, **common)
+            created.append(("soil resistivity", mid))
+    except (ValueError, RuntimeError, FileNotFoundError) as exc:
+        for label, mid in created:
+            typer.echo(f"Imported {label}: measurement id={mid}")
+        raise _abort(f"Import failed: {exc}")
+    for label, mid in created:
+        typer.echo(f"Imported {label}: measurement id={mid}")
+
+
 @app.command("import-json")
-def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON file or directory")) -> None:
+def import_json(
+    path: Path = typer.Argument(..., exists=True, help="Path to JSON file or directory")
+) -> None:
     """
     Import measurement(s) from JSON.
 
@@ -1326,6 +1673,11 @@ def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON
       - Single JSON file containing a measurement or list of measurements.
       - Directory of JSON files.
       - Automatic merging of paired files: 'X_measurement.json' + 'X_items.json'.
+
+    Files written by export-json can be imported again: ISO 8601 timestamps
+    are parsed (offsets converted to UTC) and the database keys of the export
+    (id, location_id, measurement_id) are ignored, so the target database
+    assigns new ones and matches locations by name/coordinates.
     """
     files_to_process: List[Tuple[Path, Optional[Path]]] = []
 
@@ -1335,29 +1687,37 @@ def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON
         for p in all_json:
             if p.name.endswith("_items.json"):
                 continue  # Skip, will be picked up by measurement file
-            
+
             if p.name.endswith("_measurement.json"):
                 # Look for items file
-                items_path = p.parent / p.name.replace("_measurement.json", "_items.json")
-                files_to_process.append((p, items_path if items_path.exists() else None))
+                items_path = p.parent / p.name.replace(
+                    "_measurement.json", "_items.json"
+                )
+                files_to_process.append(
+                    (p, items_path if items_path.exists() else None)
+                )
             else:
                 # Standalone file
                 files_to_process.append((p, None))
     else:
         # Single file
         if path.name.endswith("_measurement.json"):
-             items_path = path.parent / path.name.replace("_measurement.json", "_items.json")
-             files_to_process.append((path, items_path if items_path.exists() else None))
+            items_path = path.parent / path.name.replace(
+                "_measurement.json", "_items.json"
+            )
+            files_to_process.append((path, items_path if items_path.exists() else None))
         else:
-             files_to_process.append((path, None))
+            files_to_process.append((path, None))
 
     total_created: List[Tuple[int, int]] = []
+    failures: int = 0
 
     for meas_path, items_path in files_to_process:
         try:
             data = json.loads(meas_path.read_text())
         except Exception as exc:
             typer.echo(f"Error reading {meas_path}: {exc}", err=True)
+            failures += 1
             continue
 
         measurements: List[dict[str, Any]]
@@ -1366,7 +1726,8 @@ def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON
         elif isinstance(data, dict):
             measurements = [data]
         else:
-            typer.echo(f"Skipping {meas_path}: Unsupported JSON structure.")
+            typer.echo(f"Skipping {meas_path}: Unsupported JSON structure.", err=True)
+            failures += 1
             continue
 
         # If we have a separate items file, merge it into the single measurement object
@@ -1380,29 +1741,44 @@ def import_json(path: Path = typer.Argument(..., exists=True, help="Path to JSON
                     extra_items = items_data["items"]
                 elif isinstance(items_data, list):
                     extra_items = items_data
-                
+
                 # Attach to the first measurement found (usually there's only one in this split format)
                 if measurements:
                     measurements[0].setdefault("items", []).extend(extra_items)
-                    typer.echo(f"Merged items from {items_path.name} into {meas_path.name}")
+                    typer.echo(
+                        f"Merged items from {items_path.name} into {meas_path.name}"
+                    )
             except Exception as exc:
                 typer.echo(f"Error reading items file {items_path}: {exc}", err=True)
+                failures += 1
 
         for m in measurements:
             try:
-                items = m.pop("items", [])
-                mid = create_measurement(m)
-                for it in items:
-                    create_item(it, measurement_id=mid)
+                measurement, items = prepare_measurement_for_import(m)
+                # one transaction: a failing item leaves no empty measurement
+                mid, _item_ids = create_measurement_with_items(measurement, items)
                 total_created.append((mid, len(items)))
             except Exception as e:
-                typer.echo(f"Failed to import measurement from {meas_path.name}: {e}", err=True)
+                typer.echo(
+                    f"Failed to import measurement from {meas_path.name}: {e}",
+                    err=True,
+                )
+                failures += 1
 
     if total_created:
         typer.echo(f"Successfully imported {len(total_created)} measurement(s).")
-        # typer.echo(", ".join(f"id={mid} items={count}" for mid, count in total_created))
     else:
-        typer.echo("No measurements imported.")
+        typer.echo("No measurements imported.", err=True)
+
+    if failures:
+        typer.echo(
+            f"import-json finished with {failures} failure(s); " "see errors above.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if not total_created:
+        # No successes and (implicitly) no explicit failures: nothing to import.
+        raise typer.Exit(code=1)
 
 
 @app.command("export-json")
@@ -1452,21 +1828,21 @@ def cli_map(
 def cli_dashboard() -> None:
     """
     Launch the interactive Streamlit dashboard.
-    
+
     Allows map visualization, multi-selection, and interactive analysis.
     """
     import subprocess
     import sys
-    
+
     # Path to the dashboard script
     dashboard_script = Path(__file__).parent / "dashboard.py"
-    
+
     if not dashboard_script.exists():
         typer.echo(f"Error: Dashboard script not found at {dashboard_script}", err=True)
         raise typer.Exit(code=1)
-        
+
     cmd = [sys.executable, "-m", "streamlit", "run", str(dashboard_script)]
-    
+
     typer.echo("Starting dashboard...")
     try:
         subprocess.run(cmd, check=True)
@@ -1478,7 +1854,9 @@ def cli_dashboard() -> None:
 
 
 @app.command("set-default-db")
-def set_default_db(path: Path = typer.Argument(..., help="Path to store as default DB")) -> None:
+def set_default_db(
+    path: Path = typer.Argument(..., help="Path to store as default DB")
+) -> None:
     """Store a default database path in ~/.config/groundmeas/config.json."""
     resolved = str(path.expanduser().resolve())
     Path(resolved).parent.mkdir(parents=True, exist_ok=True)

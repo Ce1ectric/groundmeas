@@ -40,6 +40,7 @@ def test_export_json_read_error(monkeypatch):
     # stub to raise
     def fake_read(**filters):
         raise RuntimeError("DB down")
+
     monkeypatch.setattr(export_module, "read_measurements_by", fake_read)
 
     with pytest.raises(RuntimeError) as exc:
@@ -54,9 +55,11 @@ def test_export_json_write_error(tmp_path, monkeypatch):
         "read_measurements_by",
         lambda **f: (data, None),
     )
+
     # force Path.open to error
     def fake_open(self, *args, **kwargs):
         raise OSError("disk full")
+
     monkeypatch.setattr(Path, "open", fake_open)
 
     with pytest.raises(IOError) as exc:
@@ -123,8 +126,10 @@ def test_export_csv_write_error(tmp_path, monkeypatch):
         "read_measurements_by",
         lambda **f: (data, None),
     )
+
     def fake_open(self, *args, **kwargs):
         raise OSError("no space")
+
     monkeypatch.setattr(Path, "open", fake_open)
 
     with pytest.raises(IOError) as exc:
@@ -196,7 +201,9 @@ def test_export_xml_write_error(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ET.ElementTree,
         "write",
-        lambda self, path, encoding, xml_declaration: (_ for _ in ()).throw(IOError("full")),
+        lambda self, path, encoding, xml_declaration: (_ for _ in ()).throw(
+            IOError("full")
+        ),
     )
 
     with pytest.raises(IOError) as exc:

@@ -101,9 +101,7 @@ def test_distance_profile_minimum_stddev(monkeypatch):
             None,
         ),
     )
-    out = analytics.distance_profile_value(
-        3, algorithm="minimum_stddev", window=3
-    )
+    out = analytics.distance_profile_value(3, algorithm="minimum_stddev", window=3)
     assert out["result_value"] == pytest.approx(1.2)
     assert out["details"]["window_size"] == 3
     assert out["details"]["stddev"] == pytest.approx(0.0816, rel=1e-2)
@@ -160,12 +158,14 @@ def test_resolve_math_backend_mlx_fallback(monkeypatch):
 
 # ─── impedance_over_frequency ───────────────────────────────────────────────────
 
+
 def test_impedance_over_frequency_single_success(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "frequency_hz": 50, "value": 100}], None
+            [{"id": 1, "frequency_hz": 50, "value": 100}],
+            None,
         ),
     )
     out = analytics.impedance_over_frequency(1)
@@ -174,7 +174,11 @@ def test_impedance_over_frequency_single_success(monkeypatch):
 
 def test_impedance_over_frequency_multiple_success(monkeypatch):
     def fake_read(measurement_id, measurement_type):
-        return ([{"id": measurement_id, "frequency_hz": 1, "value": measurement_id}], None)
+        return (
+            [{"id": measurement_id, "frequency_hz": 1, "value": measurement_id}],
+            None,
+        )
+
     monkeypatch.setattr(analytics, "read_items_by", fake_read)
 
     out = analytics.impedance_over_frequency([1, 2])
@@ -188,7 +192,9 @@ def test_impedance_over_frequency_read_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: (_ for _ in ()).throw(Exception("db fail")),
+        lambda measurement_id, measurement_type: (_ for _ in ()).throw(
+            Exception("db fail")
+        ),
     )
     with pytest.raises(RuntimeError) as exc:
         analytics.impedance_over_frequency(1)
@@ -203,7 +209,9 @@ def test_impedance_over_frequency_no_items_warn(monkeypatch):
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.impedance_over_frequency(3)
-    assert "No earthing_impedance measurements found for measurement_id=3" in str(w.list[0].message)
+    assert "No earthing_impedance measurements found for measurement_id=3" in str(
+        w.list[0].message
+    )
     assert out == {}
 
 
@@ -211,7 +219,10 @@ def test_impedance_over_frequency_skip_missing_freq(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 7, "frequency_hz": None, "value": 5}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 7, "frequency_hz": None, "value": 5}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.impedance_over_frequency(7)
@@ -223,7 +234,10 @@ def test_impedance_over_frequency_skip_conversion_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 8, "frequency_hz": "bad", "value": "bad"}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 8, "frequency_hz": "bad", "value": "bad"}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.impedance_over_frequency(8)
@@ -233,12 +247,14 @@ def test_impedance_over_frequency_skip_conversion_error(monkeypatch):
 
 # ─── real_imag_over_frequency ──────────────────────────────────────────────────
 
+
 def test_real_imag_over_frequency_single_success(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "frequency_hz": 20, "value_real": 1.5, "value_imag": -2.5}], None
+            [{"id": 1, "frequency_hz": 20, "value_real": 1.5, "value_imag": -2.5}],
+            None,
         ),
     )
     out = analytics.real_imag_over_frequency(1)
@@ -247,7 +263,18 @@ def test_real_imag_over_frequency_single_success(monkeypatch):
 
 def test_real_imag_over_frequency_multiple_success(monkeypatch):
     def fake_read(measurement_id, measurement_type):
-        return ([{"id": measurement_id, "frequency_hz": 2, "value_real": measurement_id * 1.0, "value_imag": measurement_id * -1.0}], None)
+        return (
+            [
+                {
+                    "id": measurement_id,
+                    "frequency_hz": 2,
+                    "value_real": measurement_id * 1.0,
+                    "value_imag": measurement_id * -1.0,
+                }
+            ],
+            None,
+        )
+
     monkeypatch.setattr(analytics, "read_items_by", fake_read)
 
     out = analytics.real_imag_over_frequency([5, 6])
@@ -261,7 +288,10 @@ def test_real_imag_over_frequency_missing_freq(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 2, "frequency_hz": None, "value_real": 0, "value_imag": 0}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 2, "frequency_hz": None, "value_real": 0, "value_imag": 0}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.real_imag_over_frequency(2)
@@ -273,7 +303,10 @@ def test_real_imag_over_frequency_missing_r_or_i(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 3, "frequency_hz": 3, "value_real": None, "value_imag": 7}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 3, "frequency_hz": 3, "value_real": None, "value_imag": 7}],
+            None,
+        ),
     )
     out = analytics.real_imag_over_frequency(3)
     assert out == {3.0: {"real": None, "imag": 7.0}}
@@ -283,7 +316,10 @@ def test_real_imag_over_frequency_conversion_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 4, "frequency_hz": 4, "value_real": "bad", "value_imag": "0"}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 4, "frequency_hz": 4, "value_real": "bad", "value_imag": "0"}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.real_imag_over_frequency(4)
@@ -299,7 +335,9 @@ def test_real_imag_over_frequency_no_items_warn(monkeypatch):
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.real_imag_over_frequency(9)
-    assert "No earthing_impedance measurements found for measurement_id=9" in str(w.list[0].message)
+    assert "No earthing_impedance measurements found for measurement_id=9" in str(
+        w.list[0].message
+    )
     assert out == {}
 
 
@@ -307,7 +345,9 @@ def test_real_imag_over_frequency_read_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: (_ for _ in ()).throw(Exception("oops")),
+        lambda measurement_id, measurement_type: (_ for _ in ()).throw(
+            Exception("oops")
+        ),
     )
     with pytest.raises(RuntimeError) as exc:
         analytics.real_imag_over_frequency(1)
@@ -315,6 +355,7 @@ def test_real_imag_over_frequency_read_error(monkeypatch):
 
 
 # ─── voltage_vt_epr ────────────────────────────────────────────────────────────
+
 
 def test_voltage_vt_epr_single(monkeypatch):
     def fake_read_items_by(**filters):
@@ -339,6 +380,7 @@ def test_voltage_vt_epr_single(monkeypatch):
 
 
 # ─── value_over_distance ───────────────────────────────────────────────────────
+
 
 def test_value_over_distance(monkeypatch):
     monkeypatch.setattr(
@@ -377,6 +419,7 @@ def test_value_over_distance_detailed(monkeypatch):
 
 # ─── _current_item_to_complex ──────────────────────────────────────────────────
 
+
 def test_current_item_to_complex_rectangular():
     item = {"value_real": 1.0, "value_imag": 2.0}
     out = analytics._current_item_to_complex(item)
@@ -391,6 +434,7 @@ def test_current_item_to_complex_polar():
 
 
 # ─── rho_f_model ────────────────────────────────────────────────────────────────
+
 
 def test_rho_f_model_no_soil_data(monkeypatch):
     monkeypatch.setattr(analytics, "real_imag_over_frequency", lambda ids: {1: {}})
@@ -410,7 +454,8 @@ def test_rho_f_model_no_overlap(monkeypatch):
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "measurement_distance_m": 1.0, "value": 10.0}], None
+            [{"id": 1, "measurement_distance_m": 1.0, "value": 10.0}],
+            None,
         ),
     )
     with pytest.raises(ValueError) as exc:
@@ -428,7 +473,8 @@ def test_rho_f_model_least_squares_error(monkeypatch):
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "measurement_distance_m": 2.0, "value": 3.0}], None
+            [{"id": 1, "measurement_distance_m": 2.0, "value": 3.0}],
+            None,
         ),
     )
     monkeypatch.setattr(
@@ -442,6 +488,7 @@ def test_rho_f_model_least_squares_error(monkeypatch):
 
 
 # ─── soil resistivity + multilayer model ───────────────────────────────────────
+
 
 def test_soil_resistivity_profile_wenner_resistance(monkeypatch):
     monkeypatch.setattr(
@@ -544,8 +591,18 @@ def test_invert_soil_resistivity_layers_from_items(monkeypatch):
         "read_items_by",
         lambda measurement_id, measurement_type: (
             [
-                {"id": 1, "measurement_distance_m": 1.0, "value": 50.0, "unit": "ohm-m"},
-                {"id": 2, "measurement_distance_m": 2.0, "value": 50.0, "unit": "ohm-m"},
+                {
+                    "id": 1,
+                    "measurement_distance_m": 1.0,
+                    "value": 50.0,
+                    "unit": "ohm-m",
+                },
+                {
+                    "id": 2,
+                    "measurement_distance_m": 2.0,
+                    "value": 50.0,
+                    "unit": "ohm-m",
+                },
             ],
             None,
         ),
@@ -758,3 +815,363 @@ def test_calculate_split_factor_zero_earth_current(monkeypatch):
 def test_calculate_split_factor_requires_ids():
     with pytest.raises(ValueError):
         analytics.calculate_split_factor(1, [])
+
+
+# ─── 62 % method and frequency-aware profiles ──────────────────────────────────
+
+
+def _hemisphere_profile(x, r_true=0.5, radius=2.0, d=100.0):
+    """Fall-of-potential curve of a hemispherical electrode (homogeneous soil)."""
+    x = np.asarray(x, dtype=float)
+    return (
+        r_true * radius * (1 / radius - 1 / d - 1 / (radius + x) + 1 / (d - radius - x))
+    )
+
+
+def test_value_at_62_percent_interpolates_linearly():
+    out = analytics.value_at_62_percent([50.0, 60.0, 70.0], [1.0, 2.0, 3.0], 100.0)
+    assert out["value"] == pytest.approx(2.2)
+    assert out["target_distance_m"] == pytest.approx(62.0)
+    assert out["used_indices"] == [0, 1, 2]
+    assert out["corrections"] == []
+
+
+def test_value_at_62_percent_matches_hemisphere_model():
+    """At 0.618 D the hemisphere profile equals R; 0.62 D is within 0.5 %."""
+    x = np.array([1, 2, 5, 10, 20, 30, 40, 50, 55, 60, 65, 70], dtype=float)
+    z = _hemisphere_profile(x)
+    for conservative in (False, True):
+        out = analytics.value_at_62_percent(x, z, 100.0, conservative=conservative)
+        # the model value at the probe distance 0.62 D
+        exact = float(_hemisphere_profile([62.0])[0])
+        # linear interpolation between 60 and 65 m of a concave curve
+        assert out["value"] == pytest.approx(exact, rel=2e-3)
+        assert out["value"] == pytest.approx(0.5, rel=5e-3)
+
+
+def test_value_at_62_percent_plain_clamps_outside_points():
+    out = analytics.value_at_62_percent([10.0, 20.0, 30.0], [1.0, 2.0, 3.0], 100.0)
+    assert out["value"] == pytest.approx(3.0)
+
+
+def test_value_at_62_percent_conservative_extrapolates():
+    # target 62 m lies beyond the profile; increasing profile -> extrapolation
+    out = analytics.value_at_62_percent(
+        [20.0, 30.0, 40.0, 50.0], [1.0, 1.5, 2.0, 2.5], 100.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(2.5 + 12 * 0.05)
+    assert out["corrections"] == []
+
+
+def test_value_at_62_percent_conservative_beyond_profile_uses_maximum():
+    out = analytics.value_at_62_percent(
+        [20.0, 30.0, 40.0, 50.0], [1.0, 3.0, 2.0, 1.5], 100.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(3.0)
+    assert out["corrections"] == ["beyond_profile"]
+
+
+def test_value_at_62_percent_conservative_closer_point_higher():
+    out = analytics.value_at_62_percent(
+        [10.0, 30.0, 60.0, 70.0], [2.5, 2.0, 2.1, 2.2], 100.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(2.5)
+    assert out["corrections"] == ["closer_point_higher"]
+    plain = analytics.value_at_62_percent(
+        [10.0, 30.0, 60.0, 70.0], [2.5, 2.0, 2.1, 2.2], 100.0
+    )
+    assert plain["value"] == pytest.approx(2.12)
+
+
+def test_value_at_62_percent_conservative_reference_cases():
+    """Hand-calculated cases of the tower procedure (formerly TGM)."""
+    # one point: its value
+    one = analytics.value_at_62_percent([30.0], [1.7], 100.0, conservative=True)
+    assert one["value"] == pytest.approx(1.7)
+    # three points that do not bracket the target: extrapolate the outer segment
+    out = analytics.value_at_62_percent(
+        [55.0, 58.0, 60.0], [1.0, 1.3, 1.4], 100.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(1.4 + 2 * (0.1 / 2))
+    assert out["corrections"] == []
+
+
+def test_value_at_62_percent_conservative_repeated_distances():
+    """Repeated distances are merged into their highest reading (no inf)."""
+    out = analytics.value_at_62_percent(
+        [60.0, 60.0, 60.0, 80.0], [1.0, 1.4, 1.2, 1.6], 100.0, conservative=True
+    )
+    assert np.isfinite(out["value"])
+    assert out["value"] == pytest.approx(1.4 + 2 * (0.2 / 20))
+    assert out["corrections"] == ["repeated_distances"]
+    assert out["used_indices"] == [1, 3]  # indices of the input points
+    merged = analytics.value_at_62_percent(
+        [60.0, 80.0], [1.4, 1.6], 100.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(merged["value"])
+
+
+def test_value_at_62_percent_conservative_repeated_closer_point():
+    # the higher of two readings at 30 m triggers the closer-point correction
+    out = analytics.value_at_62_percent(
+        [10.0, 20.0, 30.0, 30.0, 40.0, 60.0, 70.0],
+        [0.30, 0.45, 0.50, 0.90, 0.55, 0.58, 0.60],
+        100.0,
+        conservative=True,
+    )
+    assert out["value"] == pytest.approx(0.90)
+    assert out["corrections"] == ["repeated_distances", "closer_point_higher"]
+
+
+def test_value_at_62_percent_conservative_before_profile():
+    """A target before the first probe never gives less than the first value."""
+    out = analytics.value_at_62_percent(
+        [50.0, 60.0, 70.0], [1.0, 2.0, 3.0], 50.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(1.0)  # extrapolation would give -0.9
+    assert out["corrections"] == ["before_profile"]
+    # a falling start keeps the (higher) extrapolated value
+    out = analytics.value_at_62_percent(
+        [50.0, 60.0, 70.0], [3.0, 2.0, 1.0], 50.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(4.9)
+    assert out["corrections"] == []
+
+
+@pytest.mark.parametrize(
+    ("distances", "values", "injection"),
+    [
+        ([], [], 100.0),
+        ([1.0, 2.0], [1.0], 100.0),
+        ([10.0, 20.0], [1.0, 2.0], 0.0),
+        ([10.0, 20.0], [1.0, 2.0], float("nan")),
+        ([60.0, 60.0], [1.0, 2.0], 100.0),
+    ],
+)
+def test_value_at_62_percent_rejects_invalid_input(distances, values, injection):
+    with pytest.raises(ValueError):
+        analytics.value_at_62_percent(distances, values, injection)
+
+
+@pytest.fixture
+def profile_db():
+    """In-memory DB with one fall-of-potential profile at 30, 50 and 70 Hz."""
+    import datetime as dt
+
+    import groundmeas as gm
+
+    gm.connect_db(":memory:")
+    mid = gm.create_measurement(
+        {
+            "timestamp": dt.datetime(2026, 5, 12),
+            "method": "injection_earth_electrode",
+            "asset_type": "overhead_line_tower",
+            "location": {"name": "Tower 8"},
+        }
+    )
+    x = np.array([1, 2, 5, 10, 20, 30, 40, 50, 60, 65, 70], dtype=float)
+    items = []
+    for f, scale in ((30.0, 0.97), (50.0, 1.0), (70.0, 1.03)):
+        for xi, zi in zip(x, _hemisphere_profile(x) * scale):
+            items.append(
+                {
+                    "measurement_type": "earthing_impedance",
+                    "value": float(zi),
+                    "unit": "Ω",
+                    "frequency_hz": f,
+                    "measurement_distance_m": float(xi),
+                    "distance_to_current_injection_m": 100.0,
+                }
+            )
+    items.append(
+        {
+            "measurement_type": "earthing_current",
+            "value": 0.055,
+            "unit": "A",
+            "frequency_hz": 50.0,
+        }
+    )
+    gm.create_items(items, measurement_id=mid)
+    return mid, x
+
+
+def test_distance_profile_value_frequency_filter(profile_db):
+    mid, x = profile_db
+    expected = analytics.value_at_62_percent(x, _hemisphere_profile(x), 100.0)["value"]
+    for f, scale in ((30.0, 0.97), (50.0, 1.0), (70.0, 1.03)):
+        out = analytics.distance_profile_value(
+            mid, algorithm="62_percent", frequency_hz=f
+        )
+        assert out["result_value"] == pytest.approx(expected * scale)
+        assert out["frequency_hz"] == f
+        assert len(out["data_points"]) == len(x)
+
+
+def test_distance_profile_value_warns_on_mixed_frequencies(profile_db):
+    mid, _ = profile_db
+    with pytest.warns(UserWarning, match="several frequencies"):
+        analytics.distance_profile_value(mid, algorithm="maximum")
+
+
+def test_distance_profile_value_conservative(profile_db):
+    mid, x = profile_db
+    out = analytics.distance_profile_value(
+        mid, algorithm="62_percent", frequency_hz=50.0, conservative=True
+    )
+    assert out["details"]["conservative"] is True
+    assert out["details"]["corrections"] == []
+    assert out["result_value"] == pytest.approx(
+        analytics.value_at_62_percent(
+            x, _hemisphere_profile(x), 100.0, conservative=True
+        )["value"]
+    )
+
+
+def test_distance_profile_value_conservative_matches_tower_evaluation():
+    """Two methods: database profile vs. GroundingSystemAnalysis (raw points)."""
+    import datetime as dt
+
+    import pandas as pd
+
+    import groundmeas as gm
+    from groundmeas.towers.analysis import GroundingSystemAnalysis
+
+    x = [10.0, 20.0, 30.0, 30.0, 40.0, 60.0, 70.0]
+    z = [0.30, 0.45, 0.50, 0.90, 0.55, 0.58, 0.60]
+    gm.connect_db(":memory:")
+    mid, _ = gm.create_measurement_with_items(
+        {
+            "timestamp": dt.datetime(2026, 5, 12),
+            "method": "injection_earth_electrode",
+            "asset_type": "overhead_line_tower",
+        },
+        [
+            {
+                "measurement_type": "earthing_impedance",
+                "value": zi,
+                "unit": "Ω",
+                "frequency_hz": 50.0,
+                "measurement_distance_m": xi,
+                "distance_to_current_injection_m": 100.0,
+            }
+            for xi, zi in zip(x, z)
+        ],
+    )
+    with pytest.warns(UserWarning, match="merged into their highest reading"):
+        db_value = analytics.distance_profile_value(
+            mid, algorithm="62_percent", conservative=True, frequency_hz=50.0
+        )["result_value"]
+    tower = object.__new__(GroundingSystemAnalysis)
+    tower.current_probe_dist = 100.0
+    tower.impedance_to_ground = pd.DataFrame({"Distance": x, "Impedance": z})
+    tower.impedance_max = max(z)
+    tower.residual_resistance = None
+    tower.get_62_percentage_value()
+    assert db_value == pytest.approx(tower.grounding_impedance_62) == 0.90
+
+
+def test_profile_algorithm_is_validated(profile_db):
+    mid, _ = profile_db
+    with pytest.raises(ValueError, match="Unsupported algorithm"):
+        analytics.impedance_over_frequency(mid, profile_algorithm="62percent")
+    with pytest.raises(ValueError, match="Unsupported algorithm"):
+        analytics.voltage_vt_epr(mid, profile_algorithm="62percent")
+
+
+def test_impedance_over_frequency_reduces_profiles(profile_db):
+    mid, x = profile_db
+    z62 = analytics.value_at_62_percent(x, _hemisphere_profile(x), 100.0)["value"]
+    out = analytics.impedance_over_frequency(mid)
+    assert out == pytest.approx({30.0: 0.97 * z62, 50.0: z62, 70.0: 1.03 * z62})
+    out_max = analytics.impedance_over_frequency(mid, profile_algorithm="maximum")
+    assert out_max[50.0] == pytest.approx(float(_hemisphere_profile([70.0])[0]))
+
+
+def test_impedance_over_frequency_profile_without_injection_distance(monkeypatch):
+    items = [
+        {"id": 1, "frequency_hz": 50, "value": 1.0, "measurement_distance_m": 10.0},
+        {"id": 2, "frequency_hz": 50, "value": 2.0, "measurement_distance_m": 20.0},
+    ]
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (items, None),
+    )
+    with pytest.warns(UserWarning, match="profile maximum"):
+        out = analytics.impedance_over_frequency(1)
+    assert out == {50.0: 2.0}
+
+
+def test_impedance_over_frequency_averages_items_without_distance(monkeypatch):
+    items = [
+        {"id": 1, "frequency_hz": 50, "value": 1.0},
+        {"id": 2, "frequency_hz": 50, "value": 3.0},
+    ]
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (items, None),
+    )
+    with pytest.warns(UserWarning, match="using the mean"):
+        out = analytics.impedance_over_frequency(1)
+    assert out == {50.0: 2.0}
+
+
+def test_real_imag_over_frequency_warns_on_repeated_frequency(monkeypatch):
+    items = [
+        {"id": 1, "frequency_hz": 50, "value_real": 1.0, "value_imag": 0.1},
+        {"id": 2, "frequency_hz": 50, "value_real": 2.0, "value_imag": 0.2},
+    ]
+    monkeypatch.setattr(
+        analytics,
+        "read_items_by",
+        lambda measurement_id, measurement_type: (items, None),
+    )
+    with pytest.warns(UserWarning, match="the last one is used"):
+        out = analytics.real_imag_over_frequency(1)
+    assert out == {50.0: {"real": 2.0, "imag": 0.2}}
+
+
+def test_voltage_vt_epr_uses_profile_value_not_mean(profile_db):
+    mid, x = profile_db
+    z62 = analytics.value_at_62_percent(x, _hemisphere_profile(x), 100.0)["value"]
+    with pytest.warns(UserWarning):  # no touch voltages stored
+        out = analytics.voltage_vt_epr(mid, frequency=50.0)
+    assert out["z_per_amp"] == pytest.approx(z62)
+    assert out["z_per_amp"] != pytest.approx(float(np.mean(_hemisphere_profile(x))))
+
+
+def test_voltage_vt_epr_single_skipped_returns_empty_dict(monkeypatch):
+    monkeypatch.setattr(analytics, "read_items_by", lambda **kwargs: ([], []))
+    with pytest.warns(UserWarning, match="missing earthing_impedance"):
+        assert analytics.voltage_vt_epr(4) == {}
+
+
+def test_voltage_vt_epr_filters_additional_resistance_and_warns_on_currents(
+    monkeypatch,
+):
+    def fake_read_items_by(**filters):
+        kind = filters.get("measurement_type")
+        if kind == "earthing_impedance":
+            return [{"value": 0.5}], [1]
+        if kind == "earthing_current":
+            return [{"value": 0.1}, {"value": 0.055}], [2, 3]
+        if kind == "touch_voltage":
+            return (
+                [
+                    {"value": 0.014, "additional_resistance_ohm": 0.0},
+                    {"value": 0.010, "additional_resistance_ohm": 1000.0},
+                    {"value": 0.003, "additional_resistance_ohm": 1000.0},
+                ],
+                [4, 5, 6],
+            )
+        return [], []
+
+    monkeypatch.setattr(analytics, "read_items_by", fake_read_items_by)
+    with pytest.warns(UserWarning, match="earthing_current rows"):
+        out = analytics.voltage_vt_epr(1, additional_resistance_ohm=1000.0)
+    assert out["vt_max"] == pytest.approx(0.10)
+    assert out["vt_min"] == pytest.approx(0.03)
+    with pytest.warns(UserWarning):
+        everything = analytics.voltage_vt_epr(1)
+    assert everything["vt_max"] == pytest.approx(0.14)

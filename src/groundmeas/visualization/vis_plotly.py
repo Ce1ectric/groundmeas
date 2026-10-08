@@ -68,14 +68,15 @@ def plot_imp_over_f_plotly(
                 continue  # Or raise error
             imps = [val / baseline for val in imps]
 
-        fig.add_trace(go.Scatter(
-            x=freqs,
-            y=imps,
-            mode='lines+markers',
-            name=f"ID {mid}"
-        ))
+        fig.add_trace(
+            go.Scatter(x=freqs, y=imps, mode="lines+markers", name=f"ID {mid}")
+        )
 
-    ylabel = "Normalized Impedance" if normalize_freq_hz is not None else f"Impedance {SYMBOL_MAP.get('earthing_impedance', 'Z')} (Ω)"
+    ylabel = (
+        "Normalized Impedance"
+        if normalize_freq_hz is not None
+        else f"Impedance {SYMBOL_MAP.get('earthing_impedance', 'Z')} (Ω)"
+    )
     title = "Impedance vs Frequency"
     if normalize_freq_hz is not None:
         title += f" (Normalized @ {normalize_freq_hz} Hz)"
@@ -139,20 +140,21 @@ def plot_rho_f_model_plotly(
             abs((k1) * rho_val + (k2 + 1j * k3) * f + (k4 + 1j * k5) * rho_val * f)
             for f in freqs
         ]
-        fig.add_trace(go.Scatter(
-            x=freqs,
-            y=model_mag,
-            mode='lines',
-            line=dict(dash='dash'),
-            name=f"Model (ρ={rho_val})"
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=freqs,
+                y=model_mag,
+                mode="lines",
+                line=dict(dash="dash"),
+                name=f"Model (ρ={rho_val})",
+            )
+        )
 
     return fig
 
 
 def plot_voltage_vt_epr_plotly(
-    measurement_ids: Union[int, List[int]],
-    frequency: float = 50.0
+    measurement_ids: Union[int, List[int]], frequency: float = 50.0
 ) -> go.Figure:
     """
     Create an interactive grouped bar chart of EPR and touch voltages.
@@ -183,21 +185,25 @@ def plot_voltage_vt_epr_plotly(
     # Categories: EPR, Vtp (min/max), Vt (min/max)
 
     # EPR
-    fig.add_trace(go.Bar(
-        name='EPR',
-        x=[str(mid) for mid in ids],
-        y=[data[mid].get("epr", 0.0) for mid in ids],
-        marker_color='blue'
-    ))
+    fig.add_trace(
+        go.Bar(
+            name="EPR",
+            x=[str(mid) for mid in ids],
+            y=[data[mid].get("epr", 0.0) for mid in ids],
+            marker_color="blue",
+        )
+    )
 
     # Vtp Max
-    fig.add_trace(go.Bar(
-        name=f'{SYMBOL_MAP.get("prospective_touch_voltage", "Vtp")} Max',
-        x=[str(mid) for mid in ids],
-        y=[data[mid].get("vtp_max", 0.0) for mid in ids],
-        marker_color='orange',
-        opacity=0.6
-    ))
+    fig.add_trace(
+        go.Bar(
+            name=f'{SYMBOL_MAP.get("prospective_touch_voltage", "Vtp")} Max',
+            x=[str(mid) for mid in ids],
+            y=[data[mid].get("vtp_max", 0.0) for mid in ids],
+            marker_color="orange",
+            opacity=0.6,
+        )
+    )
 
     # Vtp Min (overlayed? In plotly grouped bars are side-by-side usually)
     # To replicate the "overlay" effect of matplotlib code (min on top of max),
@@ -205,32 +211,38 @@ def plot_voltage_vt_epr_plotly(
     # Or we can use 'overlay' barmode, but that affects all bars.
     # Standard grouped bar chart is probably clearer for interactive use.
 
-    fig.add_trace(go.Bar(
-        name=f'{SYMBOL_MAP.get("prospective_touch_voltage", "Vtp")} Min',
-        x=[str(mid) for mid in ids],
-        y=[data[mid].get("vtp_min", 0.0) for mid in ids],
-        marker_color='orange'
-    ))
+    fig.add_trace(
+        go.Bar(
+            name=f'{SYMBOL_MAP.get("prospective_touch_voltage", "Vtp")} Min',
+            x=[str(mid) for mid in ids],
+            y=[data[mid].get("vtp_min", 0.0) for mid in ids],
+            marker_color="orange",
+        )
+    )
 
     # Vt Max
-    fig.add_trace(go.Bar(
-        name=f'{SYMBOL_MAP.get("touch_voltage", "Vt")} Max',
-        x=[str(mid) for mid in ids],
-        y=[data[mid].get("vt_max", 0.0) for mid in ids],
-        marker_color='green',
-        opacity=0.6
-    ))
+    fig.add_trace(
+        go.Bar(
+            name=f'{SYMBOL_MAP.get("touch_voltage", "Vt")} Max',
+            x=[str(mid) for mid in ids],
+            y=[data[mid].get("vt_max", 0.0) for mid in ids],
+            marker_color="green",
+            opacity=0.6,
+        )
+    )
 
     # Vt Min
-    fig.add_trace(go.Bar(
-        name=f'{SYMBOL_MAP.get("touch_voltage", "Vt")} Min',
-        x=[str(mid) for mid in ids],
-        y=[data[mid].get("vt_min", 0.0) for mid in ids],
-        marker_color='green'
-    ))
+    fig.add_trace(
+        go.Bar(
+            name=f'{SYMBOL_MAP.get("touch_voltage", "Vt")} Min',
+            x=[str(mid) for mid in ids],
+            y=[data[mid].get("vt_min", 0.0) for mid in ids],
+            marker_color="green",
+        )
+    )
 
     fig.update_layout(
-        barmode='group',
+        barmode="group",
         title=f"EPR & Touch Voltages @ {frequency} Hz",
         xaxis_title="Measurement ID",
         yaxis_title="Voltage (V)",
@@ -254,14 +266,21 @@ def plot_value_over_distance_plotly(
 
     Useful for visualizing soil resistivity profiles or potential gradients.
 
-    Args:
-        measurement_ids: Single Measurement ID or list of IDs.
-        measurement_type: The type of measurement item to plot (e.g., "earthing_impedance").
-        show_all_frequencies: If True, plots a separate curve for each frequency found.
-        target_frequency: If provided (and show_all_frequencies is False), plots only this frequency.
+    Parameters
+    ----------
+    measurement_ids : int or list[int]
+        Single Measurement ID or list of IDs.
+    measurement_type : str, default "earthing_impedance"
+        Item type to plot (e.g., ``"earthing_impedance"``).
+    show_all_frequencies : bool, default False
+        If True, plots a separate curve for each frequency found.
+    target_frequency : float, optional
+        If provided (and ``show_all_frequencies`` is False), plots only this frequency.
 
-    Returns:
-        A plotly.graph_objects.Figure containing the plot.
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Figure containing the plot.
     """
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)
@@ -269,7 +288,9 @@ def plot_value_over_distance_plotly(
     fig = go.Figure()
 
     for mid in ids:
-        data_points = value_over_distance_detailed(mid, measurement_type=measurement_type)
+        data_points = value_over_distance_detailed(
+            mid, measurement_type=measurement_type
+        )
         if not data_points:
             continue
 
@@ -284,24 +305,30 @@ def plot_value_over_distance_plotly(
 
             for f in sorted(freq_groups.keys()):
                 pts = sorted(freq_groups[f], key=lambda x: x["distance"])
-                fig.add_trace(go.Scatter(
-                    x=[p["distance"] for p in pts],
-                    y=[p["value"] for p in pts],
-                    mode='lines+markers',
-                    name=f"ID {mid} @ {f}Hz"
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[p["distance"] for p in pts],
+                        y=[p["value"] for p in pts],
+                        mode="lines+markers",
+                        name=f"ID {mid} @ {f}Hz",
+                    )
+                )
         else:
             # Filter by target_frequency
             if target_frequency is not None:
-                filtered_pts = [p for p in data_points if p["frequency"] == target_frequency]
+                filtered_pts = [
+                    p for p in data_points if p["frequency"] == target_frequency
+                ]
                 if filtered_pts:
                     filtered_pts.sort(key=lambda x: x["distance"])
-                    fig.add_trace(go.Scatter(
-                        x=[p["distance"] for p in filtered_pts],
-                        y=[p["value"] for p in filtered_pts],
-                        mode='lines+markers',
-                        name=f"ID {mid} @ {target_frequency}Hz"
-                    ))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[p["distance"] for p in filtered_pts],
+                            y=[p["value"] for p in filtered_pts],
+                            mode="lines+markers",
+                            name=f"ID {mid} @ {target_frequency}Hz",
+                        )
+                    )
 
     y_label = f"{SYMBOL_MAP.get(measurement_type, measurement_type)} Value"
 
@@ -348,7 +375,9 @@ def plot_soil_model_plotly(
         return go.Figure()
 
     total_thickness = float(model.get("total_thickness_m", 0.0))
-    plot_bottom = float(max_depth_m) if max_depth_m is not None else max(total_thickness, 1.0)
+    plot_bottom = (
+        float(max_depth_m) if max_depth_m is not None else max(total_thickness, 1.0)
+    )
 
     x_step: List[float] = []
     y_step: List[float] = []

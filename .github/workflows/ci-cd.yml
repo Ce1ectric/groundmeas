@@ -20,12 +20,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Need full history so the changelog check can diff against
+          # the PR's base ref.
+          fetch-depth: 0
 
       - name: Set up Python
         id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+
+      - name: Check CHANGELOG [Unreleased] block
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
+        run: |
+          python scripts/check_changelog.py \
+            --base "origin/${{ github.base_ref }}"
+
+      - name: Validate CITATION.cff
+        uses: citation-file-format/cffconvert-github-action@2.0.0
+        with:
+          args: "--validate"
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -45,14 +62,106 @@ jobs:
           sudo apt-get install -y libjpeg-dev zlib1g-dev
 
       - name: Install dependencies
-        run: poetry install --no-interaction
+        # --all-extras: Playwright for the PDF tests of the tower protocols
+        run: poetry install --no-interaction --all-extras
+
+      - name: Install Chromium for the PDF tests
+        run: poetry run playwright install --with-deps chromium
 
       - name: Run tests
         run: poetry run pytest
 
+  towers-os:
+    # The tower workflow is used on Windows and macOS as well (paths, file
+    # names, Excel, PDF printing); run its tests there with the runtime
+    # dependencies only.
+    name: Tower tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install groundmeas with the pdf extra
+        run: python -m pip install ".[pdf]" pytest
+
+      - name: Install Chromium for the PDF tests
+        run: python -m playwright install chromium
+
+      - name: Tower and instrument tests
+        run: >-
+          python -m pytest -p no:cacheprovider
+          tests/test_towers_*.py tests/test_instruments_omicron.py
+          tests/test_omicron_import.py
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install MkDocs (versions of poetry.lock)
+        run: >-
+          python -m pip install mkdocs==1.6.1 mkdocs-material==9.7.1
+          mkdocstrings==1.0.0 mkdocstrings-python==2.0.1
+          pymdown-extensions==10.19.1
+
+      - name: mkdocs build --strict
+        run: mkdocs build --strict
+
+  build:
+    name: Build and smoke test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: Install the wheel in a clean environment and run the tower demo
+        run: |
+          python -m venv smoke
+          smoke/bin/python -m pip install dist/*.whl
+          smoke/bin/gm-cli towers demo demo-run
+          smoke/bin/gm-cli towers run --config demo-run/config.json --no-pdf
+          test -f demo-run/results/summary.xlsx
+          ls demo-run/results/html_files/*.html
+          smoke/bin/gm-cli --db smoke.db towers import-db --config demo-run/config.json
+
   publish:
     name: Publish to PyPI (Trusted Publishing)
-    needs: test
+    needs: [test, towers-os, docs, build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 

@@ -16,6 +16,8 @@ This project makes use of the following third-party open-source software.
 | branca | 0.8.2 | MIT License |
 | cachetools | 6.2.4 | MIT |
 | certifi | 2025.11.12 | Mozilla Public License 2.0 (MPL 2.0) |
+| cffconvert | 2.0.0 | Apache Software License |
+| cfgv | 3.5.0 | MIT |
 | charset-normalizer | 3.4.4 | MIT |
 | click | 8.1.8 | BSD License |
 | click-default-group | 1.2.4 | Public Domain |
@@ -26,13 +28,17 @@ This project makes use of the following third-party open-source software.
 | cycler | 0.12.1 | BSD License |
 | debugpy | 1.8.14 | MIT License |
 | decorator | 5.2.1 | BSD License |
+| distlib | 0.4.0 | Python Software Foundation License |
+| docopt | 0.6.2 | MIT License |
 | executing | 2.2.0 | MIT License |
+| filelock | 3.29.0 | MIT |
 | folium | 0.20.0 | MIT License |
 | fonttools | 4.57.0 | MIT License |
 | ghp-import | 2.1.0 | Apache Software License |
 | gitdb | 4.0.12 | BSD License |
 | GitPython | 3.1.45 | BSD-3-Clause |
 | griffe | 1.15.0 | ISC |
+| identify | 2.6.19 | MIT |
 | idna | 3.11 | BSD-3-Clause |
 | iniconfig | 2.1.0 | MIT |
 | ipykernel | 6.29.5 | BSD License |
@@ -40,7 +46,7 @@ This project makes use of the following third-party open-source software.
 | ipython_pygments_lexers | 1.1.1 | BSD License |
 | jedi | 0.19.2 | MIT License |
 | Jinja2 | 3.1.6 | BSD License |
-| jsonschema | 4.25.1 | MIT |
+| jsonschema | 3.2.0 | MIT License |
 | jsonschema-specifications | 2025.9.1 | MIT |
 | jupyter_client | 8.6.3 | BSD License |
 | jupyter_core | 5.7.2 | BSD License |
@@ -62,6 +68,7 @@ This project makes use of the following third-party open-source software.
 | mypy_extensions | 1.1.0 | MIT |
 | narwhals | 2.14.0 | MIT License |
 | nest-asyncio | 1.6.0 | BSD License |
+| nodeenv | 1.10.0 | BSD License |
 | numpy | 2.2.5 | BSD License |
 | opencv-python-headless | 4.12.0.88 | Apache Software License |
 | packaging | 25.0 | Apache Software License; BSD License |
@@ -74,6 +81,7 @@ This project makes use of the following third-party open-source software.
 | platformdirs | 4.3.7 | MIT |
 | plotly | 6.5.0 | MIT License |
 | pluggy | 1.5.0 | MIT License |
+| pre_commit | 4.6.0 | MIT |
 | prompt_toolkit | 3.0.51 | BSD License |
 | protobuf | 6.33.2 | 3-Clause BSD License |
 | psutil | 7.0.0 | BSD License |
@@ -84,12 +92,15 @@ This project makes use of the following third-party open-source software.
 | pydantic_core | 2.41.5 | MIT |
 | pydeck | 0.9.1 | Apache License 2.0 |
 | Pygments | 2.19.1 | BSD License |
+| pykwalify | 1.8.0 | MIT License |
 | pymdown-extensions | 10.19.1 | MIT |
 | pyparsing | 3.2.3 | MIT License |
+| pyrsistent | 0.20.0 | MIT License |
 | pytesseract | 0.3.13 | Apache Software License |
 | pytest | 8.3.5 | MIT License |
 | pytest-cov | 6.1.1 | MIT License |
 | python-dateutil | 2.9.0.post0 | Apache Software License; BSD License |
+| python-discovery | 1.2.2 | MIT License |
 | pytz | 2025.2 | MIT License |
 | PyYAML | 6.0.3 | MIT License |
 | pyyaml_env_tag | 1.1 | MIT |
@@ -98,6 +109,7 @@ This project makes use of the following third-party open-source software.
 | requests | 2.32.5 | Apache Software License |
 | rich | 14.0.0 | MIT License |
 | rpds-py | 0.30.0 | MIT |
+| ruamel.yaml | 0.19.1 | MIT License |
 | scipy | 1.17.0 | BSD License |
 | shellingham | 1.5.4 | ISC License (ISCL) |
 | six | 1.17.0 | MIT License |
@@ -119,6 +131,7 @@ This project makes use of the following third-party open-source software.
 | typing_extensions | 4.15.0 | PSF-2.0 |
 | tzdata | 2025.2 | Apache Software License |
 | urllib3 | 2.6.2 | MIT |
+| virtualenv | 21.3.0 | MIT |
 | watchdog | 6.0.0 | Apache Software License |
 | xyzservices | 2025.11.0 | BSD License |
 

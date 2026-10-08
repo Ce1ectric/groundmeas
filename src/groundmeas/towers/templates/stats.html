@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+@page { size: A4; margin: 1.2cm 1.4cm; }
+body { font-family: "Helvetica Neue", Arial, sans-serif; color: #222; font-size: 10.5px; line-height: 1.45; margin: 0; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.report-header { display: flex; align-items: baseline; justify-content: space-between;
+    border-bottom: 3px solid #1f4e79; padding-bottom: 6px; margin-bottom: 12px; }
+.report-header .title { font-size: 18px; font-weight: 700; color: #1f4e79; }
+.report-header .sub { font-size: 10px; color: #666; }
+h2 { font-size: 13px; color: #1f4e79; border-bottom: 1px solid #cdd7e2; padding-bottom: 3px; margin: 14px 0 7px 0; }
+h2:first-of-type { margin-top: 4px; }
+p { margin: 5px 0; }
+.kpi-row { display: flex; gap: 10px; margin: 8px 0; }
+.kpi { flex: 1; background: #f4f7fa; border: 1px solid #e1e8f0; border-radius: 5px; padding: 8px 10px; text-align: center; }
+.kpi .v { font-size: 20px; font-weight: 700; color: #1f4e79; }
+.kpi .l { font-size: 9px; color: #555; }
+.kpi.alert .v { color: #c0392b; }
+table { border-collapse: collapse; width: 100%; font-size: 9.5px; margin: 6px 0; }
+th, td { border: 1px solid #d8dee6; padding: 3px 6px; text-align: center; }
+th { background: #1f4e79; color: #fff; font-weight: 600; }
+tbody tr:nth-child(even) { background: #f4f7fa; }
+td.l { text-align: left; }
+img.plot { display: block; width: 100%; max-height: 8.2cm; object-fit: contain; margin: 4px 0; }
+img.plot.small { max-height: 7.4cm; }
+.two { display: flex; gap: 12px; align-items: flex-start; }
+.two > * { flex: 1; }
+.note { background: #fcf3e7; border-left: 3px solid #e0a96d; padding: 6px 9px; font-size: 9.5px; margin: 6px 0; }
+ul.findings { margin: 4px 0; padding-left: 16px; }
+ul.findings li { margin-bottom: 6px; }
+.hi { color: #c0392b; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ============ Seite 1: Übersicht & Verteilungen ============ -->
+<div class="page">
+    <div class="report-header">
+        <div class="title">Erdungsmessung – Assetmanagement-Auswertung</div>
+        <div class="sub">{{ company }}<br>{{ summary.total }} Masten · {{ summary.lines }} Leitungen</div>
+    </div>
+
+    <div class="kpi-row">
+        <div class="kpi"><div class="v">{{ summary.total }}</div><div class="l">ausgewertete Masten</div></div>
+        <div class="kpi"><div class="v">{{ summary.lines }}</div><div class="l">Leitungen</div></div>
+        <div class="kpi alert"><div class="v">{{ summary.hi }}</div><div class="l">U_T &gt; zulässig</div></div>
+        <div class="kpi alert"><div class="v">{{ summary.hi_pct }} %</div><div class="l">Überschreitungsquote</div></div>
+    </div>
+
+    <h2>Kennwerte der Messgrößen</h2>
+    <table>
+        <thead><tr><th class="l">Größe</th><th>Minimum</th><th>Median</th><th>Mittelwert</th><th>95-%-Wert</th><th>Maximum</th></tr></thead>
+        <tbody>
+            <tr><td class="l">Berührungsspannung U_T (V)</td><td>{{ comma(summary.ut.min) }}</td><td>{{ comma(summary.ut.median) }}</td><td>{{ comma(summary.ut.mean) }}</td><td>{{ comma(summary.ut.p95) }}</td><td>{{ comma(summary.ut.max) }}</td></tr>
+            <tr><td class="l">Erdungsspannung U_E (kV)</td><td>{{ comma(summary.ue.min) }}</td><td>{{ comma(summary.ue.median) }}</td><td>{{ comma(summary.ue.mean) }}</td><td>{{ comma(summary.ue.p95) }}</td><td>{{ comma(summary.ue.max) }}</td></tr>
+            <tr><td class="l">Erdungsimpedanz Z_E (Ω)</td><td>{{ comma(summary.ze.min) }}</td><td>{{ comma(summary.ze.median) }}</td><td>{{ comma(summary.ze.mean) }}</td><td>{{ comma(summary.ze.p95) }}</td><td>{{ comma(summary.ze.max) }}</td></tr>
+            <tr><td class="l">Ausbreitungswiderstand R_A (Ω)</td><td>{{ comma(summary.ra.min) }}</td><td>{{ comma(summary.ra.median) }}</td><td>{{ comma(summary.ra.mean) }}</td><td>{{ comma(summary.ra.p95) }}</td><td>{{ comma(summary.ra.max) }}</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Verteilung der Berührungsspannung U_T</h2>
+    <img class="plot small" src="{{ plots.hist_ut }}" alt="Histogramm U_T">
+    <h2>Verteilung der Erdungsspannung U_E</h2>
+    <img class="plot small" src="{{ plots.hist_ue }}" alt="Histogramm U_E">
+</div>
+
+<!-- ============ Seite 2: Grenzwertüberschreitungen ============ -->
+<div class="page">
+    <h2>Grenzwertüberschreitungen je Leitung</h2>
+    <p>Insgesamt überschreiten <span class="hi">{{ summary.hi }} von {{ summary.total }} Masten ({{ summary.hi_pct }} %)</span>
+       die zulässige Berührungsspannung. Die Verteilung ist stark leitungsabhängig:</p>
+    <img class="plot" src="{{ plots.exceed }}" alt="Überschreitungen je Leitung">
+
+    <table>
+        <thead><tr><th class="l">Leitung</th><th>Masten</th><th>U_T&gt;zul.</th><th>Quote</th><th>U_T Median (V)</th><th>U_T Max (V)</th><th>U_E Median (kV)</th><th>Z_E Median (Ω)</th><th>Default-I_k</th></tr></thead>
+        <tbody>
+        {% for r in line_rows %}
+            <tr><td class="l">{{ r.line }}</td><td>{{ r.n }}</td><td>{{ r.hi }}</td>
+                <td>{% if r.rate >= 40 %}<span class="hi">{{ r.rate }} %</span>{% else %}{{ r.rate }} %{% endif %}</td>
+                <td>{{ r.ut_med }}</td><td>{{ r.ut_max }}</td><td>{{ comma(r.ue_med) }}</td><td>{{ comma(r.ze_med) }}</td><td>{{ r.default }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="note">Hinweis: Die Spalte „Default-I_k" zählt Masten, die mangels Kurzschlussdaten mit dem
+        konservativen {{ default_kA_text }}-kA-Default gerechnet wurden ({{ summary.n_default }} gesamt). Deren Überschreitungen
+        sind tendenziell überschätzt und erst nach Ergänzung der Kurzschlussdaten belastbar.</div>
+</div>
+
+<!-- ============ Seite 3: Durchgefallene Masten (Gesamtliste) ============ -->
+<div class="page">
+    <h2>Durchgefallene Masten – U_T über zulässig (Gesamtliste)</h2>
+    <p>Vollständige Liste aller Masten, deren höchster gemessener Berührungsspannungs-Messwert U_T die
+       zulässige Berührungsspannung überschreitet (Bewertung nach EN 50341, UD1):
+       <span class="hi">{{ summary.hi }} von {{ summary.total }} Masten ({{ summary.hi_pct }} %)</span>.
+       Sortiert nach U_T absteigend.</p>
+
+    <table>
+        <thead><tr>
+            <th class="l">Leitung</th><th>Mast</th><th>U_T max (V)</th><th>zul. U_T (V)</th>
+            <th>U_T / zul.</th><th>U_E (kV)</th><th>Z_E (Ω)</th><th>I_k (kA)</th><th>Default-I_k</th>
+        </tr></thead>
+        <tbody>
+        {% for r in fail_rows %}
+            <tr><td class="l">{{ r.line }}</td><td>{{ r.mast }}</td>
+                <td><span class="hi">{{ r.ut }}</span></td><td>{{ r.ud }}</td>
+                <td>{{ comma(r.ratio) }}</td><td>{{ comma(r.ue) }}</td><td>{{ comma(r.ze) }}</td>
+                <td>{{ comma(r.ik) }}</td><td>{{ r.default }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="note">„Durchgefallen" bedeutet: der höchste gemessene U_T-Wert liegt über der zulässigen
+        Berührungsspannung. Die Spalte „U_T / zul." gibt den Faktor der Überschreitung an. Masten mit „ja"
+        bei „Default-I_k" wurden mangels Kurzschlussdaten mit dem {{ default_kA_text }}-kA-Default gerechnet; ihr U_T ist
+        tendenziell überschätzt.</div>
+</div>
+
+<!-- ============ Seite 4: Muster & Zusammenhänge ============ -->
+<div class="page">
+    <h2>Muster und Zusammenhänge</h2>
+    <div class="two">
+        <div>
+            <p><b>Korrelationsmatrix</b> (Pearson) der zentralen Messgrößen:</p>
+            <img class="plot" src="{{ plots.corr }}" alt="Korrelationsmatrix" style="max-height:7cm;">
+        </div>
+        <div>
+            <p><b>Berührungsspannung gegen Z_E und I_k:</b></p>
+            <img class="plot" src="{{ plots.scatter }}" alt="Streudiagramme" style="max-height:5cm;">
+        </div>
+    </div>
+    <h2>Beobachtungen</h2>
+    <ul class="findings">
+        {% for ins in insights %}<li>{{ ins }}</li>{% endfor %}
+    </ul>
+</div>
+
+<!-- ============ Seite 5: Erkenntnisse & Empfehlungen ============ -->
+<div class="page">
+    <h2>Masten mit der höchsten Berührungsspannung</h2>
+    <table>
+        <thead><tr><th class="l">Leitung</th><th>Mast</th><th>U_T (V)</th><th>zul. U_T (V)</th><th>U_E (kV)</th><th>Z_E (Ω)</th><th>Default-I_k</th></tr></thead>
+        <tbody>
+        {% for r in top_rows %}
+            <tr><td class="l">{{ r.line }}</td><td>{{ r.mast }}</td>
+                <td><span class="hi">{{ r.ut }}</span></td><td>{{ r.ud }}</td><td>{{ comma(r.ue) }}</td><td>{{ comma(r.ze) }}</td><td>{{ r.default }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Handlungsempfehlungen</h2>
+    <ul class="findings">
+        {% for rec in recommendations %}<li>{{ rec }}</li>{% endfor %}
+    </ul>
+</div>
+
+</body>
+</html>

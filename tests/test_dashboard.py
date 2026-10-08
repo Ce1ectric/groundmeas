@@ -91,6 +91,11 @@ class DummyStreamlit:
     def expander(self, *args, **kwargs):
         return DummyContext()
 
+    def stop(self):
+        """Stub for ``st.stop()``. Raise so that callers terminate early
+        like the real Streamlit runtime does."""
+        raise RuntimeError("st.stop() called")
+
     def button(self, *args, **kwargs):
         try:
             return next(self._button_iter)
@@ -242,13 +247,23 @@ def test_group_measurements_by_location_id_only_fallback():
         {
             "id": 1,
             "asset_type": "cable",
-            "location": {"id": 99, "name": "No coords", "latitude": None, "longitude": None},
+            "location": {
+                "id": 99,
+                "name": "No coords",
+                "latitude": None,
+                "longitude": None,
+            },
             "items": [],
         },
         {
             "id": 2,
             "asset_type": "cable",
-            "location": {"id": 99, "name": "No coords", "latitude": None, "longitude": None},
+            "location": {
+                "id": 99,
+                "name": "No coords",
+                "latitude": None,
+                "longitude": None,
+            },
             "items": [],
         },
     ]
@@ -281,6 +296,11 @@ def test_main_runs_with_stubs(monkeypatch):
     dummy = DummyStreamlit(button_sequence=[True, True, True, True, True, True])
     dummy.session_state["multiselect_ids"] = [1]
     monkeypatch.setattr(dashboard, "st", dummy)
+    # Skip the real DB connection — the pass-5 fix to ``init_db`` calls
+    # ``st.stop()`` when the database is unreachable, which would abort
+    # this end-to-end stub run.
+    monkeypatch.setattr(dashboard, "connect_db", lambda *a, **kw: None)
+    monkeypatch.setattr(dashboard, "resolve_db_path", lambda: ":memory:")
     monkeypatch.setattr(
         dashboard,
         "st_folium",
@@ -303,25 +323,36 @@ def test_main_runs_with_stubs(monkeypatch):
     )
     monkeypatch.setattr(dashboard, "plot_imp_over_f_plotly", lambda ids: "fig")
     monkeypatch.setattr(dashboard, "plot_rho_f_model_plotly", lambda ids, coeffs: "fig")
-    monkeypatch.setattr(dashboard, "plot_voltage_vt_epr_plotly", lambda ids, frequency=50.0: "fig")
+    monkeypatch.setattr(
+        dashboard, "plot_voltage_vt_epr_plotly", lambda ids, frequency=50.0: "fig"
+    )
     monkeypatch.setattr(
         dashboard,
         "value_over_distance_detailed",
         lambda ids, measurement_type="earthing_impedance": {1: [{"frequency": 50.0}]},
     )
-    monkeypatch.setattr(dashboard, "plot_value_over_distance_plotly", lambda *args, **kwargs: "fig")
+    monkeypatch.setattr(
+        dashboard, "plot_value_over_distance_plotly", lambda *args, **kwargs: "fig"
+    )
     monkeypatch.setattr(
         dashboard,
         "soil_resistivity_curve",
         lambda **kwargs: [{"spacing_m": 1.0, "rho_ohm_m": 10.0}],
     )
-    monkeypatch.setattr(dashboard, "multilayer_soil_model", lambda **kwargs: {"layers": []})
+    monkeypatch.setattr(
+        dashboard, "multilayer_soil_model", lambda **kwargs: {"layers": []}
+    )
     monkeypatch.setattr(dashboard, "plot_soil_model_plotly", lambda **kwargs: "fig")
     monkeypatch.setattr(dashboard, "layered_earth_forward", lambda **kwargs: [1.0])
     monkeypatch.setattr(
         dashboard,
         "invert_soil_resistivity_layers",
-        lambda **kwargs: {"layers": [], "misfit": {}, "observed_curve": [], "predicted_curve": []},
+        lambda **kwargs: {
+            "layers": [],
+            "misfit": {},
+            "observed_curve": [],
+            "predicted_curve": [],
+        },
     )
     monkeypatch.setattr(dashboard, "plot_soil_inversion_plotly", lambda **kwargs: "fig")
 

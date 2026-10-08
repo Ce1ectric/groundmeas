@@ -1,0 +1,180 @@
+@page {
+    size: A4;
+    margin: 1.2cm 1.4cm;
+}
+
+body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #222;
+    font-size: 10.5px;
+    line-height: 1.45;
+    margin: 0;
+}
+
+/* ---- Header -------------------------------------------------------- */
+.report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid #1f4e79;
+    padding-bottom: 6px;
+    margin-bottom: 14px;
+}
+
+.logo {
+    max-width: 150px;
+    height: auto;
+}
+
+.header {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f4e79;
+    text-align: right;
+}
+
+/* ---- Sections ----------------------------------------------------- */
+.section {
+    margin-bottom: 11px;
+}
+
+.section h2 {
+    font-size: 13px;
+    color: #1f4e79;
+    border-bottom: 1px solid #cdd7e2;
+    padding-bottom: 3px;
+    margin: 0 0 7px 0;
+}
+
+.section h3 {
+    font-size: 11.5px;
+    color: #333;
+    margin: 8px 0 3px 0;
+}
+
+/* ---- Key/value blocks --------------------------------------------- */
+.data-field {
+    display: flex;
+    gap: 28px;
+    background: #f7f9fb;
+    border: 1px solid #e1e8f0;
+    border-radius: 4px;
+    padding: 7px 12px;
+}
+
+.label {
+    font-weight: 600;
+    color: #444;
+    flex: 0 0 auto;
+}
+
+.value {
+    flex: 1;
+}
+
+.label p, .value p {
+    margin: 1px 0;
+}
+
+/* ---- Measurement tables ------------------------------------------- */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 9.5px;
+}
+
+th, td {
+    border: 1px solid #d8dee6;
+    padding: 3px 7px;
+    text-align: center;
+}
+
+th {
+    background: #1f4e79;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+tbody tr:nth-child(even) {
+    background: #f4f7fa;
+}
+
+/* ---- Plots -------------------------------------------------------- */
+.plots {
+    page-break-before: always;
+}
+
+.x_y_plot {
+    display: block;
+    width: 100%;
+    max-height: 7.4cm;
+    object-fit: contain;
+    margin: 2px 0 6px 0;
+}
+
+.map {
+    display: block;
+    width: 100%;
+    max-width: 15cm;
+    max-height: 8cm;
+    object-fit: contain;
+    border: 1px solid #d8dee6;
+    border-radius: 4px;
+    margin: 4px auto;
+}
+
+/* ---- Evaluation table --------------------------------------------- */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table td {
+    border: 1px solid #d8dee6;
+    padding: 5px 9px;
+    text-align: left;
+}
+
+.data-table td.label {
+    background: #f4f7fa;
+    font-weight: 600;
+    color: #444;
+    width: 48%;
+}
+
+/* ---- Signatures --------------------------------------------------- */
+.signatures {
+    display: flex;
+    gap: 40px;
+}
+
+.signature-block {
+    flex: 1;
+}
+
+.signature-placeholder {
+    height: 60px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    margin-top: 8px;
+    position: relative;
+}
+
+.signature-caption {
+    position: absolute;
+    bottom: 4px;
+    left: 6px;
+    font-size: 9px;
+    color: #777;
+}
+
+/* ---- Print page-break control ------------------------------------- */
+@media print {
+    .section {
+        page-break-inside: avoid;
+    }
+    .plots {
+        page-break-before: always;
+        page-break-inside: avoid;
+    }
+}

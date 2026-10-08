@@ -123,11 +123,20 @@ def main() -> None:
         for lic, pkgs in non_permissive.items():
             print(f"  {lic}: {', '.join(sorted(pkgs))}")
     if compat_pkgs.get("NOT_COMPATIBLE (GPL/AGPL)"):
-        print("Review/replace (GPL/AGPL):", ", ".join(sorted(compat_pkgs["NOT_COMPATIBLE (GPL/AGPL)"])))
+        print(
+            "Review/replace (GPL/AGPL):",
+            ", ".join(sorted(compat_pkgs["NOT_COMPATIBLE (GPL/AGPL)"])),
+        )
     if compat_pkgs.get("REVIEW (MPL/LGPL)"):
-        print("Review conditions (MPL/LGPL):", ", ".join(sorted(compat_pkgs["REVIEW (MPL/LGPL)"])))
+        print(
+            "Review conditions (MPL/LGPL):",
+            ", ".join(sorted(compat_pkgs["REVIEW (MPL/LGPL)"])),
+        )
     if compat_pkgs.get("UNKNOWN"):
-        print("Missing/unknown license metadata:", ", ".join(sorted(compat_pkgs["UNKNOWN"])))
+        print(
+            "Missing/unknown license metadata:",
+            ", ".join(sorted(compat_pkgs["UNKNOWN"])),
+        )
     print("Note: This is a heuristic; consult legal counsel for definitive guidance.")
 
 

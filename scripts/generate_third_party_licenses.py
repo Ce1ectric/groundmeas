@@ -23,6 +23,7 @@ IGNORE_PACKAGES = ["groundmeas"]
 MD_FILE = ROOT / "THIRD_PARTY_NOTICES.md"
 RAW_FILE = ROOT / "THIRD_PARTY_LICENSES_RAW.txt"
 
+
 def enforce_license_policy() -> None:
     """Fail if forbidden licenses are detected."""
     subprocess.run(
@@ -103,7 +104,7 @@ def write_raw(text: str) -> None:
 
 
 def main() -> None:
-    
+
     enforce_license_policy()
     packages = run_pip_licenses_json()
     raw_text = run_pip_licenses_raw()

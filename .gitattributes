@@ -1,0 +1,9 @@
+# Test fixtures are byte-exact copies of instrument exports (HGT1 reports use
+# CRLF line endings) and must never be converted.
+tests/data/** -text
+
+# Binary files
+*.png binary
+*.xlsx binary
+*.pdf binary
+*.zip binary

@@ -9,7 +9,9 @@ CRUD operations on Location, Measurement, and MeasurementItem models.
 """
 
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+import os
+import threading
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy import and_, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,9 +23,43 @@ from .models import Location, Measurement, MeasurementItem
 logger = logging.getLogger(__name__)
 
 _engine = None
+_engine_path: Optional[str] = None
+"""Path (or sentinel like ``":memory:"``) the active engine is bound to.
+
+The Streamlit dashboard needs to know whether a Streamlit-rerun-induced
+re-call of :func:`connect_db` is bound to the *same* path or to a
+different one. Tracking only the engine handle was insufficient: a
+permission fix that toggles ``GROUNDMEAS_DB`` could not detect the path
+change. The recorded path is ``None`` when no engine is active.
+"""
+
+_engine_lock: threading.Lock = threading.Lock()
+"""Guards :func:`connect_db` / :func:`disconnect_db` against concurrent calls."""
 
 
-def connect_db(path: str, echo: bool = False) -> None:
+def current_db_path() -> Optional[str]:
+    """
+    Return the path the active engine is bound to.
+
+    Returns
+    -------
+    str or None
+        The path passed to the most recent successful :func:`connect_db`
+        call, or ``None`` if no engine is currently active.
+
+    Notes
+    -----
+    The return value mirrors what was passed in — ``":memory:"`` is
+    preserved as-is, on-disk paths are *not* normalised. Callers that
+    want to compare two paths for equality should normalise via
+    :func:`os.path.abspath` themselves.
+
+    Added in groundmeas 1.5.2.
+    """
+    return _engine_path
+
+
+def connect_db(path: str, echo: bool = False, *, force: bool = False) -> None:
     """
     Initialize or connect to a SQLite database.
 
@@ -36,21 +72,138 @@ def connect_db(path: str, echo: bool = False) -> None:
         Filesystem path to the SQLite file (use ``":memory:"`` for RAM DB).
     echo : bool, default False
         If True, SQLAlchemy logs all SQL statements.
+    force : bool, default False
+        If True, dispose of any pre-existing engine before reconnecting.
+        When False, a second ``connect_db`` call raises ``RuntimeError`` so
+        that the previous engine (and any open sessions) is not leaked.
 
     Raises
     ------
     RuntimeError
-        If the database or tables cannot be created.
+        If the database or tables cannot be created, if the target
+        directory is not writable, or if an engine is already initialised
+        and ``force`` is ``False``.
+
+    Notes
+    -----
+    A best-effort writability probe is performed for on-disk paths so that
+    ``connect_db("/readonly/path.db")`` fails fast instead of deferring the
+    error to the first write through SQLAlchemy.
     """
-    global _engine
-    database_url = f"sqlite:///{path}"
+    global _engine, _engine_path
+
+    with _engine_lock:
+        if _engine is not None and not force:
+            raise RuntimeError(
+                "Database engine is already initialised. Call disconnect_db() "
+                "first or pass force=True to replace the existing engine."
+            )
+
+        if _engine is not None and force:
+            try:
+                _engine.dispose()
+            except Exception:  # pragma: no cover - defensive
+                logger.warning("Existing engine could not be disposed cleanly")
+            _engine = None
+            _engine_path = None
+
+        # Writability probe (skip for in-memory databases and SQLAlchemy URLs).
+        if path != ":memory:" and "://" not in path:
+            parent = os.path.dirname(os.path.abspath(path)) or "."
+            if not os.path.isdir(parent):
+                raise RuntimeError(
+                    f"Database parent directory does not exist: {parent}"
+                )
+            if not os.access(parent, os.W_OK):
+                raise RuntimeError(f"Database parent directory not writable: {parent}")
+
+        database_url = f"sqlite:///{path}"
+        try:
+            _engine = create_engine(database_url, echo=echo)
+            SQLModel.metadata.create_all(_engine)
+            _engine_path = path
+            logger.info("Connected to database at %s", path)
+        except SQLAlchemyError as e:
+            _engine = None
+            _engine_path = None
+            logger.exception("Failed to initialize database at %s", path)
+            raise RuntimeError(f"Could not initialize database: {e}") from e
+
+
+def create_items(data: Sequence[Dict[str, Any]], measurement_id: int) -> List[int]:
+    """
+    Insert several MeasurementItems for one Measurement in a single transaction.
+
+    Equivalent to calling :func:`create_item` for every payload, but uses one
+    session and one commit, which is much faster for distance profiles and
+    file imports with hundreds of items. Either all items are stored or none.
+
+    Parameters
+    ----------
+    data : sequence of dict
+        MeasurementItem fields (excluding ``measurement_id``), one dict per item.
+    measurement_id : int
+        Parent Measurement ID.
+
+    Returns
+    -------
+    list[int]
+        Primary keys of the created items, in the order of ``data``.
+
+    Raises
+    ------
+    RuntimeError
+        On any database error during insertion (nothing is stored).
+    ValueError
+        If an item carries neither ``value`` nor ``value_real``/``value_imag``.
+    """
+    payloads: List[Dict[str, Any]] = []
+    for entry in data:
+        payload = dict(entry)
+        payload["measurement_id"] = measurement_id
+        payloads.append(payload)
+    if not payloads:
+        return []
     try:
-        _engine = create_engine(database_url, echo=echo)
-        SQLModel.metadata.create_all(_engine)
-        logger.info("Connected to database at %s", path)
+        with _get_session() as session:
+            items = [MeasurementItem(**payload) for payload in payloads]
+            session.add_all(items)
+            session.flush()
+            ids = [int(item.id) for item in items]  # type: ignore[arg-type]
+            session.commit()
+            return ids
     except SQLAlchemyError as e:
-        logger.exception("Failed to initialize database at %s", path)
-        raise RuntimeError(f"Could not initialize database: {e}") from e
+        logger.exception(
+            "Failed to create %d MeasurementItems for measurement_id=%s",
+            len(payloads),
+            measurement_id,
+        )
+        raise RuntimeError(f"Could not create MeasurementItems: {e}") from e
+
+
+def disconnect_db() -> None:
+    """
+    Dispose of the active database engine.
+
+    Releases the global SQLAlchemy engine and resets the module-level
+    state.  Idempotent — calling this without an active engine is a no-op.
+
+    Notes
+    -----
+    Outstanding ``Session`` objects created via :func:`_get_session` should
+    be closed by their owners before calling this function; ``Engine.dispose``
+    does not close active sessions, it only closes pooled connections.
+    """
+    global _engine, _engine_path
+    with _engine_lock:
+        if _engine is None:
+            return
+        try:
+            _engine.dispose()
+        finally:
+            _engine = None
+            _engine_path = None
+            logger.info("Disconnected from database")
 
 
 def _get_session() -> Session:
@@ -72,14 +225,136 @@ def _get_session() -> Session:
     return Session(_engine)
 
 
+_COORD_PRECISION: int = 5
+"""Decimal places used when comparing GPS coordinates for Location dedup.
+
+Five digits of decimal degrees correspond to roughly one metre on the ground,
+which is well below typical GPS accuracy for field surveys.
+"""
+
+
+def _find_existing_location(
+    session: Session, loc_data: Dict[str, Any]
+) -> Optional[Location]:
+    """
+    Look up an existing Location that matches ``loc_data``.
+
+    Matching rules
+    --------------
+    * If ``name`` is missing or empty, no match is performed.
+    * If ``latitude`` and ``longitude`` are provided, a candidate is returned
+      only if it has the same name and coordinates rounded to
+      :data:`_COORD_PRECISION` decimal places.
+    * If no coordinates are supplied, the first row with the same name is
+      returned (case-sensitive, matching the column's ``==`` semantics).
+
+    Parameters
+    ----------
+    session : Session
+        Active SQLModel session.
+    loc_data : dict
+        Location payload (at least ``name`` required).
+
+    Returns
+    -------
+    Location or None
+        Matching row or ``None`` if no match exists.
+    """
+    name = (loc_data.get("name") or "").strip()
+    if not name:
+        return None
+
+    lat = loc_data.get("latitude")
+    lon = loc_data.get("longitude")
+
+    candidates = (
+        session.execute(select(Location).where(Location.name == name)).scalars().all()
+    )
+    if not candidates:
+        return None
+
+    if lat is not None and lon is not None:
+        try:
+            lat_f = float(lat)
+            lon_f = float(lon)
+        except TypeError, ValueError:
+            return None
+        name_only_fallback: Optional[Location] = None
+        for cand in candidates:
+            if cand.latitude is None or cand.longitude is None:
+                # Coord-less candidate: remember as fallback so the caller
+                # can backfill the missing coordinates rather than inserting
+                # a second row for the same site.
+                if name_only_fallback is None:
+                    name_only_fallback = cand
+                continue
+            if round(cand.latitude, _COORD_PRECISION) == round(
+                lat_f, _COORD_PRECISION
+            ) and round(cand.longitude, _COORD_PRECISION) == round(
+                lon_f, _COORD_PRECISION
+            ):
+                return cand
+        # No coord-matching row. Reuse a coord-less namesake for backfill
+        # instead of creating a duplicate.
+        return name_only_fallback
+
+    # No coordinates supplied — fall back to name-only match.
+    return candidates[0]
+
+
+def _find_or_create_location(session: Session, loc_data: Dict[str, Any]) -> Location:
+    """
+    Reuse an existing Location row when one matches, otherwise insert a new one.
+
+    Missing coordinates/altitude on the existing row are backfilled from
+    ``loc_data`` so that new field data can enrich a previously coordinate-less
+    Location without creating a duplicate.
+
+    Parameters
+    ----------
+    session : Session
+        Active SQLModel session.
+    loc_data : dict
+        Location payload.
+
+    Returns
+    -------
+    Location
+        Persisted Location instance (flushed, primary key available).
+    """
+    existing = _find_existing_location(session, loc_data)
+    if existing is not None:
+        changed = False
+        for field in ("latitude", "longitude", "altitude"):
+            incoming = loc_data.get(field)
+            if incoming is not None and getattr(existing, field) is None:
+                setattr(existing, field, incoming)
+                changed = True
+        if changed:
+            session.add(existing)
+            session.flush()
+        return existing
+
+    loc = Location(**loc_data)
+    session.add(loc)
+    session.flush()
+    return loc
+
+
 def create_measurement(data: Dict[str, Any]) -> int:
     """
     Insert a Measurement, optionally with a nested Location.
 
+    The nested ``location`` dict is resolved via :func:`_find_or_create_location`
+    so that repeat visits to the same site (matched by name and, when
+    available, coordinates) reuse an existing ``Location`` row rather than
+    creating a duplicate.
+
     Parameters
     ----------
     data : dict
-        Measurement fields; may include a ``location`` dict to create a Location.
+        Measurement fields; may include a ``location`` dict whose fields are
+        forwarded to :class:`Location`.
 
     Returns
     -------
@@ -92,20 +367,11 @@ def create_measurement(data: Dict[str, Any]) -> int:
         On any database error during insertion.
     """
     loc_data = data.pop("location", None)
-    if loc_data:
-        try:
-            with _get_session() as session:
-                loc = Location(**loc_data)
-                session.add(loc)
-                session.commit()
-                session.refresh(loc)
-                data["location_id"] = loc.id
-        except SQLAlchemyError as e:
-            logger.exception("Failed to create Location with data %s", loc_data)
-            raise RuntimeError(f"Could not create Location: {e}") from e
-
     try:
         with _get_session() as session:
+            if loc_data:
+                loc = _find_or_create_location(session, loc_data)
+                data["location_id"] = loc.id
             meas = Measurement(**data)
             session.add(meas)
             session.commit()
@@ -114,6 +380,101 @@ def create_measurement(data: Dict[str, Any]) -> int:
     except SQLAlchemyError as e:
         logger.exception("Failed to create Measurement with data %s", data)
         raise RuntimeError(f"Could not create Measurement: {e}") from e
+
+
+def create_measurements_with_items(
+    entries: Sequence[Tuple[Dict[str, Any], Sequence[Dict[str, Any]]]],
+) -> List[Tuple[int, List[int]]]:
+    """
+    Insert measurements together with their items in one transaction.
+
+    Either everything is stored or nothing: a failing item (database error or
+    an item without value) rolls back all measurements, items and new
+    locations of the call. Nested ``location`` dicts are resolved like in
+    :func:`create_measurement`.
+
+    Parameters
+    ----------
+    entries : sequence of (dict, sequence of dict)
+        ``(measurement, items)`` pairs; ``measurement`` may contain a nested
+        ``location`` dict, ``items`` are MeasurementItem fields without
+        ``measurement_id``. The dicts are not modified.
+
+    Returns
+    -------
+    list of (int, list of int)
+        ``(measurement_id, item_ids)`` per entry, in input order.
+
+    Raises
+    ------
+    RuntimeError
+        On any database error (nothing is stored).
+    ValueError
+        If an item carries neither ``value`` nor ``value_real``/``value_imag``
+        (nothing is stored).
+    """
+    created: List[Tuple[int, List[int]]] = []
+    try:
+        with _get_session() as session:
+            for measurement_data, items_data in entries:
+                payload = dict(measurement_data)
+                loc_data = payload.pop("location", None)
+                if loc_data:
+                    loc = _find_or_create_location(session, dict(loc_data))
+                    payload["location_id"] = loc.id
+                measurement = Measurement(**payload)
+                session.add(measurement)
+                session.flush()
+                items = [
+                    MeasurementItem(**{**item, "measurement_id": measurement.id})
+                    for item in items_data
+                ]
+                session.add_all(items)
+                session.flush()
+                created.append(
+                    (
+                        int(measurement.id),  # type: ignore[arg-type]
+                        [int(item.id) for item in items],  # type: ignore[arg-type]
+                    )
+                )
+            session.commit()
+    except SQLAlchemyError as e:
+        logger.exception(
+            "Failed to create %d measurements with their items", len(entries)
+        )
+        raise RuntimeError(f"Could not create measurements: {e}") from e
+    return created
+
+
+def create_measurement_with_items(
+    data: Dict[str, Any], items: Sequence[Dict[str, Any]]
+) -> Tuple[int, List[int]]:
+    """
+    Insert one measurement and its items in one transaction.
+
+    Unlike :func:`create_measurement` followed by :func:`create_items`, a
+    failure while storing the items leaves no empty measurement behind.
+
+    Parameters
+    ----------
+    data : dict
+        Measurement fields, optionally with a nested ``location`` dict.
+    items : sequence of dict
+        MeasurementItem fields (excluding ``measurement_id``).
+
+    Returns
+    -------
+    tuple of (int, list of int)
+        Measurement ID and item IDs.
+
+    Raises
+    ------
+    RuntimeError
+        On any database error (nothing is stored).
+    ValueError
+        If an item carries no value (nothing is stored).
+    """
+    return create_measurements_with_items([(data, items)])[0]
 
 
 def create_item(data: Dict[str, Any], measurement_id: int) -> int:
@@ -161,10 +522,23 @@ def read_measurements(
     """
     Retrieve measurements, with optional raw SQL filtering.
 
+    .. warning::
+
+        The ``where`` parameter is passed verbatim to SQLAlchemy's
+        :func:`~sqlalchemy.text` constructor and therefore interpolated into
+        the generated SQL **without escaping**. Only pass values that are
+        fully under your control — never a string assembled from user input,
+        CLI flags, HTTP parameters, or file contents. Doing so would expose
+        the database to SQL injection.
+
+        For untrusted or programmatic filters use :func:`read_measurements_by`
+        instead, which relies on parameter binding and a field whitelist.
+
     Parameters
     ----------
     where : str, optional
-        SQLAlchemy-compatible WHERE clause (e.g., ``"asset_type = 'substation'"``).
+        Trusted SQLAlchemy-compatible WHERE clause
+        (e.g., ``"asset_type = 'substation'"``). ``None`` disables filtering.
 
     Returns
     -------
@@ -181,6 +555,10 @@ def read_measurements(
         selectinload(Measurement.location),
     )
     if where:
+        logger.warning(
+            "read_measurements called with raw WHERE clause; "
+            "only pass trusted input or switch to read_measurements_by()."
+        )
         stmt = stmt.where(text(where))
 
     try:
@@ -383,10 +761,13 @@ def update_measurement(measurement_id: int, updates: Dict[str, Any]) -> bool:
                         setattr(meas.location, field, val)
                     session.add(meas.location)
                 else:
-                    new_loc = Location(**loc_updates)
-                    session.add(new_loc)
-                    session.flush()
-                    meas.location_id = new_loc.id
+                    # Reuse an existing Location row when possible; only insert
+                    # a new one if nothing matches. This mirrors the behaviour
+                    # of create_measurement and prevents silent duplication
+                    # when a measurement without a linked Location is later
+                    # assigned to a known site.
+                    loc = _find_or_create_location(session, loc_updates)
+                    meas.location_id = loc.id
             for field, val in updates.items():
                 setattr(meas, field, val)
             session.add(meas)

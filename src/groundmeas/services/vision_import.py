@@ -61,21 +61,40 @@ def _normalize_ocr_text(text: str) -> str:
 
     - Fixes missing leading zeros (".5" -> "0.5")
     - Normalizes stray "0." tokens ("0." -> "0.0")
-    - Replaces common OCR artifacts
+    - Replaces common OCR artifacts.  The ``rn`` → ``m`` substitution is
+      restricted to the unit position (right after a digit, an SI prefix or
+      a whitespace + digit pair) so that operator names containing the
+      bigram (``Bernhard``, ``Schwerin``, …) are left untouched. The
+      lookahead tolerates a single whitespace between ``rn`` and the unit
+      letter, so real-world Megger OCR snippets such as ``118.1 rn Ω``
+      are correctly normalised to ``118.1 m Ω``.
     """
-    cleaned = text.replace("—", "-").replace("|", " | ").replace("rn", "m")
+    cleaned = text.replace("—", "-").replace("|", " | ")
+    # ``rn`` is replaced with ``m`` *only* when it sits in a unit context
+    # such as ``118.1 rnΩ`` (→ ``118.1 mΩ``), ``5 rnA`` (→ ``5 mA``) or
+    # ``118.1 rn Ω`` (→ ``118.1 m Ω``). The lookahead permits optional
+    # whitespace between ``rn`` and the unit letter to cover Megger
+    # OCR output where the unit symbol is space-separated.
+    cleaned = re.sub(
+        r"(?<=\d)(?:[.,]\d+)?\s*rn(?=\s*[AVΩ0oO])",
+        lambda m: m.group(0).replace("rn", "m"),
+        cleaned,
+    )
     cleaned = re.sub(r"(?<!\d)\.(\d)", r"0.\1", cleaned)
     cleaned = re.sub(r"\b0\.(?!\d)", "0.0", cleaned)
     return cleaned
 
 
-def _parse_value_angle_unit(chunk: str) -> tuple[Optional[float], Optional[float], Optional[str]]:
+def _parse_value_angle_unit(
+    chunk: str,
+) -> tuple[Optional[float], Optional[float], Optional[str]]:
     """
     Parse a token string containing value, unit, and optional phase angle.
 
-    Examples:
-        - '114.0 mA 0.00°' -> (0.114, 0.0, 'mA')
-        - '118.1 mΩ -136.56°' -> (0.1181, -136.56, 'mΩ')
+    Examples
+    --------
+    - '114.0 mA 0.00°' -> (0.114, 0.0, 'mA')
+    - '118.1 mΩ -136.56°' -> (0.1181, -136.56, 'mΩ')
 
     Parameters
     ----------
@@ -200,7 +219,9 @@ def _image_to_base64(path: Path, max_dim: int | None = 1400) -> str:
         h, w = img.shape[:2]
         if max(h, w) > max_dim:
             scale = max_dim / float(max(h, w))
-            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+            img = cv2.resize(
+                img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA
+            )
     _, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
     return base64.b64encode(buf).decode("ascii")
 
@@ -269,8 +290,14 @@ def ocr_image(
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Extract all visible text. Respond with plain text only."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}" }},
+                        {
+                            "type": "text",
+                            "text": "Extract all visible text. Respond with plain text only.",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                        },
                     ],
                 }
             ],
@@ -284,7 +311,49 @@ def ocr_image(
         )
         resp.raise_for_status()
         data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        # Defensive response parsing — the OpenAI envelope may legally be
+        # missing or empty in production:
+        #   * 5xx-shaped JSON envelopes can return ``choices=[]``,
+        #   * tool/function-calling responses return ``content=None``,
+        #   * a content-filter trip returns
+        #     ``finish_reason="content_filter"`` with ``content=None``.
+        # We surface those as a single ``RuntimeError`` so callers can
+        # handle them uniformly.
+        if not isinstance(data, dict):
+            raise RuntimeError(f"OpenAI OCR response is not a JSON object: {data!r}")
+        choices = data.get("choices") or []
+        if not choices:
+            err = data.get("error")
+            raise RuntimeError(
+                f"OpenAI OCR response has no choices " f"(error={err!r}, raw={data!r})"
+            )
+        first = choices[0] or {}
+        finish_reason = first.get("finish_reason")
+        message = first.get("message") or {}
+        content = message.get("content")
+        if content is None:
+            raise RuntimeError(
+                "OpenAI OCR response returned no content "
+                f"(finish_reason={finish_reason!r}). The model may have "
+                "triggered the content filter or returned a tool-call "
+                "instead of text."
+            )
+        if not isinstance(content, str):
+            # Some new OpenAI envelopes return ``content`` as a list of
+            # message-part dicts. Concatenate the text parts.
+            if isinstance(content, list):
+                parts = [
+                    p.get("text", "")
+                    for p in content
+                    if isinstance(p, dict) and p.get("type") == "text"
+                ]
+                content = "".join(parts)
+            else:
+                raise RuntimeError(
+                    "OpenAI OCR response 'content' has unexpected type "
+                    f"{type(content).__name__}: {content!r}"
+                )
+        return content
 
     if provider == "ollama":
         model_name = model or "deepseek-ocr"
@@ -295,7 +364,9 @@ def ocr_image(
             "images": [b64],
             "stream": False,
         }
-        resp = requests.post("http://localhost:11434/api/generate", json=payload, timeout=timeout)
+        resp = requests.post(
+            "http://localhost:11434/api/generate", json=payload, timeout=timeout
+        )
         resp.raise_for_status()
         data = resp.json()
         return data.get("response", "")
@@ -322,7 +393,9 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         Parsed measurement rows.
     """
     rows: List[ParsedRow] = []
-    seen_keys: set[tuple[float, Optional[float], Optional[float], Optional[float]]] = set()
+    seen_keys: set[tuple[float, Optional[float], Optional[float], Optional[float]]] = (
+        set()
+    )
     compact_pattern = re.compile(
         r"(?P<dist>-?\d+(?:[.,]\d+)?)\s*m"
         r".*?(?P<cur>-?\d+(?:[.,]\d+)?)\s*mA\s*(?P<ang1>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
@@ -344,9 +417,7 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
     # Also catch bare numbers followed by m
     distance_unit_pattern = re.compile(r"(-?\d+(?:[.,]\d+)?)\s*m\b", re.IGNORECASE)
 
-    current_pattern = re.compile(
-        r"(?:earth)?\s*current|i", re.IGNORECASE
-    )
+    current_pattern = re.compile(r"(?:earth)?\s*current|i", re.IGNORECASE)
     current_value_pattern = re.compile(
         r"(-?\d+(?:[.,]\d+)?)\s*(?:a\b|amp)", re.IGNORECASE
     )
@@ -373,11 +444,23 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         row = ParsedRow(
             distance_m=_normalize_number(m_full.group("dist")),
             current_a=cur_val,
-            current_angle_deg=_normalize_number(m_full.group("ang1")) if m_full.group("ang1") else None,
+            current_angle_deg=(
+                _normalize_number(m_full.group("ang1"))
+                if m_full.group("ang1")
+                else None
+            ),
             voltage_v=volt_val,
-            voltage_angle_deg=_normalize_number(m_full.group("ang2")) if m_full.group("ang2") else None,
+            voltage_angle_deg=(
+                _normalize_number(m_full.group("ang2"))
+                if m_full.group("ang2")
+                else None
+            ),
             impedance_ohm=_normalize_number(m_full.group("imp")) * 1e-3,  # mΩ → Ω
-            impedance_angle_deg=_normalize_number(m_full.group("ang3")) if m_full.group("ang3") else None,
+            impedance_angle_deg=(
+                _normalize_number(m_full.group("ang3"))
+                if m_full.group("ang3")
+                else None
+            ),
         )
         key = (
             row.distance_m or math.inf,
@@ -395,13 +478,29 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         row = ParsedRow(
             distance_m=_normalize_number(m_compact.group("dist")),
             current_a=cur_val,
-            current_angle_deg=_normalize_number(m_compact.group("ang1")) if m_compact.group("ang1") else None,
+            current_angle_deg=(
+                _normalize_number(m_compact.group("ang1"))
+                if m_compact.group("ang1")
+                else None
+            ),
             voltage_v=volt_val,
-            voltage_angle_deg=_normalize_number(m_compact.group("ang2")) if m_compact.group("ang2") else None,
+            voltage_angle_deg=(
+                _normalize_number(m_compact.group("ang2"))
+                if m_compact.group("ang2")
+                else None
+            ),
             impedance_ohm=_normalize_number(m_compact.group("imp")) * 1e-3,  # mΩ → Ω
-            impedance_angle_deg=_normalize_number(m_compact.group("ang3")) if m_compact.group("ang3") else None,
+            impedance_angle_deg=(
+                _normalize_number(m_compact.group("ang3"))
+                if m_compact.group("ang3")
+                else None
+            ),
         )
-        if row.impedance_ohm is None and row.voltage_v is not None and row.current_a not in (None, 0):
+        if (
+            row.impedance_ohm is None
+            and row.voltage_v is not None
+            and row.current_a not in (None, 0)
+        ):
             row.impedance_ohm = abs(row.voltage_v / row.current_a)
             if row.voltage_angle_deg is not None and row.current_angle_deg is not None:
                 row.impedance_angle_deg = row.voltage_angle_deg - row.current_angle_deg
@@ -429,11 +528,24 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
             row = ParsedRow(
                 distance_m=_normalize_number(m_compact_line.group("dist")),
                 current_a=cur_val,
-                current_angle_deg=_normalize_number(m_compact_line.group("ang1")) if m_compact_line.group("ang1") else None,
+                current_angle_deg=(
+                    _normalize_number(m_compact_line.group("ang1"))
+                    if m_compact_line.group("ang1")
+                    else None
+                ),
                 voltage_v=volt_val,
-                voltage_angle_deg=_normalize_number(m_compact_line.group("ang2")) if m_compact_line.group("ang2") else None,
-                impedance_ohm=_normalize_number(m_compact_line.group("imp")) * 1e-3,  # mΩ → Ω
-                impedance_angle_deg=_normalize_number(m_compact_line.group("ang3")) if m_compact_line.group("ang3") else None,
+                voltage_angle_deg=(
+                    _normalize_number(m_compact_line.group("ang2"))
+                    if m_compact_line.group("ang2")
+                    else None
+                ),
+                impedance_ohm=_normalize_number(m_compact_line.group("imp"))
+                * 1e-3,  # mΩ → Ω
+                impedance_angle_deg=(
+                    _normalize_number(m_compact_line.group("ang3"))
+                    if m_compact_line.group("ang3")
+                    else None
+                ),
             )
             key = (
                 row.distance_m or math.inf,
@@ -447,14 +559,20 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
             continue
 
         # Sequential token extraction: dist, current (mA), voltage (mV), impedance (mΩ/Ω)
-        dist_match_seq = distance_pattern.search(line) or distance_unit_pattern.search(line)
+        dist_match_seq = distance_pattern.search(line) or distance_unit_pattern.search(
+            line
+        )
         cur_match_seq = re.search(r"(-?\d+(?:[.,]\d+)?)\s*mA", line, re.IGNORECASE)
         volt_match_seq = re.search(r"(-?\d+(?:[.,]\d+)?)\s*mV", line, re.IGNORECASE)
-        imp_match_m = re.search(r"(-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]", line, re.IGNORECASE)
+        imp_match_m = re.search(
+            r"(-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]", line, re.IGNORECASE
+        )
         imp_match_O = re.search(r"(-?\d+(?:[.,]\d+)?)\s*Ω", line, re.IGNORECASE)
         degs = list(degree_pattern.finditer(line))
 
-        if dist_match_seq and (cur_match_seq or volt_match_seq or imp_match_m or imp_match_O):
+        if dist_match_seq and (
+            cur_match_seq or volt_match_seq or imp_match_m or imp_match_O
+        ):
             row = ParsedRow(distance_m=_normalize_number(dist_match_seq.group(1)))
             if cur_match_seq:
                 row.current_a = _normalize_number(cur_match_seq.group(1)) * 1e-3
@@ -465,10 +583,19 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
             elif imp_match_O:
                 row.impedance_ohm = _normalize_number(imp_match_O.group(1))
             # If we have V and I but no Z, compute Z = V/I
-            if row.impedance_ohm is None and row.voltage_v is not None and row.current_a not in (None, 0):
+            if (
+                row.impedance_ohm is None
+                and row.voltage_v is not None
+                and row.current_a not in (None, 0)
+            ):
                 row.impedance_ohm = abs(row.voltage_v / row.current_a)
-                if row.voltage_angle_deg is not None and row.current_angle_deg is not None:
-                    row.impedance_angle_deg = row.voltage_angle_deg - row.current_angle_deg
+                if (
+                    row.voltage_angle_deg is not None
+                    and row.current_angle_deg is not None
+                ):
+                    row.impedance_angle_deg = (
+                        row.voltage_angle_deg - row.current_angle_deg
+                    )
 
             if degs:
                 if len(degs) >= 1 and row.current_a is not None:
@@ -495,7 +622,9 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         if "|" in line:
             parts = [p.strip() for p in line.split("|") if p.strip()]
             if len(parts) >= 4:
-                dist_match = re.search(r"(-?\d+(?:[.,]\d+)?)\s*m", parts[0], re.IGNORECASE)
+                dist_match = re.search(
+                    r"(-?\d+(?:[.,]\d+)?)\s*m", parts[0], re.IGNORECASE
+                )
                 if dist_match:
                     row = ParsedRow(distance_m=_normalize_number(dist_match.group(1)))
                     cur_val, cur_ang, _ = _parse_value_angle_unit(parts[1])
@@ -552,11 +681,15 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
             row.voltage_angle_deg = _normalize_number(ang_match.group(1))
 
         # Impedance / resistance
-        imp_match = impedance_label_pattern.search(line) or impedance_unit_pattern.search(line)
+        imp_match = impedance_label_pattern.search(
+            line
+        ) or impedance_unit_pattern.search(line)
         if imp_match:
             row.impedance_ohm = _normalize_number(imp_match.group(1))
         else:
-            mo_matches = re.findall(r"(-?\d+(?:[.,]\d+)?)\s*m[Ω0o]", line, re.IGNORECASE)
+            mo_matches = re.findall(
+                r"(-?\d+(?:[.,]\d+)?)\s*m[Ω0o]", line, re.IGNORECASE
+            )
             if mo_matches:
                 row.impedance_ohm = _normalize_number(mo_matches[-1]) * 1e-3
             else:
@@ -564,7 +697,11 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
                 if o_matches:
                     row.impedance_ohm = _normalize_number(o_matches[-1])
 
-        if ang_match and row.impedance_ohm is not None and row.current_angle_deg is None:
+        if (
+            ang_match
+            and row.impedance_ohm is not None
+            and row.current_angle_deg is None
+        ):
             row.impedance_angle_deg = _normalize_number(ang_match.group(1))
 
         key = (
@@ -581,7 +718,11 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
     rows.sort(key=lambda r: r.distance_m if r.distance_m is not None else math.inf)
 
     # Fill missing or obviously wrong currents with median of reasonable currents
-    cur_candidates = [r.current_a for r in rows if r.current_a is not None and 0.01 < abs(r.current_a) < 0.3]
+    cur_candidates = [
+        r.current_a
+        for r in rows
+        if r.current_a is not None and 0.01 < abs(r.current_a) < 0.3
+    ]
     median_cur = float(np.median(cur_candidates)) if cur_candidates else None
     if median_cur is not None:
         for r in rows:
@@ -595,10 +736,19 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         for r in rows:
             if r.voltage_v is not None and r.current_a not in (None, 0):
                 z_calc = abs(r.voltage_v / r.current_a)
-                if r.impedance_ohm is None or r.impedance_ohm <= 0 or abs(r.impedance_ohm - z_calc) / z_calc > 0.2:
+                if (
+                    r.impedance_ohm is None
+                    or r.impedance_ohm <= 0
+                    or abs(r.impedance_ohm - z_calc) / z_calc > 0.2
+                ):
                     r.impedance_ohm = z_calc
-                    if r.voltage_angle_deg is not None and r.current_angle_deg is not None:
-                        r.impedance_angle_deg = r.voltage_angle_deg - r.current_angle_deg
+                    if (
+                        r.voltage_angle_deg is not None
+                        and r.current_angle_deg is not None
+                    ):
+                        r.impedance_angle_deg = (
+                            r.voltage_angle_deg - r.current_angle_deg
+                        )
 
     return rows
 
@@ -666,10 +816,12 @@ def build_items_from_rows(
                 "distance_to_current_injection_m": distance_to_current_injection_m,
             }
             prev = seen_imp.get(dist_key)
+
             # Prefer item with angle, otherwise larger magnitude
             def _score(it: Dict[str, object]) -> tuple[int, float]:
                 has_ang = 1 if it.get("value_angle_deg") is not None else 0
                 return (has_ang, float(it.get("value", 0.0)))
+
             if prev is None or _score(candidate) > _score(prev):
                 seen_imp[dist_key] = candidate
     impedance_items.extend(seen_imp.values())
@@ -677,7 +829,11 @@ def build_items_from_rows(
     for row in rows_with_dist:
         if row.current_a is not None:
             current_pairs.append((row.current_a, row.current_angle_deg))
-        if row.voltage_v is not None and row.distance_m is not None and 0.5 <= row.distance_m <= 1.5:
+        if (
+            row.voltage_v is not None
+            and row.distance_m is not None
+            and 0.5 <= row.distance_m <= 1.5
+        ):
             voltage_rows.append(row)
 
     # Merge currents: median if spread <= ±20%; else emit distinct values
@@ -722,17 +878,32 @@ def build_items_from_rows(
     seen_ptv: List[ParsedRow] = []
     if voltage_rows:
         min_delta = min(abs(r.distance_m - 1.0) for r in voltage_rows)
-        candidates = [r for r in voltage_rows if abs(r.distance_m - 1.0) <= min_delta + 0.02 * max(1.0, r.distance_m)]
+        candidates = [
+            r
+            for r in voltage_rows
+            if abs(r.distance_m - 1.0) <= min_delta + 0.02 * max(1.0, r.distance_m)
+        ]
         for r in candidates:
             dup = False
             for existing in seen_ptv:
                 dist_tol = 0.02 * max(existing.distance_m, r.distance_m, 1e-6)
                 val_tol = 0.02 * max(existing.voltage_v, r.voltage_v, 1e-6)
                 ang_ok = True
-                if existing.voltage_angle_deg is not None and r.voltage_angle_deg is not None:
-                    ang_tol = 0.02 * max(abs(existing.voltage_angle_deg), abs(r.voltage_angle_deg), 1.0)
-                    ang_ok = abs(existing.voltage_angle_deg - r.voltage_angle_deg) <= ang_tol
-                if abs(existing.distance_m - r.distance_m) <= dist_tol and abs(existing.voltage_v - r.voltage_v) <= val_tol and ang_ok:
+                if (
+                    existing.voltage_angle_deg is not None
+                    and r.voltage_angle_deg is not None
+                ):
+                    ang_tol = 0.02 * max(
+                        abs(existing.voltage_angle_deg), abs(r.voltage_angle_deg), 1.0
+                    )
+                    ang_ok = (
+                        abs(existing.voltage_angle_deg - r.voltage_angle_deg) <= ang_tol
+                    )
+                if (
+                    abs(existing.distance_m - r.distance_m) <= dist_tol
+                    and abs(existing.voltage_v - r.voltage_v) <= val_tol
+                    and ang_ok
+                ):
                     dup = True
                     break
             if dup:
