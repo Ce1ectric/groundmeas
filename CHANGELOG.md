@@ -63,6 +63,19 @@ During regular work, add your entry under the matching category in
   conservative=False)`** and `gm-cli impedance-over-frequency
   --profile-algorithm`.
 
+- **`groundmeas.instruments`** — readers for OMICRON instrument exports
+  (moved from `tower-grounding-measurement` and extended):
+  `CompanoXMLReader` reads the fall-of-potential test of a COMPANO 100 XML
+  export with the complex voltages and currents at both test frequencies
+  (`read_fall_of_potential()`, `FallOfPotentialData.impedance(f)`), the
+  reduction-factor clamp readings (`read_reduction_factor()`), the
+  step/touch output currents and the soil-resistivity readings with their
+  electrode geometry (`read_soil_resistivity()`: `AB/2 = c + a/2`,
+  `MN/2 = a/2`, Wenner detection); `Hgt1TXTReader` reads HGT1
+  *StepTouch* reports and interpolates them to the power frequency. Units
+  (`mA`, `mV`, `kV`, `cm`, `km`, `ft`) are converted to SI, malformed files
+  raise `MeasurementFileError` with the file name.
+
 ### Changed (Tower-grounding integration — 2026-10)
 
 - **`impedance_over_frequency` returns one value per frequency from all

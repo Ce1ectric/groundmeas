@@ -42,3 +42,5 @@ src/test_marker.tmp
 Users/
 Python=3.14/
 
+# Synthetic instrument exports used by the tests (see tests/data/README.md)
+!tests/data/*.xml

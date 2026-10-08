@@ -11,7 +11,30 @@ so tests that share a process need an explicit reset between cases.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
+
+DATA = Path(__file__).parent / "data"
+"""Synthetic instrument exports (see ``tests/data/README.md``)."""
+
+
+@pytest.fixture(scope="session")
+def data_dir() -> Path:
+    """Folder with the synthetic instrument exports."""
+    return DATA
+
+
+@pytest.fixture(scope="session")
+def compano_xml() -> Path:
+    """Synthetic OMICRON COMPANO 100 export with a fall-of-potential test."""
+    return DATA / "compano_fall_of_potential.xml"
+
+
+@pytest.fixture(scope="session")
+def hgt1_txt() -> Path:
+    """Synthetic OMICRON HGT1 StepTouch report (CRLF line endings)."""
+    return DATA / "hgt1_step_touch_report.txt"
 
 
 @pytest.fixture(autouse=True)
