@@ -195,6 +195,14 @@ During regular work, add your entry under the matching category in
 
 ### Internal (Tower-grounding integration — 2026-10)
 
+- CI: the test job installs the `pdf` extra and Chromium, so the PDF tests
+  run; new jobs run the tower and instrument tests on Windows and macOS,
+  build the documentation with `mkdocs build --strict` and install the
+  built wheel in a clean environment to run the tower demo
+  (`towers run --no-pdf`, `towers import-db`). Publishing waits for all of
+  them.
+- pre-commit: `check-yaml` runs with `--unsafe` because `mkdocs.yml` uses
+  `!!python/name` tags.
 - `gm-cli towers install-browser` explains that the `pdf` extra is missing
   instead of failing with `No module named playwright`.
 - New runtime dependencies `openpyxl` (Excel workbooks of the tower
