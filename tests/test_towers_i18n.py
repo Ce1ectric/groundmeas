@@ -78,3 +78,13 @@ def test_format_number(value, language, expected):
 
 def test_get_strings_returns_table():
     assert get_strings("de")["protocol_header"] == "Protokoll Erdungsmessung"
+
+
+def test_termination_labels_match_the_reader():
+    """The HGT1 reader and the protocol texts use the same labels."""
+    from groundmeas.instruments.omicron import TERMINATION_LABELS
+
+    assert set(TERMINATION_LABELS) == set(SUPPORTED_LANGUAGES)
+    for language, labels in TERMINATION_LABELS.items():
+        for code, label in labels.items():
+            assert translate(f"termination_{code}", language) == label

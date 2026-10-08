@@ -15,7 +15,10 @@ pytestmark = pytest.mark.pdf
 @pytest.fixture(autouse=True)
 def _require_browser(chromium_available):
     if not chromium_available:
-        pytest.skip("no Chromium-based browser (run `gm-cli towers install-browser`)")
+        pytest.skip(
+            'no PDF printing: pip install "groundmeas[pdf]" and run '
+            "`gm-cli towers install-browser`"
+        )
 
 
 def test_protocol_pdf(evaluated_demo, tmp_path):

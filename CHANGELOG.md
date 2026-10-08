@@ -174,6 +174,8 @@ During regular work, add your entry under the matching category in
 
 ### Internal (Tower-grounding integration — 2026-10)
 
+- `gm-cli towers install-browser` explains that the `pdf` extra is missing
+  instead of failing with `No module named playwright`.
 - New runtime dependencies `openpyxl` (Excel workbooks of the tower
   campaigns) and `jinja2` (protocol templates); `playwright` only in the
   `pdf` extra.

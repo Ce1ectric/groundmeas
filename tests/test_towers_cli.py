@@ -166,6 +166,7 @@ def test_install_browser_uses_the_running_interpreter(monkeypatch):
     import groundmeas.towers.pdf as pdf
 
     calls = []
+    monkeypatch.setattr(pdf.importlib.util, "find_spec", lambda name: object())
     monkeypatch.setattr(
         pdf.subprocess, "call", lambda command: calls.append(command) or 0
     )
@@ -173,3 +174,14 @@ def test_install_browser_uses_the_running_interpreter(monkeypatch):
     assert calls == [[sys.executable, "-m", "playwright", "install", "chromium"]]
     monkeypatch.setattr(pdf.subprocess, "call", lambda command: 3)
     assert run("install-browser").exit_code == 3
+
+
+def test_install_browser_without_playwright(monkeypatch):
+    import groundmeas.towers.pdf as pdf
+
+    calls = []
+    monkeypatch.setattr(pdf.subprocess, "call", lambda command: calls.append(1))
+    monkeypatch.setattr(pdf.importlib.util, "find_spec", lambda name: None)
+    result = run("install-browser")
+    assert result.exit_code == 1
+    assert calls == []

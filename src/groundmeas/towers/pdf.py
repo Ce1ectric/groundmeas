@@ -18,6 +18,7 @@ be selected with the environment variable ``GROUNDMEAS_BROWSER``.
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 import shutil
@@ -261,8 +262,15 @@ def install_browser() -> int:
     Returns
     -------
     int
-        Exit code of the Playwright installer.
+        Exit code of the Playwright installer; ``1`` if Playwright (the
+        ``pdf`` extra) is not installed.
     """
+    if importlib.util.find_spec("playwright") is None:
+        logger.error(
+            'Playwright is not installed: pip install "groundmeas[pdf]" (or use '
+            "--no-pdf for HTML protocols)"
+        )
+        return 1
     command = [sys.executable, "-m", "playwright", "install", "chromium"]
     logger.info("Running: %s", " ".join(command))
     return subprocess.call(command)
