@@ -14,6 +14,16 @@ Full documentation: https://ce1ectric.github.io/groundmeas/
   model, touch voltages / EPR, split factor, multilayer soil model and
   1-3 layer inversion (Wenner / Schlumberger).
 - Import / export to JSON, CSV, XML and OCR import from images.
+- Native import of OMICRON COMPANO 100 (XML) and HGT1 (StepTouch report)
+  exports: fall-of-potential profiles at the power and both test
+  frequencies, footing resistance, split-factor currents, touch voltages and
+  soil resistivity (`gm-cli import-omicron`).
+- Tower campaigns (`gm-cli towers`, formerly the package
+  `tower-grounding-measurement`): evaluation of overhead-line towers with
+  the 62 % method, touch voltages at the earth-fault current, assessment
+  against the permissible touch voltage (EN 50522 / EN 50341), JSON/Excel
+  results, HTML/PDF protocols in English or German and a statistics report;
+  `gm-cli towers import-db` copies a campaign into the database.
 
 ## Installation
 
@@ -22,6 +32,8 @@ Prerequisites: Python 3.14+.
 ```bash
 # From PyPI
 pip install groundmeas
+# with PDF protocols for tower campaigns (Playwright)
+pip install "groundmeas[pdf]" && gm-cli towers install-browser
 
 # Or from source
 git clone https://github.com/Ce1ectric/groundmeas.git
@@ -42,6 +54,14 @@ gm-cli soil-inversion SOIL_MEAS_ID --layers 2 --method wenner
 
 # Launch the interactive dashboard
 gm-cli dashboard
+
+# Import OMICRON exports of one location
+gm-cli import-omicron --location "Tower 8" --asset-type overhead_line_tower \
+    --ze ZE_tower8.xml --ut UT_tower8.txt -D 100
+
+# Evaluate a tower campaign (synthetic demo)
+gm-cli towers demo demo
+gm-cli towers run --config demo/config.json --no-pdf
 ```
 
 ```python

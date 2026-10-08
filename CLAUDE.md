@@ -4,7 +4,7 @@ Python-Paket zur Erfassung, Speicherung, Analyse und Visualisierung von Erdungsm
 
 - Repo: https://github.com/Ce1ectric/groundmeas
 - Doku: https://ce1ectric.github.io/groundmeas/
-- Aktuelle Version: `1.4.0` (siehe `pyproject.toml`, `CITATION.cff`, `src/groundmeas/__init__.py`)
+- Aktuelle Version: `1.5.2` in Arbeit (siehe `pyproject.toml`, `CITATION.cff`, `src/groundmeas/__init__.py`; PyPI: 1.5.1)
 - Branch: `main`
 
 ## Toolchain
@@ -27,9 +27,25 @@ src/groundmeas/
 │   └── models.py         # Location, Measurement, MeasurementItem + Literal-Typen
 ├── services/
 │   ├── analytics.py      # Impedanz/Frequenz, rho–f-Modell, Distance-Profile,
-│   │                     # Soil-Resistivity, 1–3-Schicht-Inversion (Wenner/Schlumberger)
+│   │                     # 62 % (value_at_62_percent, conservative), Soil-Resistivity,
+│   │                     # 1–3-Schicht-Inversion (Wenner/Schlumberger)
 │   ├── export.py         # JSON/CSV/XML-Export
+│   ├── json_import.py    # JSON-Import (Round-Trip zu export-json)
+│   ├── omicron_import.py # COMPANO-100-/HGT1-Dateien -> Measurements/Items
 │   └── vision_import.py  # OCR-Import aus Bildern (pytesseract + opencv)
+├── instruments/
+│   └── omicron.py        # CompanoXMLReader, Hgt1TXTReader (reine Reader, keine DB)
+├── towers/               # Mastkampagnen (vormals tower-grounding-measurement), dateibasiert
+│   ├── cli.py            # typer-Sub-App `gm-cli towers` (run, demo, example-config,
+│   │                     # flatten, import-db, install-browser)
+│   ├── analysis.py       # GroundingSystemAnalysis, LineModel, U_TP(t_F)
+│   ├── campaign.py       # calculate_summary (--calc), Bewertung ZE/UT/MASS
+│   ├── config.py         # Kampagnen-config.json, EXPORT_TEMPLATE, EXAMPLE_CONFIG
+│   ├── files.py, naming.py, paths.py   # flacher Messordner, Leitung/Mast aus Dateinamen
+│   ├── protocol.py, plots.py, results.py, pdf.py, templates/   # HTML/PDF-Protokolle
+│   ├── stats.py          # Statistikbericht (deutsch)
+│   ├── line_protection.py, i18n.py, demo.py, flatten.py
+│   └── database.py       # import_campaign: Kampagne -> groundmeas-DB (towers import-db)
 ├── visualization/
 │   ├── plots.py          # matplotlib
 │   ├── vis_plotly.py     # plotly
@@ -42,8 +58,8 @@ src/groundmeas/
 ├── db.py, export.py, models.py, plots.py, vision_import.py  # Shims für Abwärtskompatibilität
 └── cli.py                # Shim
 
-tests/                    # pytest-Suite, eine Datei pro Modul
-docs/                     # MkDocs-Quellen (index.md, 01..22, 99_contributing.md)
+tests/                    # pytest-Suite, eine Datei pro Modul (test_towers_*.py für towers/)
+docs/                     # MkDocs-Quellen (index.md, 01..22, towers/, adr/, 99_contributing.md)
 notebooks/                # Jupyter-Experimente (im .gitignore, nicht versionieren)
 scripts/                  # release, license-checks
 ```
@@ -84,6 +100,9 @@ Reihenfolge in CLI/Services:
 - `soil_resistivity_profile[_detailed]`, `soil_resistivity_curve`
 - `layered_earth_forward`, `invert_layered_earth`, `invert_soil_resistivity_layers`, `multilayer_soil_model` — 1–3-Schicht-Inversion für Wenner/Schlumberger
 - `calculate_split_factor`, `shield_currents_for_location`, `voltage_vt_epr`
+- `value_at_62_percent(..., conservative=True)` = 62-%-Verfahren der Mastauswertung
+  (Extrapolation + konservative Korrekturen); `distance_profile_value`,
+  `impedance_over_frequency`, `voltage_vt_epr` sind frequenz- und profilfähig
 
 Optionaler Math-Backend-Switch: `GROUNDMEAS_MATH_BACKEND` = `numpy` | `mlx` (MLX wird nur genutzt, wenn installiert; sonst NumPy-Fallback mit Warning). `scipy.special` wird weich importiert.
 
@@ -118,6 +137,14 @@ poetry run gm-cli list-measurements
 # Dashboard
 poetry run streamlit run src/groundmeas/ui/dashboard.py
 
+# Mastkampagne (synthetische Demo)
+poetry run gm-cli towers demo /tmp/demo
+poetry run gm-cli towers run --config /tmp/demo/config.json --no-pdf
+poetry run gm-cli --db /tmp/demo.db towers import-db --config /tmp/demo/config.json
+
+# PDF-Protokolle: Extra + Browser
+poetry install --extras pdf && poetry run gm-cli towers install-browser
+
 # Doku lokal bauen
 poetry run mkdocs serve
 
@@ -128,6 +155,16 @@ poetry run release
 ## Gitignore-Besonderheiten
 
 `*.csv`, `*.json`, `*.xml`, `*.db`, `notebooks/`, `dist/`, `site/` sind ignoriert. Export-Beispiele aus Tutorials daher nicht in `git add` ziehen — auch nicht `tmp_test.db`, `dummy.xml`, `notebooks/*`.
+
+Ausnahme: `tests/data/*.xml` (synthetische Instrument-Exporte für die Tests, per `.gitattributes` byte-genau).
+
+## Mastkampagnen (`groundmeas.towers`)
+
+- Dateibasierter Workflow: flacher Messordner + Excel-Arbeitsmappen + `config.json`; die `towers`-Befehle öffnen **keine** Datenbank (Ausnahme `towers import-db`, verbindet sich selbst über `_connect_database`).
+- JSON-Ergebnisse behalten die **deutschen Schlüssel** (`ZE_62_Ohm`, `UT_V`, …) — Kompatibilität mit bestehenden Auswertungen. Berührungsspannungen werden bewusst mit `np.ceil` aufgerundet (nicht ändern).
+- Ergebnisse sind gegen tower-grounding-measurement 0.2 verifiziert (Demo + realer Mast: JSON/Excel identisch, PDFs pixelgleich bei gleicher matplotlib-Version). Änderungen an `towers/` mit dem Demo-Lauf gegenprüfen.
+- Keine echten Messdaten, Netzdaten, Kampagnen-Configs, Logos oder Auftragnehmernamen ins Repo; Tests nutzen nur die synthetische Demo (`towers/demo.py`).
+- Playwright ist optional (`[project.optional-dependencies] pdf`); ohne Extra laufen alle Tests, PDF-Tests werden übersprungen.
 
 ## Bekannte Altlasten / Hinweise
 

@@ -1,6 +1,8 @@
 # Import and export
 
 This tutorial covers JSON, CSV, and XML export, JSON import, and OCR-based import from measurement images.
+Exports of OMICRON COMPANO 100 and HGT1 instruments are imported directly, see
+[Import from OMICRON instruments](17_instrument_import.md).
 
 ## Physical background
 
@@ -8,6 +10,7 @@ Not applicable. This tutorial focuses on data transfer and ingestion.
 
 ## Function overview
 - `export_measurements_to_json`, `export_measurements_to_csv`, `export_measurements_to_xml` export measurement data.
+- `import_measurements_from_json` / `import_measurements` read JSON written by `export_measurements_to_json` (round trip; time stamps are parsed, database keys are dropped).
 - `import_items_from_images` runs OCR and creates items from images.
 - CLI commands `import-json`, `export-json`, and `import-from-images` provide the same capabilities.
 
@@ -17,6 +20,7 @@ Not applicable. This tutorial focuses on data transfer and ingestion.
 | `export_measurements_to_json` | `path`, filters | none | Write measurements to JSON. |
 | `export_measurements_to_csv` | `path`, filters | none | Write measurements to CSV. |
 | `export_measurements_to_xml` | `path`, filters | none | Write measurements to XML. |
+| `import_measurements_from_json` | file or folder path | list of (measurement id, item count) | Import JSON exports (single file, folder or `X_measurement.json` + `X_items.json`). |
 | `import_items_from_images` | images dir, measurement id | summary dict | OCR import of items from images. |
 
 ## General workflow
@@ -47,6 +51,10 @@ gm.connect_db("groundmeas.db")
 
 gm.export_measurements_to_json("export/site_a.json", id__in=[1])
 gm.export_measurements_to_csv("export/site_a.csv", id__in=[1])
+
+# in another database
+gm.connect_db("other.db", force=True)
+imported = gm.import_measurements_from_json("export/site_a.json")  # [(id, n_items), ...]
 ```
 
 ### Scenario B: OCR import

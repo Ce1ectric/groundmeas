@@ -172,6 +172,27 @@ During regular work, add your entry under the matching category in
   warns when several items share a frequency (the last one is used, as
   before).
 
+### Docs (Tower-grounding integration — 2026-10)
+
+- New section **Tower campaigns** (`docs/towers/`): overview and
+  installation, quickstart with the demo campaign, campaign preparation
+  (file names, workbooks, `towers flatten`), configuration reference,
+  command line, results (JSON fields, Excel summary, protocol), campaigns in
+  the database (`towers import-db`), Python API, troubleshooting, physical
+  background, assessment procedure and a migration guide from
+  `tower-grounding-measurement` (commands, environment variables, module
+  mapping). Ported from the TGM documentation; examples re-run with
+  groundmeas.
+- New tutorial **Import from OMICRON instruments**
+  (`docs/17_instrument_import.md`); the import/export tutorial documents
+  the JSON round trip (`import_measurements_from_json`).
+- API and CLI references list `create_items`, `value_at_62_percent`, the
+  JSON and OMICRON importers, `groundmeas.instruments`, `groundmeas.towers`,
+  `import-omicron`, the new analytics options and the `towers` commands.
+- MkDocs: admonitions, collapsible blocks, tabs, task lists, card grids
+  (`md_in_html` + emoji icons) and Mermaid diagrams are enabled
+  (existing `!!! note` blocks now render as notes).
+
 ### Internal (Tower-grounding integration — 2026-10)
 
 - `gm-cli towers install-browser` explains that the `pdf` extra is missing

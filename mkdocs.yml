@@ -50,6 +50,20 @@ nav:
       - Import & Export: 14_import_export.md
       - Analytics: 15_analytics.md
       - Dashboard: 16_dashboard.md
+      - Import from OMICRON instruments: 17_instrument_import.md
+  - Tower campaigns:
+      - Overview: towers/index.md
+      - Quickstart: towers/quickstart.md
+      - Preparing a campaign: towers/campaign.md
+      - Configuration: towers/configuration.md
+      - Command line: towers/cli.md
+      - Results: towers/results.md
+      - Campaigns in the database: towers/database.md
+      - Python API: towers/python.md
+      - Troubleshooting: towers/troubleshooting.md
+      - Physical background: towers/physics.md
+      - Assessment procedure: towers/assessment.md
+      - Migration from tower-grounding-measurement: towers/migration.md
   - Reference:
       - Overview: 20_ref_intro.md
       - API: 21_ref_api.md
@@ -60,11 +74,32 @@ nav:
   - Contributing: 99_contributing.md
 
 markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - pymdownx.arithmatex:
       generic: true
 

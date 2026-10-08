@@ -55,6 +55,7 @@ emits a spurious deprecation warning.
 | `disconnect_db` | none | none | Dispose the active engine. Idempotent. |
 | `create_measurement` | measurement dict | measurement id | Create a measurement, optionally with nested location. |
 | `create_item` | item dict, `measurement_id` | item id | Create a measurement item. |
+| `create_items` | list of item dicts, `measurement_id` | list of item ids | Create many items in one transaction (all or nothing). |
 | `read_measurements` | `where` clause | list of measurements, list of ids | Read measurements with nested items and location. |
 | `read_measurements_by` | filters | list of measurements, list of ids | Read measurements with suffix operators (`__lt`, `__in`, etc). |
 | `read_items_by` | filters | list of items, list of ids | Read items with suffix operators. |
@@ -66,13 +67,14 @@ emits a spurious deprecation warning.
 ## Analytics (`groundmeas` / `groundmeas.services.analytics`)
 | function | input | output | description |
 | --- | --- | --- | --- |
-| `impedance_over_frequency` | measurement id or list | dict | Frequency to impedance map. |
+| `impedance_over_frequency` | measurement id or list, `profile_algorithm`, `conservative` | dict | Frequency to impedance map (profiles reduced per frequency). |
 | `real_imag_over_frequency` | measurement id or list | dict | Frequency to real and imag map. |
-| `distance_profile_value` | measurement id, algorithm, window | dict | Reduce distance profile to one value. |
+| `distance_profile_value` | measurement id, algorithm, window, `frequency_hz`, `conservative` | dict | Reduce distance profile to one value (optionally one frequency; `conservative=True` = 62 % procedure of the tower evaluation). |
+| `value_at_62_percent` | distances, values, injection distance, `conservative` | dict | 62 % method as a pure function (value, target distance, used points, corrections). |
 | `value_over_distance` | measurement id or list, type | dict | Distance to value map. |
 | `value_over_distance_detailed` | measurement id or list, type | list or dict | Distance, value, frequency points. |
 | `rho_f_model` | measurement ids | tuple | Rho-f coefficients k1 to k5. |
-| `voltage_vt_epr` | measurement id or list, frequency | dict | EPR and touch voltage summary. |
+| `voltage_vt_epr` | measurement id or list, frequency, `profile_algorithm`, `conservative`, `additional_resistance_ohm` | dict | Per-ampere impedance and touch voltages (profiles reduced, touch voltages optionally filtered by additional resistance). |
 | `shield_currents_for_location` | location id, frequency | list | Shield current items. |
 | `calculate_split_factor` | earth fault item id, shield item ids | dict | Split factor and current components. |
 | `soil_resistivity_profile` | measurement id, method, value_kind | dict | Depth to apparent resistivity map. |
@@ -89,6 +91,42 @@ emits a spurious deprecation warning.
 | `export_measurements_to_json` | `path`, filters | none | Write measurements and items to JSON. |
 | `export_measurements_to_csv` | `path`, filters | none | Write measurements to CSV with items as JSON. |
 | `export_measurements_to_xml` | `path`, filters | none | Write measurements and items to XML. |
+
+## JSON import (`groundmeas` / `groundmeas.services.json_import`)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `import_measurements_from_json` | file or folder path | list of (measurement id, item count) | Import files written by `export_measurements_to_json` (round trip). |
+| `import_measurements` | list of measurement dicts | list of (measurement id, item count) | Import already loaded measurement dicts (validated before anything is written). |
+
+## OMICRON import (`groundmeas` / `groundmeas.services.omicron_import`)
+| function | input | output | description |
+| --- | --- | --- | --- |
+| `import_fall_of_potential` | COMPANO XML, `location`, `asset_type`, `current_electrode_distance_m`, options | measurement id | Fall-of-potential profile (power and test frequencies), footing resistance, injected current, split-factor currents. |
+| `import_step_touch` | HGT1 report, `location`, `asset_type`, `compano_xml_path`, `transferred`, options | measurement id | Touch voltages (or transferred potentials) with termination and reference current. |
+| `import_soil_resistivity` | COMPANO XML, `location`, `asset_type`, options | measurement id | Soil resistivity as Wenner or Schlumberger measurement. |
+
+See [Import from OMICRON instruments](17_instrument_import.md).
+
+## Instrument readers (`groundmeas.instruments`)
+| class / function | input | output | description |
+| --- | --- | --- | --- |
+| `CompanoXMLReader` | COMPANO 100 XML | data classes / DataFrames | `read_fall_of_potential`, `read_reduction_factor`, `get_step_touch_currents`, `read_soil_resistivity`, `get_report_timestamp`, `get_impedance_to_ground_dataframe`. |
+| `Hgt1TXTReader` | HGT1 report, nominal frequency | DataFrame | `get_touchvoltage_dataframe` with the readings interpolated to the power frequency. |
+| `MeasurementFileError` | – | – | Raised for incomplete or malformed exports (subclass of `ValueError`). |
+
+## Tower campaigns (`groundmeas.towers`)
+| function / class | input | output | description |
+| --- | --- | --- | --- |
+| `calculate_summary` | `config_path` | DataFrame | Evaluate all towers (JSON per tower, Excel summary). |
+| `print_protocol`, `zip_protocols` | `config_path`, options | none | Diagrams, HTML/PDF protocols, ZIP archive. |
+| `generate_asset_report` | `config_path`, options | none | Statistics report over all towers. |
+| `GroundingSystemAnalysis` | profiles, touch voltages, grid values | object | Assessment of one tower. |
+| `LineModel`, `LineProtectionTable` | short-circuit data, protection table | objects | Fault current and clearing time along a line. |
+| `read_config`, `write_example_config` | path | dict / path | Campaign configuration. |
+| `import_campaign`, `find_tower_files` | `config_path` / folder | list | Copy a campaign into the database / list the files per tower. |
+| `write_demo_campaign` | folder, language | config path | Synthetic demo campaign. |
+
+See [Tower campaigns – Python API](towers/python.md).
 
 ## OCR Import (`groundmeas` / `groundmeas.services.vision_import`)
 | function | input | output | description |
