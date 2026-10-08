@@ -265,6 +265,18 @@ During regular work, add your entry under the matching category in
 - New runtime dependencies `openpyxl` (Excel workbooks of the tower
   campaigns) and `jinja2` (protocol templates); `playwright` only in the
   `pdf` extra.
+- `poetry.lock` updated to versions with Python 3.14 wheels: `numpy`
+  2.2.5 → 2.5.3, `pandas` 2.2.3 → 2.3.3, `pillow` 11.2.1 → 12.3.0,
+  `contourpy` 1.3.2 → 1.4.0, `kiwisolver` 1.4.8 → 1.5.1, `pyzmq` 26.4.0 →
+  27.2.0 (dev), `pywin32` 310 → 312 (dev, Windows), and
+  `opencv-python-headless` 4.12.0.88 → 4.14.0.94 (4.12 requires
+  `numpy<2.3`). On Python 3.14 the old versions were built from source:
+  the `pyzmq` build fails with current Cython (`'hint' redeclared`), which
+  broke `poetry install` in CI, the source-built `pandas` 2.2.3 crashes
+  (segmentation fault in `pandas_datetime`), and `pywin32` 310 has no
+  source distribution at all. The ranges in `pyproject.toml` are
+  unchanged; the tower results (demo and a real campaign) are identical
+  with the new versions.
 - `click` is pinned to `<8.2`: with click 8.2 the pinned `typer` 0.15
   crashes when rendering `--help` (`Parameter.make_metavar() missing
   'ctx'`).
