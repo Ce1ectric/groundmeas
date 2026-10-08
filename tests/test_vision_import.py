@@ -107,11 +107,18 @@ def test_prospective_only_from_rows():
 
 
 def test_normalize_ocr_text():
-    out = vi._normalize_ocr_text(".5 0. 1.23 rn")
+    # Numeric-cleanup helpers still apply…
+    out = vi._normalize_ocr_text(".5 0. 1.23 rnΩ")
     assert "0.5" in out
     assert "0.0" in out
     assert "1.23" in out
-    assert "m" in out
+    # …and ``rn`` is rewritten to ``m`` in unit context (post 1.5.2).
+    assert "mΩ" in out
+    # Operator-name context: ``rn`` must be left alone (regression: pre-1.5.2
+    # corrupted *Bernhard*, *Schwerin*, etc.).
+    untouched = vi._normalize_ocr_text("Operator: Bernhard Schwerin")
+    assert "Bernhard" in untouched
+    assert "Schwerin" in untouched
 
 
 def test_parse_value_angle_unit():
@@ -129,7 +136,9 @@ def test_read_api_key_missing(monkeypatch):
 
 def test_ocr_image_tesseract(monkeypatch):
     monkeypatch.setattr(vi, "preprocess_image", lambda path: np.zeros((2, 2)))
-    monkeypatch.setattr(vi.pytesseract, "image_to_string", lambda img, lang, config: "TEXT")
+    monkeypatch.setattr(
+        vi.pytesseract, "image_to_string", lambda img, lang, config: "TEXT"
+    )
     out = ocr_image(Path("dummy.png"), provider_model="tesseract")
     assert out == "TEXT"
 
@@ -162,11 +171,19 @@ def test_import_items_from_images_dir_mode(monkeypatch, tmp_path):
     (subdir / "sample.png").write_bytes(b"fake")
 
     monkeypatch.setattr(vi, "ocr_image", lambda *args, **kwargs: "text")
-    monkeypatch.setattr(vi, "parse_measurement_rows", lambda text: [ParsedRow(distance_m=1.0, current_a=0.1)])
+    monkeypatch.setattr(
+        vi,
+        "parse_measurement_rows",
+        lambda text: [ParsedRow(distance_m=1.0, current_a=0.1)],
+    )
     monkeypatch.setattr(
         vi,
         "build_items_from_rows",
-        lambda **kwargs: {"impedance_items": [{"value": 1}], "earthing_current_items": [], "prospective_items": []},
+        lambda **kwargs: {
+            "impedance_items": [{"value": 1}],
+            "earthing_current_items": [],
+            "prospective_items": [],
+        },
     )
     monkeypatch.setattr(vi, "create_item", lambda payload, measurement_id: 123)
 

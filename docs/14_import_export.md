@@ -33,25 +33,29 @@ Not applicable. This tutorial focuses on data transfer and ingestion.
 
 ## Python API examples
 
+These examples use the canonical top-level package
+(`import groundmeas as gm`). The legacy `from groundmeas.export import ...`
+and `from groundmeas.vision_import import ...` forms still work but emit
+a `DeprecationWarning` — see the compatibility-shim list in
+`docs/21_ref_api.md`.
+
 ### Scenario A: export and share
 ```python
-from groundmeas.db import connect_db
-from groundmeas.export import export_measurements_to_json, export_measurements_to_csv
+import groundmeas as gm
 
-connect_db("groundmeas.db")
+gm.connect_db("groundmeas.db")
 
-export_measurements_to_json("export/site_a.json", id__in=[1])
-export_measurements_to_csv("export/site_a.csv", id__in=[1])
+gm.export_measurements_to_json("export/site_a.json", id__in=[1])
+gm.export_measurements_to_csv("export/site_a.csv", id__in=[1])
 ```
 
 ### Scenario B: OCR import
 ```python
-from groundmeas.db import connect_db
-from groundmeas.vision_import import import_items_from_images
+import groundmeas as gm
 
-connect_db("groundmeas.db")
+gm.connect_db("groundmeas.db")
 
-summary = import_items_from_images(
+summary = gm.import_items_from_images(
     images_dir="images/site_a",
     measurement_id=1,
     measurement_type="earthing_impedance",

@@ -1,11 +1,58 @@
 # API Reference
 
-All database-backed functions require `groundmeas.db.connect_db(path)` once per process.
+All database-backed functions require `groundmeas.connect_db(path)` once per
+process.
 
-## Database (groundmeas.db)
+!!! note "Canonical vs. shim import paths"
+    The canonical public surface lives at the top of the package
+    (`groundmeas`) and inside `groundmeas.core` / `groundmeas.services`
+    / `groundmeas.visualization` / `groundmeas.ui`. The bare module
+    paths listed in the table below are **compatibility shims** that
+    re-export everything from their canonical home. Each shim emits a
+    single `DeprecationWarning` on first attribute access; the warning
+    machinery lives in `groundmeas._shim.make_shim`, which is the
+    single source of truth for all seven shims.
+
+    New code should write either:
+
+    ```python
+    import groundmeas as gm
+    gm.connect_db("...")
+    ```
+
+    or the canonical sub-module path:
+
+    ```python
+    from groundmeas.core.db import connect_db
+    from groundmeas.services.analytics import distance_profile_value
+    ```
+
+    The shim paths will be removed in a future major release.
+
+### Compatibility shims — full list
+
+| Shim module | Canonical replacement | Deprecated since |
+| --- | --- | --- |
+| `groundmeas.db` | `groundmeas.core.db` | 1.5.2 |
+| `groundmeas.analytics` | `groundmeas.services.analytics` | 1.5.2 |
+| `groundmeas.models` | `groundmeas.core.models` | 1.5.2 |
+| `groundmeas.plots` | `groundmeas.visualization.plots` | 1.5.2 |
+| `groundmeas.export` | `groundmeas.services.export` | 1.5.2 |
+| `groundmeas.vision_import` | `groundmeas.services.vision_import` | 1.5.2 |
+| `groundmeas.cli` | `groundmeas.ui.cli` | 1.5.2 |
+
+All seven shims share the implementation in
+`groundmeas._shim.make_shim`. Private symbols (names starting with
+`_`) raise `AttributeError` *without* emitting a deprecation warning,
+mirroring how `import _name` would behave on the canonical module —
+for example, `from groundmeas.db import _get_session` no longer
+emits a spurious deprecation warning.
+
+## Database (`groundmeas` / `groundmeas.core.db`)
 | function | input | output | description |
 | --- | --- | --- | --- |
-| `connect_db` | `path`, `echo` | none | Initialize or open the SQLite database. |
+| `connect_db` | `path`, `echo`, `force` | none | Initialize or open the SQLite database. Pass `force=True` to swap the engine after a previous `connect_db` call. |
+| `disconnect_db` | none | none | Dispose the active engine. Idempotent. |
 | `create_measurement` | measurement dict | measurement id | Create a measurement, optionally with nested location. |
 | `create_item` | item dict, `measurement_id` | item id | Create a measurement item. |
 | `read_measurements` | `where` clause | list of measurements, list of ids | Read measurements with nested items and location. |
@@ -16,7 +63,7 @@ All database-backed functions require `groundmeas.db.connect_db(path)` once per 
 | `delete_measurement` | measurement id | bool | Delete a measurement and its items. |
 | `delete_item` | item id | bool | Delete a single item. |
 
-## Analytics (groundmeas.analytics)
+## Analytics (`groundmeas` / `groundmeas.services.analytics`)
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `impedance_over_frequency` | measurement id or list | dict | Frequency to impedance map. |
@@ -36,19 +83,19 @@ All database-backed functions require `groundmeas.db.connect_db(path)` once per 
 | `invert_layered_earth` | spacings, observed rho, model params | dict | Fitted layers and misfit stats. |
 | `invert_soil_resistivity_layers` | measurement id, model params | dict | Invert from stored soil items. |
 
-## Export (groundmeas.export)
+## Export (`groundmeas` / `groundmeas.services.export`)
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `export_measurements_to_json` | `path`, filters | none | Write measurements and items to JSON. |
 | `export_measurements_to_csv` | `path`, filters | none | Write measurements to CSV with items as JSON. |
 | `export_measurements_to_xml` | `path`, filters | none | Write measurements and items to XML. |
 
-## OCR Import (groundmeas.vision_import)
+## OCR Import (`groundmeas` / `groundmeas.services.vision_import`)
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `import_items_from_images` | images dir, measurement id, options | dict | OCR import of items from images. |
 
-## Matplotlib plots (groundmeas.plots)
+## Matplotlib plots (`groundmeas` / `groundmeas.visualization.plots`)
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `plot_imp_over_f` | measurement id or list, normalize | figure | Impedance vs frequency plot. |
@@ -58,7 +105,7 @@ All database-backed functions require `groundmeas.db.connect_db(path)` once per 
 | `plot_soil_model` | `rho_layers`, `thicknesses_m`, max depth | figure | Layered soil model plot. |
 | `plot_soil_inversion` | measurement id, inversion options | figure | Observed vs fitted resistivity plot. |
 
-## Plotly plots (groundmeas.vis_plotly)
+## Plotly plots (`groundmeas` / `groundmeas.visualization.vis_plotly`)
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `plot_imp_over_f_plotly` | measurement id or list, normalize | figure | Interactive impedance plot. |
@@ -68,7 +115,7 @@ All database-backed functions require `groundmeas.db.connect_db(path)` once per 
 | `plot_soil_model_plotly` | `rho_layers`, `thicknesses_m`, max depth | figure | Interactive soil model plot. |
 | `plot_soil_inversion_plotly` | measurement id, inversion options | figure | Interactive inversion plot. |
 
-## Maps (groundmeas.map_vis)
+## Maps (`groundmeas` / `groundmeas.visualization.map_vis`)
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `generate_map` | measurements, output file, open_browser | none | Generate a Folium map. |

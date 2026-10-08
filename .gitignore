@@ -27,3 +27,18 @@ site/
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
 CLAUDE.md
+
+# Repo-root hygiene (Audit pass 6/7, 2026-05-18) -------------------------
+# These are runtime / scratch artefacts that have repeatedly leaked into
+# the working copy. They are not part of the package and must never be
+# committed.
+feature.txt
+dummy.xml
+tmp_test.db
+test_write_check.tmp
+groundmeas.db
+groundmeas.db-journal
+src/test_marker.tmp
+Users/
+Python=3.14/
+

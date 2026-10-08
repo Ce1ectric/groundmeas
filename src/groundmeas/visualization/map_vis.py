@@ -72,7 +72,7 @@ def generate_map(
         loc = meas["location"]
         lat = loc["latitude"]
         lon = loc["longitude"]
-        
+
         # Create popup content
         popup_html = f"""
         <b>ID:</b> {meas.get('id')}<br>
@@ -81,11 +81,11 @@ def generate_map(
         <b>Type:</b> {meas.get('asset_type')}<br>
         <b>Method:</b> {meas.get('method')}<br>
         """
-        
+
         folium.Marker(
             location=[lat, lon],
             popup=folium.Popup(popup_html, max_width=300),
-            tooltip=f"{loc.get('name')} (ID: {meas.get('id')})"
+            tooltip=f"{loc.get('name')} (ID: {meas.get('id')})",
         ).add_to(m)
 
     # Save map

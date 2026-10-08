@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import mlx.core as mx  # type: ignore
+
     _MLX_AVAILABLE = True
 except Exception:
     mx = None  # type: ignore
@@ -31,6 +32,7 @@ except Exception:
 
 try:
     from scipy import special as _scipy_special  # type: ignore
+
     _SCIPY_AVAILABLE = True
 except Exception:
     _scipy_special = None  # type: ignore
@@ -297,9 +299,7 @@ def distance_profile_value(
                 "distance_m": float(dist),
                 "value": float(val),
                 "unit": item.get("unit"),
-                "distance_to_current_injection_m": inj
-                if inj is None
-                else float(inj),
+                "distance_to_current_injection_m": inj if inj is None else float(inj),
                 "description": item.get("description"),
             }
         except Exception:
@@ -317,12 +317,33 @@ def distance_profile_value(
 
     points.sort(key=lambda p: p["distance_m"])
 
-    def _dedupe_by_interpolation(raw_points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """For duplicate distances, keep the point closest to linear interpolation."""
+    def _dedupe_by_interpolation(
+        raw_points: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """For duplicate distances, keep the point closest to linear interpolation.
+
+        Emits a single :class:`UserWarning` listing all duplicate distances
+        encountered so silent data reductions become visible in downstream
+        analyses.
+        """
         by_dist: Dict[float, List[Dict[str, Any]]] = {}
         for p in raw_points:
             by_dist.setdefault(p["distance_m"], []).append(p)
         distances = sorted(by_dist.keys())
+
+        duplicate_distances = [d for d in distances if len(by_dist[d]) > 1]
+        if duplicate_distances:
+            preview = ", ".join(f"{d:g}" for d in duplicate_distances[:5])
+            ellipsis = "..." if len(duplicate_distances) > 5 else ""
+            warnings.warn(
+                "distance_profile_value: duplicate measurement distances "
+                f"{preview}{ellipsis} were collapsed by interpolation-based "
+                "dedup. Inspect the input data if this was unexpected "
+                f"(measurement_id={measurement_id}, "
+                f"measurement_type={measurement_type!r}).",
+                UserWarning,
+                stacklevel=3,
+            )
 
         def _mean_val(d: float) -> float:
             vals = [pp["value"] for pp in by_dist[d] if pp.get("value") is not None]
@@ -406,10 +427,14 @@ def distance_profile_value(
         xs = [p["distance_m"] for p in ordered]
         ys = [p["value"] for p in ordered]
         interpolated = float(np.interp(target, xs, ys))
-        return interpolated, target, {
-            "target_distance_m": target,
-            "used_points": ordered,
-        }
+        return (
+            interpolated,
+            target,
+            {
+                "target_distance_m": target,
+                "used_points": ordered,
+            },
+        )
 
     def _algo_minimum_gradient() -> Tuple[float, float, Dict[str, Any]]:
         if len(points) < 2:
@@ -418,10 +443,14 @@ def distance_profile_value(
         values = np.array([p["value"] for p in points], dtype=float)
         gradients = np.gradient(values, distances)
         idx = int(np.argmin(np.abs(gradients)))
-        return points[idx]["value"], points[idx]["distance_m"], {
-            "distance_m": points[idx]["distance_m"],
-            "gradient": float(gradients[idx]),
-        }
+        return (
+            points[idx]["value"],
+            points[idx]["distance_m"],
+            {
+                "distance_m": points[idx]["distance_m"],
+                "gradient": float(gradients[idx]),
+            },
+        )
 
     def _algo_minimum_stddev() -> Tuple[float, float, Dict[str, Any]]:
         if window < 2:
@@ -441,11 +470,15 @@ def distance_profile_value(
                 best_window = segment
         assert best_window is not None
         peak = max(best_window, key=lambda p: p["value"])
-        return peak["value"], peak["distance_m"], {
-            "window_size": window,
-            "stddev": best_std,
-            "window_points": best_window,
-        }
+        return (
+            peak["value"],
+            peak["distance_m"],
+            {
+                "window_size": window,
+                "stddev": best_std,
+                "window_points": best_window,
+            },
+        )
 
     def _algo_inverse() -> Tuple[float, float, Dict[str, Any]]:
         if len(points) < 2:
@@ -453,13 +486,17 @@ def distance_profile_value(
         distances = np.array([p["distance_m"] for p in points], dtype=float)
         values = np.array([p["value"] for p in points], dtype=float)
         if np.any(distances == 0) or np.any(values == 0):
-            raise ValueError("Distances and values must be non-zero for inverse algorithm")
+            raise ValueError(
+                "Distances and values must be non-zero for inverse algorithm"
+            )
         x = 1.0 / distances
         y = 1.0 / values
         coeffs = np.polyfit(x, y, 1)
         slope, intercept = float(coeffs[0]), float(coeffs[1])
         if intercept == 0:
-            raise ValueError("Inverse fit produced zero intercept; cannot compute limit")
+            raise ValueError(
+                "Inverse fit produced zero intercept; cannot compute limit"
+            )
         limit_value = 1.0 / intercept
         return limit_value, float("inf"), {"slope": slope, "intercept": intercept}
 
@@ -611,7 +648,9 @@ def _apply_filter(values: np.ndarray, coeffs: Dict[int, float]) -> np.ndarray:
     return out
 
 
-def _resample_log_grid(x: np.ndarray, y: np.ndarray, dx: float) -> Tuple[np.ndarray, np.ndarray]:
+def _resample_log_grid(
+    x: np.ndarray, y: np.ndarray, dx: float
+) -> Tuple[np.ndarray, np.ndarray]:
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     if np.any(y <= 0):
@@ -637,6 +676,14 @@ class LayeredEarthModel:
             raise ValueError("rho_layers must define 1, 2, or 3 layers")
         if len(self.thicknesses_m) != max(0, len(self.rho_layers) - 1):
             raise ValueError("thicknesses_m must have length len(rho_layers)-1")
+        # Reject nan / inf *before* the ``<= 0`` checks because NaN comparisons
+        # are always ``False`` and would otherwise let a NaN slip through.
+        for r in self.rho_layers:
+            if not math.isfinite(r):
+                raise ValueError("All resistivities must be finite (no nan/inf)")
+        for h in self.thicknesses_m:
+            if not math.isfinite(h):
+                raise ValueError("All thicknesses must be finite (no nan/inf)")
         if any(r <= 0 for r in self.rho_layers):
             raise ValueError("All resistivities must be > 0")
         if any(h <= 0 for h in self.thicknesses_m):
@@ -646,7 +693,9 @@ class LayeredEarthModel:
     def n_layers(self) -> int:
         return len(self.rho_layers)
 
-    def transform_T(self, lam: np.ndarray, *, backend: Literal["auto", "numpy", "mlx"] = "auto") -> np.ndarray:
+    def transform_T(
+        self, lam: np.ndarray, *, backend: Literal["auto", "numpy", "mlx"] = "auto"
+    ) -> np.ndarray:
         lam_arr = np.asarray(lam, dtype=float)
         if lam_arr.ndim != 1:
             raise ValueError("lam must be 1D")
@@ -805,12 +854,14 @@ def _rhoa_collinear_integral(
     if model.n_layers == 1:
         return np.full(n_meas, rho1, dtype=float)
 
-    g = (1.0 / r_am - 1.0 / r_an - 1.0 / r_bm + 1.0 / r_bn)
+    g = 1.0 / r_am - 1.0 / r_an - 1.0 / r_bm + 1.0 / r_bn
     K = 2.0 * math.pi / g
 
     r_min = float(np.min([r_am.min(), r_an.min(), r_bm.min(), r_bn.min()]))
     depth_scale = float(
-        np.max([r_am.max(), r_an.max(), r_bm.max(), r_bn.max(), sum(model.thicknesses_m)])
+        np.max(
+            [r_am.max(), r_an.max(), r_bm.max(), r_bn.max(), sum(model.thicknesses_m)]
+        )
     )
 
     lam = _lambda_grid_deltaT(model, r_min=r_min, depth_scale=depth_scale, n_lam=n_lam)
@@ -1036,7 +1087,10 @@ def soil_resistivity_profile_detailed(
                     continue
                 rho_ohm_m = (
                     math.pi
-                    * ((effective_spacing_m ** 2 - mn_effective_m ** 2) / (2.0 * mn_effective_m))
+                    * (
+                        (effective_spacing_m**2 - mn_effective_m**2)
+                        / (2.0 * mn_effective_m)
+                    )
                     * value
                 )
                 source = "schlumberger"
@@ -1085,13 +1139,19 @@ def soil_resistivity_profile_detailed(
                 "depth_m": float(sum(p["depth_m"] for p in group) / len(group)),
                 "rho_ohm_m": float(sum(rho_vals) / len(rho_vals)),
                 "spacing_m": float(sum(spacing_vals) / len(spacing_vals)),
-                "effective_spacing_m": float(sum(eff_spacing_vals) / len(eff_spacing_vals)),
+                "effective_spacing_m": float(
+                    sum(eff_spacing_vals) / len(eff_spacing_vals)
+                ),
                 "mn_m": None if not mn_vals else float(sum(mn_vals) / len(mn_vals)),
                 "method": method_key,
                 "value_kind": kind if kind != "auto" else "auto",
                 "depth_factor": depth_factor_used,
                 "unit": "ohm-m",
-                "source": "mixed" if len(sources) > 1 else (sources.pop() if sources else None),
+                "source": (
+                    "mixed"
+                    if len(sources) > 1
+                    else (sources.pop() if sources else None)
+                ),
                 "ab_is_full": bool(ab_is_full),
                 "mn_is_full": bool(mn_is_full),
                 "item_ids": [p["item_id"] for p in group],
@@ -1320,7 +1380,9 @@ def layered_earth_forward(
             pred_sorted = pred_unique[inv]
         else:
             if mn_arr is None:
-                raise ValueError("mn_m is required for Schlumberger integral forward model")
+                raise ValueError(
+                    "mn_m is required for Schlumberger integral forward model"
+                )
             r_am, r_an, r_bm, r_bn = _schlumberger_distances(
                 spacing_sorted, mn_arr, ab_is_full=ab_is_full, mn_is_full=mn_is_full
             )
@@ -1454,6 +1516,7 @@ def invert_layered_earth(
 
     prev_rmse = None
     iteration = 0
+    converged = False
     for iteration in range(1, max_iter + 1):
         rho_layers = np.exp(m[:layers])
         thicknesses = np.exp(m[layers:]) if layers > 1 else []
@@ -1475,8 +1538,9 @@ def invert_layered_earth(
 
         rho_pred = np.clip(rho_pred, eps_pos, np.inf)
         residual = np.log(rho_obs_arr) - np.log(rho_pred)
-        rmse = float(np.sqrt(np.mean(residual ** 2)))
+        rmse = float(np.sqrt(np.mean(residual**2)))
         if prev_rmse is not None and abs(prev_rmse - rmse) < tol:
+            converged = True
             break
         prev_rmse = rmse
 
@@ -1504,7 +1568,7 @@ def invert_layered_earth(
             rho_pred_p = np.clip(rho_pred_p, eps_pos, np.inf)
             J[:, idx] = (np.log(rho_pred_p) - np.log(rho_pred)) / eps
 
-        lhs = J.T @ J + (damping ** 2) * np.eye(n_params)
+        lhs = J.T @ J + (damping**2) * np.eye(n_params)
         rhs = J.T @ residual
         try:
             delta = np.linalg.solve(lhs, rhs)
@@ -1537,12 +1601,31 @@ def invert_layered_earth(
 
     rho_pred = np.clip(rho_pred, eps_pos, np.inf)
     residual = np.log(rho_obs_arr) - np.log(rho_pred)
+    final_rmse = float(np.sqrt(np.mean(residual**2)))
     misfit = {
-        "rmse_log": float(np.sqrt(np.mean(residual ** 2))),
+        "rmse_log": final_rmse,
         "mae_log": float(np.mean(np.abs(residual))),
         "n_points": int(spacings.size),
         "iterations": iteration,
+        "converged": bool(converged),
+        "tol": float(tol),
     }
+
+    # Emit a ``UserWarning`` when the damped Gauss-Newton scheme hits
+    # ``max_iter`` without satisfying the RMSE tolerance. Previously the
+    # solver silently returned the last parameter vector — downstream
+    # callers had no signal that the inversion did not actually converge.
+    if not converged:
+        warnings.warn(
+            (
+                "invert_layered_earth did not converge within "
+                f"max_iter={max_iter}: RMSE_log={final_rmse:.4g}, "
+                f"tol={tol:.4g}. The returned model is the last iterate; "
+                "tighten the priors, increase max_iter, or relax the tolerance."
+            ),
+            UserWarning,
+            stacklevel=2,
+        )
 
     layers_out = _layer_bounds(list(rho_layers), list(thicknesses))
 
@@ -1559,6 +1642,7 @@ def invert_layered_earth(
             for s, r in zip(spacings, rho_pred)
         ],
         "misfit": misfit,
+        "converged": bool(converged),
         "method": method,
         "forward": forward,
         "ab_is_full": bool(ab_is_full),
@@ -1646,7 +1730,9 @@ def invert_soil_resistivity_layers(
                     )
 
         if forward == "integral" and mn_values is None:
-            raise ValueError("MN spacing is required for Schlumberger integral inversion")
+            raise ValueError(
+                "MN spacing is required for Schlumberger integral inversion"
+            )
 
     result = invert_layered_earth(
         spacings_m=spacings,
@@ -1673,6 +1759,94 @@ def invert_soil_resistivity_layers(
         }
     )
     return result
+
+
+def _select_minimum_spread_depths(
+    measurement_ids: List[int],
+    rho_map: Dict[int, Dict[float, float]],
+) -> Tuple[Tuple[float, ...], float]:
+    """
+    Pick the depth-per-measurement combination with the smallest spread.
+
+    Sliding-window replacement for the exponential ``itertools.product``
+    sweep that ``rho_f_model`` used before 1.5.2.
+
+    Parameters
+    ----------
+    measurement_ids : list[int]
+        Order of measurements that ``rho_f_model`` will iterate over.
+    rho_map : dict
+        Mapping ``measurement_id -> {depth_m: rho_ohm_m}``.
+
+    Returns
+    -------
+    combo : tuple of float
+        One depth per measurement, in the same order as ``measurement_ids``.
+    spread : float
+        ``max(combo) - min(combo)``.
+
+    Raises
+    ------
+    ValueError
+        If no measurement has any depth entry.
+
+    Notes
+    -----
+    The minimum-spread combination is the window of length
+    ``len(measurement_ids)`` over the sorted union of all depths that still
+    contains at least one entry from every measurement.  This is a textbook
+    sliding-window "smallest range covering K lists" problem.
+    """
+    if not measurement_ids:
+        raise ValueError("measurement_ids is empty")
+
+    # All (depth, measurement_id) tuples, sorted by depth.
+    flat: List[Tuple[float, int]] = []
+    for mid in measurement_ids:
+        for d in rho_map.get(mid, {}):
+            flat.append((float(d), mid))
+    if not flat:
+        raise ValueError("No depths available across the supplied measurements")
+    flat.sort(key=lambda item: item[0])
+
+    n = len(measurement_ids)
+    # ``counts`` tracks how many entries of each measurement are inside the
+    # current window.  The window is valid once every measurement is
+    # represented at least once.
+    counts: Dict[int, int] = {mid: 0 for mid in measurement_ids}
+    covered = 0
+    left = 0
+    best_spread = float("inf")
+    best_left_right: Tuple[int, int] = (0, len(flat) - 1)
+
+    for right, (_, mid_r) in enumerate(flat):
+        if counts[mid_r] == 0:
+            covered += 1
+        counts[mid_r] += 1
+
+        while covered == n:
+            spread = flat[right][0] - flat[left][0]
+            if spread < best_spread:
+                best_spread = spread
+                best_left_right = (left, right)
+            _, mid_l = flat[left]
+            counts[mid_l] -= 1
+            if counts[mid_l] == 0:
+                covered -= 1
+            left += 1
+
+    lo, hi = best_left_right
+    window = flat[lo : hi + 1]
+    # Build the per-measurement pick: choose the entry inside the window
+    # that is closest to the window centre, so that the chosen depth is
+    # least biased towards either edge.  Falls back to the first occurrence.
+    centre = 0.5 * (window[0][0] + window[-1][0])
+    picks: Dict[int, float] = {}
+    for d, mid in window:
+        if mid not in picks or abs(d - centre) < abs(picks[mid] - centre):
+            picks[mid] = d
+    combo = tuple(picks[mid] for mid in measurement_ids)
+    return combo, float(best_spread)
 
 
 def rho_f_model(
@@ -1722,23 +1896,40 @@ def rho_f_model(
                 f"Failed to load soil_resistivity for measurement {mid}"
             ) from e
 
-        dt = {
+        depth_rho = {
             float(it["measurement_distance_m"]): float(it["value"])
             for it in items
             if it.get("measurement_distance_m") is not None
             and it.get("value") is not None
         }
-        if not dt:
+        if not depth_rho:
             raise ValueError(f"No soil_resistivity data for measurement {mid}")
-        rho_map[mid] = dt
-        depth_choices.append(list(dt.keys()))
+        rho_map[mid] = depth_rho
+        depth_choices.append(list(depth_rho.keys()))
 
-    # 3) Select depths minimizing spread
-    best_combo, best_spread = None, float("inf")
-    for combo in itertools.product(*depth_choices):
-        spread = max(combo) - min(combo)
-        if spread < best_spread:
-            best_spread, best_combo = spread, combo
+    # 3) Select depths minimizing spread.
+    #
+    # Pre-1.5.2 used ``itertools.product(*depth_choices)`` which is exponential
+    # in the number of measurements; for a campaign with 20 measurements ×
+    # 6 depths the loop visits 6^20 ≈ 4·10^15 combinations and effectively
+    # hangs.  The closed-form replacement below uses a sliding-window pass
+    # over the *sorted union* of all depths and keeps the window whose
+    # ``max - min`` is smallest while still covering one depth per
+    # measurement.  Complexity O(D · n) with D = total number of depth
+    # entries across all measurements.
+    best_combo, best_spread = _select_minimum_spread_depths(
+        measurement_ids, rho_map
+    )
+    _SPREAD_WARN_LIMIT_M = 0.5
+    if best_spread > _SPREAD_WARN_LIMIT_M:
+        warnings.warn(
+            (
+                f"rho_f_model: selected depths span {best_spread:.3f} m, which "
+                f"is above {_SPREAD_WARN_LIMIT_M} m — fitted k vector may "
+                f"mix soil layers."
+            ),
+            UserWarning,
+        )
 
     selected_rhos = {
         mid: rho_map[mid][depth] for mid, depth in zip(measurement_ids, best_combo)
@@ -1785,10 +1976,17 @@ def voltage_vt_epr(
     frequency: float = 50.0,
 ) -> Union[Dict[str, float], Dict[int, Dict[str, float]]]:
     """
-    Calculate per-ampere touch voltages and EPR at a given frequency.
+    Calculate per-ampere touch voltages and earthing impedance at a frequency.
 
-    Requires ``earthing_impedance`` and ``earthing_current`` at the specified frequency.
-    Uses ``prospective_touch_voltage`` and ``touch_voltage`` if available.
+    Requires ``earthing_impedance`` and ``earthing_current`` at the specified
+    frequency. Uses ``prospective_touch_voltage`` and ``touch_voltage`` if
+    available.
+
+    Returned keys are *per-ampere* quantities, **not** the EPR in volts.
+    The earthing-impedance scalar is reported under ``z_per_amp`` (V/A = Ω).
+    The legacy alias ``epr`` is still emitted for backwards compatibility but
+    carries the same impedance value; callers must multiply by the actual
+    earthing current to obtain the EPR in volts.
 
     Parameters
     ----------
@@ -1800,8 +1998,16 @@ def voltage_vt_epr(
     Returns
     -------
     dict
-        If single ID: mapping with keys ``epr``, optional ``vtp_min/max``, ``vt_min/max``.
+        If single ID: mapping with keys ``z_per_amp`` (alias ``epr``),
+        optional ``vtp_min/max`` and ``vt_min/max`` (each in V/A).
         If multiple IDs: nested dict keyed by measurement_id.
+
+    Raises
+    ------
+    LookupError, KeyError, IndexError
+        Propagated when underlying ``read_items_by`` access fails for reasons
+        other than "no rows match"; these used to be swallowed by a bare
+        ``except Exception``.
     """
     single = isinstance(measurement_ids, int)
     ids = [measurement_ids] if single else list(measurement_ids)
@@ -1809,69 +2015,85 @@ def voltage_vt_epr(
 
     for mid in ids:
         # 1) Mandatory: impedance Z (V/A) at this frequency
-        try:
-            imp_items, _ = read_items_by(
-                measurement_id=mid,
-                measurement_type="earthing_impedance",
-                frequency_hz=frequency,
-            )
-            Z = float(imp_items[0]["value"])
-        except Exception:
+        imp_items, _ = read_items_by(
+            measurement_id=mid,
+            measurement_type="earthing_impedance",
+            frequency_hz=frequency,
+        )
+        if not imp_items:
             warnings.warn(
                 f"Measurement {mid}: missing earthing_impedance@{frequency}Hz → skipping",
                 UserWarning,
             )
             continue
+        if len(imp_items) > 1:
+            warnings.warn(
+                (
+                    f"Measurement {mid}: {len(imp_items)} earthing_impedance rows "
+                    f"matched at {frequency}Hz; taking the mean of values."
+                ),
+                UserWarning,
+            )
+            Z = float(np.mean([float(it["value"]) for it in imp_items]))
+        else:
+            Z = float(imp_items[0]["value"])
 
         # 2) Mandatory: current I (A) at this frequency
-        try:
-            cur_items, _ = read_items_by(
-                measurement_id=mid,
-                measurement_type="earthing_current",
-                frequency_hz=frequency,
-            )
-            I = float(cur_items[0]["value"])
-            if I == 0:
-                raise ValueError("zero current")
-        except Exception:
+        cur_items, _ = read_items_by(
+            measurement_id=mid,
+            measurement_type="earthing_current",
+            frequency_hz=frequency,
+        )
+        if not cur_items:
             warnings.warn(
-                f"Measurement {mid}: missing or zero earthing_current@{frequency}Hz → skipping",
+                f"Measurement {mid}: missing earthing_current@{frequency}Hz → skipping",
+                UserWarning,
+            )
+            continue
+        I = float(cur_items[0]["value"])
+        if I == 0:
+            warnings.warn(
+                f"Measurement {mid}: zero earthing_current@{frequency}Hz → skipping",
                 UserWarning,
             )
             continue
 
         entry: Dict[str, float] = {}
 
-        # 3) Set EPR
+        # 3) Set per-ampere impedance.
+        # ``epr`` is kept as a backwards-compatible alias for callers that
+        # were written against the pre-1.5.2 key name; new callers should
+        # use ``z_per_amp``.
+        entry["z_per_amp"] = Z
         entry["epr"] = Z
 
         # 4) Optional: prospective touch voltage (V/A)
-        try:
-            vtp_items, _ = read_items_by(
-                measurement_id=mid,
-                measurement_type="prospective_touch_voltage",
-                frequency_hz=frequency,
-            )
+        vtp_items, _ = read_items_by(
+            measurement_id=mid,
+            measurement_type="prospective_touch_voltage",
+            frequency_hz=frequency,
+        )
+        if vtp_items:
             vtp_vals = [float(it["value"]) / I for it in vtp_items]
             entry["vtp_min"] = min(vtp_vals)
             entry["vtp_max"] = max(vtp_vals)
-        except Exception:
+        else:
             warnings.warn(
                 f"Measurement {mid}: no prospective_touch_voltage@{frequency}Hz",
                 UserWarning,
             )
 
         # 5) Optional: actual touch voltage (V/A)
-        try:
-            vt_items, _ = read_items_by(
-                measurement_id=mid,
-                measurement_type="touch_voltage",
-                frequency_hz=frequency,
-            )
+        vt_items, _ = read_items_by(
+            measurement_id=mid,
+            measurement_type="touch_voltage",
+            frequency_hz=frequency,
+        )
+        if vt_items:
             vt_vals = [float(it["value"]) / I for it in vt_items]
             entry["vt_min"] = min(vt_vals)
             entry["vt_max"] = max(vt_vals)
-        except Exception:
+        else:
             warnings.warn(
                 f"Measurement {mid}: no touch_voltage@{frequency}Hz",
                 UserWarning,
@@ -2024,16 +2246,16 @@ def calculate_split_factor(
         raise RuntimeError("Failed to read earth_fault_current item") from e
 
     if not earth_items:
-        raise ValueError(f"No earth_fault_current item found with id={earth_fault_current_id}")
+        raise ValueError(
+            f"No earth_fault_current item found with id={earth_fault_current_id}"
+        )
 
     try:
         shield_items, _ = read_items_by(
             measurement_type="shield_current", id__in=shield_current_ids
         )
     except Exception as e:
-        logger.error(
-            "Error reading shield_current ids=%s: %s", shield_current_ids, e
-        )
+        logger.error("Error reading shield_current ids=%s: %s", shield_current_ids, e)
         raise RuntimeError("Failed to read shield_current items") from e
 
     if not shield_items:
@@ -2048,13 +2270,23 @@ def calculate_split_factor(
 
     earth_current = _current_item_to_complex(earth_items[0])
     if abs(earth_current) == 0:
-        raise ValueError("Earth fault current magnitude is zero; cannot compute split factor")
+        raise ValueError(
+            "Earth fault current magnitude is zero; cannot compute split factor"
+        )
 
     shield_vectors = [_current_item_to_complex(it) for it in shield_items]
     shield_sum = sum(shield_vectors, 0 + 0j)
 
-    split_factor = 1 - (abs(shield_sum) / abs(earth_current))
+    # Vector-based split factor.
+    #
+    # Convention: split_factor = |I_E - Σ I_shield| / |I_E|
+    # i.e. the ratio of the *local* earthing current (the residual that
+    # flows through the local grounding system) to the total earth fault
+    # current.  Pre-1.5.2 the magnitude formula ``1 - |Σ shield| / |I_E|``
+    # was used, which silently went negative once the shield currents were
+    # phase-shifted against the fault current (shielded-cable case).
     local_current = earth_current - shield_sum
+    split_factor = abs(local_current) / abs(earth_current)
 
     def _angle_deg(val: complex) -> float:
         return 0.0 if val == 0 else math.degrees(math.atan2(val.imag, val.real))
@@ -2112,9 +2344,7 @@ def value_over_distance(
             )
         except Exception as e:
             logger.error("Error reading items for measurement %s: %s", mid, e)
-            raise RuntimeError(
-                f"Failed to load data for measurement {mid}"
-            ) from e
+            raise RuntimeError(f"Failed to load data for measurement {mid}") from e
 
         dist_val_map: Dict[float, float] = {}
         for item in items:
@@ -2165,9 +2395,7 @@ def value_over_distance_detailed(
             )
         except Exception as e:
             logger.error("Error reading items for measurement %s: %s", mid, e)
-            raise RuntimeError(
-                f"Failed to load data for measurement {mid}"
-            ) from e
+            raise RuntimeError(f"Failed to load data for measurement {mid}") from e
 
         data_points: List[Dict[str, Any]] = []
         for item in items:

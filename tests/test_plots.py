@@ -74,6 +74,7 @@ def test_plot_imp_over_f_multi_partial(monkeypatch):
     # id=1 missing, id=2 present
     def imp(mid):
         return {} if mid == 1 else {1.0: 10.0, 10.0: 20.0}
+
     monkeypatch.setattr(plots, "impedance_over_frequency", imp)
 
     with pytest.warns(UserWarning) as record:
@@ -91,12 +92,13 @@ def test_plot_rho_f_model_single_rho(monkeypatch):
         fig, ax = plt.subplots()
         ax.plot([1, 2], [3, 4], label="measured")
         return fig
+
     monkeypatch.setattr(plots, "plot_imp_over_f", fake_plot)
 
     # stub real_imag_over_frequency: two frequencies 10 & 100
     rimap = {
-        1: {10.0: 1+0j, 100.0: 1+0j},
-        2: {100.0: 1+0j, 1000.0: 1+0j},
+        1: {10.0: 1 + 0j, 100.0: 1 + 0j},
+        2: {100.0: 1 + 0j, 1000.0: 1 + 0j},
     }
     monkeypatch.setattr(plots, "real_imag_over_frequency", lambda ids: rimap)
 
@@ -119,9 +121,10 @@ def test_plot_rho_f_model_multiple_rho(monkeypatch):
         fig, ax = plt.subplots()
         ax.plot([1, 2], [3, 4], label="measured")
         return fig
+
     monkeypatch.setattr(plots, "plot_imp_over_f", fake_plot)
 
-    rimap = {1: {1.0: 0+0j}, 2: {1.0: 0+0j}}
+    rimap = {1: {1.0: 0 + 0j}, 2: {1.0: 0 + 0j}}
     monkeypatch.setattr(plots, "real_imag_over_frequency", lambda ids: rimap)
 
     rho_f = (0, 0, 0, 0, 0)
@@ -160,7 +163,9 @@ def test_plot_soil_inversion(monkeypatch):
             {"spacing_m": 2.0, "rho_ohm_m": 115.0},
         ],
     }
-    monkeypatch.setattr(plots, "invert_soil_resistivity_layers", lambda *args, **kwargs: result)
+    monkeypatch.setattr(
+        plots, "invert_soil_resistivity_layers", lambda *args, **kwargs: result
+    )
 
     fig = plots.plot_soil_inversion(1, method="wenner", layers=2)
     assert isinstance(fig, plt.Figure)
@@ -175,7 +180,15 @@ def test_plot_voltage_vt_epr(monkeypatch):
     monkeypatch.setattr(
         plots,
         "voltage_vt_epr",
-        lambda ids, frequency=50.0: {1: {"epr": 10.0, "vtp_min": 1.0, "vtp_max": 2.0, "vt_min": 0.5, "vt_max": 1.0}},
+        lambda ids, frequency=50.0: {
+            1: {
+                "epr": 10.0,
+                "vtp_min": 1.0,
+                "vtp_max": 2.0,
+                "vt_min": 0.5,
+                "vt_max": 1.0,
+            }
+        },
     )
     fig = plots.plot_voltage_vt_epr(1, frequency=50.0)
     assert isinstance(fig, plt.Figure)

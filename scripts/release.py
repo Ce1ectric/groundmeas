@@ -239,9 +239,13 @@ def release(
 
     # 5. Git operations
     if Prompt.ask("Commit and Push?", choices=["y", "n"], default="y") == "y":
+        # The third-party notices are regenerated in step 3d but were
+        # missing from the git add set in 1.5.0, so the published tarball
+        # carried the old notices. Include both files explicitly here.
         run_command(
             "git add pyproject.toml src/groundmeas/__init__.py "
-            "CITATION.cff CHANGELOG.md",
+            "CITATION.cff CHANGELOG.md "
+            "THIRD_PARTY_NOTICES.md THIRD_PARTY_LICENSES_RAW.txt",
             shell=True,
         )
         run_command(

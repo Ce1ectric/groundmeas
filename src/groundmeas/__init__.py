@@ -10,14 +10,14 @@ Features:
 - Analytics: impedance vs frequency, real/imag mappings, and rho–f modeling.
 - Plotting helpers wrapping matplotlib for quick visualizations.
 
-Example:
-    import groundmeas as gm
-
-    gm.connect_db("ground.db")
-    mid = gm.create_measurement({...})
-    items, ids = gm.read_items_by(measurement_id=mid)
-    fig = gm.plot_imp_over_f(mid)
-    fig.show()
+Examples
+--------
+>>> import groundmeas as gm
+>>> gm.connect_db("ground.db")
+>>> mid = gm.create_measurement({...})
+>>> items, ids = gm.read_items_by(measurement_id=mid)
+>>> fig = gm.plot_imp_over_f(mid)
+>>> fig.show()
 """
 
 import logging
@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-__version__ = "1.5.1"
+__version__ = "1.5.2"
 __author__ = "Ce1ectric"
 __license__ = "MIT"
 
@@ -34,6 +34,7 @@ try:
     # core
     from .core.db import (
         connect_db,
+        disconnect_db,
         create_measurement,
         create_item,
         read_measurements,
@@ -63,6 +64,7 @@ try:
         invert_layered_earth,
         invert_soil_resistivity_layers,
         multilayer_soil_model,
+        voltage_vt_epr,
     )
     from .services.export import (
         export_measurements_to_json,
@@ -76,6 +78,7 @@ try:
         plot_imp_over_f,
         plot_rho_f_model,
         plot_voltage_vt_epr,
+        plot_value_over_distance,
         plot_soil_model,
         plot_soil_inversion,
     )
@@ -95,6 +98,7 @@ except ImportError as e:
 __all__ = [
     # database
     "connect_db",
+    "disconnect_db",
     "create_measurement",
     "create_item",
     "read_measurements",
@@ -115,6 +119,7 @@ __all__ = [
     "rho_f_model",
     "shield_currents_for_location",
     "distance_profile_value",
+    "voltage_vt_epr",
     "import_items_from_images",
     "export_measurements_to_json",
     "export_measurements_to_csv",
@@ -130,6 +135,7 @@ __all__ = [
     "plot_imp_over_f",
     "plot_rho_f_model",
     "plot_voltage_vt_epr",
+    "plot_value_over_distance",
     "plot_soil_model",
     "plot_soil_inversion",
     "plot_imp_over_f_plotly",

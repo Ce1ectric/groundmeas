@@ -74,7 +74,11 @@ def test_generate_map_open_browser(monkeypatch, tmp_path):
 
     dummy_folium = SimpleNamespace(Map=DummyMap, Marker=DummyMarker, Popup=DummyPopup)
     monkeypatch.setattr(map_vis, "folium", dummy_folium)
-    monkeypatch.setattr(map_vis.webbrowser, "open", lambda url: opened.__setitem__("count", opened["count"] + 1))
+    monkeypatch.setattr(
+        map_vis.webbrowser,
+        "open",
+        lambda url: opened.__setitem__("count", opened["count"] + 1),
+    )
 
     measurements = [
         {
@@ -100,5 +104,9 @@ def test_generate_map_no_valid_measurements(monkeypatch, tmp_path):
     dummy_folium = SimpleNamespace(Map=DummyMap, Marker=object, Popup=object)
     monkeypatch.setattr(map_vis, "folium", dummy_folium)
 
-    measurements = [{"id": 1, "location": {"name": "Site", "latitude": None, "longitude": None}}]
-    map_vis.generate_map(measurements, output_file=str(tmp_path / "map.html"), open_browser=False)
+    measurements = [
+        {"id": 1, "location": {"name": "Site", "latitude": None, "longitude": None}}
+    ]
+    map_vis.generate_map(
+        measurements, output_file=str(tmp_path / "map.html"), open_browser=False
+    )

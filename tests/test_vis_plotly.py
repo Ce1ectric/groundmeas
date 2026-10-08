@@ -35,7 +35,15 @@ def test_plot_voltage_vt_epr_plotly(monkeypatch):
     monkeypatch.setattr(
         vis_plotly,
         "voltage_vt_epr",
-        lambda ids, frequency=50.0: {1: {"epr": 10.0, "vtp_min": 1.0, "vtp_max": 2.0, "vt_min": 0.5, "vt_max": 0.8}},
+        lambda ids, frequency=50.0: {
+            1: {
+                "epr": 10.0,
+                "vtp_min": 1.0,
+                "vtp_max": 2.0,
+                "vt_min": 0.5,
+                "vt_max": 0.8,
+            }
+        },
     )
     fig = vis_plotly.plot_voltage_vt_epr_plotly([1])
     assert len(fig.data) == 5

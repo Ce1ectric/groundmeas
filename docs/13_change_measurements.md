@@ -58,7 +58,7 @@ update_item(10, {
 })
 
 check = distance_profile_value(1, algorithm="minimum_gradient")
-print(check["result_value"]) 
+print(check["result_value"])
 ```
 
 ### Scenario B: soil survey correction

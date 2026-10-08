@@ -101,9 +101,7 @@ def test_distance_profile_minimum_stddev(monkeypatch):
             None,
         ),
     )
-    out = analytics.distance_profile_value(
-        3, algorithm="minimum_stddev", window=3
-    )
+    out = analytics.distance_profile_value(3, algorithm="minimum_stddev", window=3)
     assert out["result_value"] == pytest.approx(1.2)
     assert out["details"]["window_size"] == 3
     assert out["details"]["stddev"] == pytest.approx(0.0816, rel=1e-2)
@@ -160,12 +158,14 @@ def test_resolve_math_backend_mlx_fallback(monkeypatch):
 
 # ─── impedance_over_frequency ───────────────────────────────────────────────────
 
+
 def test_impedance_over_frequency_single_success(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "frequency_hz": 50, "value": 100}], None
+            [{"id": 1, "frequency_hz": 50, "value": 100}],
+            None,
         ),
     )
     out = analytics.impedance_over_frequency(1)
@@ -174,7 +174,11 @@ def test_impedance_over_frequency_single_success(monkeypatch):
 
 def test_impedance_over_frequency_multiple_success(monkeypatch):
     def fake_read(measurement_id, measurement_type):
-        return ([{"id": measurement_id, "frequency_hz": 1, "value": measurement_id}], None)
+        return (
+            [{"id": measurement_id, "frequency_hz": 1, "value": measurement_id}],
+            None,
+        )
+
     monkeypatch.setattr(analytics, "read_items_by", fake_read)
 
     out = analytics.impedance_over_frequency([1, 2])
@@ -188,7 +192,9 @@ def test_impedance_over_frequency_read_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: (_ for _ in ()).throw(Exception("db fail")),
+        lambda measurement_id, measurement_type: (_ for _ in ()).throw(
+            Exception("db fail")
+        ),
     )
     with pytest.raises(RuntimeError) as exc:
         analytics.impedance_over_frequency(1)
@@ -203,7 +209,9 @@ def test_impedance_over_frequency_no_items_warn(monkeypatch):
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.impedance_over_frequency(3)
-    assert "No earthing_impedance measurements found for measurement_id=3" in str(w.list[0].message)
+    assert "No earthing_impedance measurements found for measurement_id=3" in str(
+        w.list[0].message
+    )
     assert out == {}
 
 
@@ -211,7 +219,10 @@ def test_impedance_over_frequency_skip_missing_freq(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 7, "frequency_hz": None, "value": 5}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 7, "frequency_hz": None, "value": 5}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.impedance_over_frequency(7)
@@ -223,7 +234,10 @@ def test_impedance_over_frequency_skip_conversion_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 8, "frequency_hz": "bad", "value": "bad"}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 8, "frequency_hz": "bad", "value": "bad"}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.impedance_over_frequency(8)
@@ -233,12 +247,14 @@ def test_impedance_over_frequency_skip_conversion_error(monkeypatch):
 
 # ─── real_imag_over_frequency ──────────────────────────────────────────────────
 
+
 def test_real_imag_over_frequency_single_success(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "frequency_hz": 20, "value_real": 1.5, "value_imag": -2.5}], None
+            [{"id": 1, "frequency_hz": 20, "value_real": 1.5, "value_imag": -2.5}],
+            None,
         ),
     )
     out = analytics.real_imag_over_frequency(1)
@@ -247,7 +263,18 @@ def test_real_imag_over_frequency_single_success(monkeypatch):
 
 def test_real_imag_over_frequency_multiple_success(monkeypatch):
     def fake_read(measurement_id, measurement_type):
-        return ([{"id": measurement_id, "frequency_hz": 2, "value_real": measurement_id * 1.0, "value_imag": measurement_id * -1.0}], None)
+        return (
+            [
+                {
+                    "id": measurement_id,
+                    "frequency_hz": 2,
+                    "value_real": measurement_id * 1.0,
+                    "value_imag": measurement_id * -1.0,
+                }
+            ],
+            None,
+        )
+
     monkeypatch.setattr(analytics, "read_items_by", fake_read)
 
     out = analytics.real_imag_over_frequency([5, 6])
@@ -261,7 +288,10 @@ def test_real_imag_over_frequency_missing_freq(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 2, "frequency_hz": None, "value_real": 0, "value_imag": 0}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 2, "frequency_hz": None, "value_real": 0, "value_imag": 0}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.real_imag_over_frequency(2)
@@ -273,7 +303,10 @@ def test_real_imag_over_frequency_missing_r_or_i(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 3, "frequency_hz": 3, "value_real": None, "value_imag": 7}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 3, "frequency_hz": 3, "value_real": None, "value_imag": 7}],
+            None,
+        ),
     )
     out = analytics.real_imag_over_frequency(3)
     assert out == {3.0: {"real": None, "imag": 7.0}}
@@ -283,7 +316,10 @@ def test_real_imag_over_frequency_conversion_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: ([{"id": 4, "frequency_hz": 4, "value_real": "bad", "value_imag": "0"}], None),
+        lambda measurement_id, measurement_type: (
+            [{"id": 4, "frequency_hz": 4, "value_real": "bad", "value_imag": "0"}],
+            None,
+        ),
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.real_imag_over_frequency(4)
@@ -299,7 +335,9 @@ def test_real_imag_over_frequency_no_items_warn(monkeypatch):
     )
     with pytest.warns(UserWarning) as w:
         out = analytics.real_imag_over_frequency(9)
-    assert "No earthing_impedance measurements found for measurement_id=9" in str(w.list[0].message)
+    assert "No earthing_impedance measurements found for measurement_id=9" in str(
+        w.list[0].message
+    )
     assert out == {}
 
 
@@ -307,7 +345,9 @@ def test_real_imag_over_frequency_read_error(monkeypatch):
     monkeypatch.setattr(
         analytics,
         "read_items_by",
-        lambda measurement_id, measurement_type: (_ for _ in ()).throw(Exception("oops")),
+        lambda measurement_id, measurement_type: (_ for _ in ()).throw(
+            Exception("oops")
+        ),
     )
     with pytest.raises(RuntimeError) as exc:
         analytics.real_imag_over_frequency(1)
@@ -315,6 +355,7 @@ def test_real_imag_over_frequency_read_error(monkeypatch):
 
 
 # ─── voltage_vt_epr ────────────────────────────────────────────────────────────
+
 
 def test_voltage_vt_epr_single(monkeypatch):
     def fake_read_items_by(**filters):
@@ -339,6 +380,7 @@ def test_voltage_vt_epr_single(monkeypatch):
 
 
 # ─── value_over_distance ───────────────────────────────────────────────────────
+
 
 def test_value_over_distance(monkeypatch):
     monkeypatch.setattr(
@@ -377,6 +419,7 @@ def test_value_over_distance_detailed(monkeypatch):
 
 # ─── _current_item_to_complex ──────────────────────────────────────────────────
 
+
 def test_current_item_to_complex_rectangular():
     item = {"value_real": 1.0, "value_imag": 2.0}
     out = analytics._current_item_to_complex(item)
@@ -391,6 +434,7 @@ def test_current_item_to_complex_polar():
 
 
 # ─── rho_f_model ────────────────────────────────────────────────────────────────
+
 
 def test_rho_f_model_no_soil_data(monkeypatch):
     monkeypatch.setattr(analytics, "real_imag_over_frequency", lambda ids: {1: {}})
@@ -410,7 +454,8 @@ def test_rho_f_model_no_overlap(monkeypatch):
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "measurement_distance_m": 1.0, "value": 10.0}], None
+            [{"id": 1, "measurement_distance_m": 1.0, "value": 10.0}],
+            None,
         ),
     )
     with pytest.raises(ValueError) as exc:
@@ -428,7 +473,8 @@ def test_rho_f_model_least_squares_error(monkeypatch):
         analytics,
         "read_items_by",
         lambda measurement_id, measurement_type: (
-            [{"id": 1, "measurement_distance_m": 2.0, "value": 3.0}], None
+            [{"id": 1, "measurement_distance_m": 2.0, "value": 3.0}],
+            None,
         ),
     )
     monkeypatch.setattr(
@@ -442,6 +488,7 @@ def test_rho_f_model_least_squares_error(monkeypatch):
 
 
 # ─── soil resistivity + multilayer model ───────────────────────────────────────
+
 
 def test_soil_resistivity_profile_wenner_resistance(monkeypatch):
     monkeypatch.setattr(
@@ -544,8 +591,18 @@ def test_invert_soil_resistivity_layers_from_items(monkeypatch):
         "read_items_by",
         lambda measurement_id, measurement_type: (
             [
-                {"id": 1, "measurement_distance_m": 1.0, "value": 50.0, "unit": "ohm-m"},
-                {"id": 2, "measurement_distance_m": 2.0, "value": 50.0, "unit": "ohm-m"},
+                {
+                    "id": 1,
+                    "measurement_distance_m": 1.0,
+                    "value": 50.0,
+                    "unit": "ohm-m",
+                },
+                {
+                    "id": 2,
+                    "measurement_distance_m": 2.0,
+                    "value": 50.0,
+                    "unit": "ohm-m",
+                },
             ],
             None,
         ),

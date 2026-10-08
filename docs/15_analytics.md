@@ -274,13 +274,30 @@ $$
 EPR = Z_E \cdot I_E
 $$
 
+**Per-ampere convention (post 1.5.2).** `voltage_vt_epr` returns
+*per-ampere* quantities (units of V/A = Ω), **not** absolute volts.  The
+earthing impedance is reported under the key `z_per_amp`; the legacy
+key `epr` is kept as a backwards-compatible alias carrying the *same*
+impedance value.  Callers must multiply by the actual earthing current
+to obtain the EPR in volts:
+
+```python
+summary = voltage_vt_epr(measurement_id, frequency=50.0)
+epr_volts = summary["z_per_amp"] * I_earth_amps
+```
+
+This corrects an earlier unit-mislabel (`voltage_vt_epr` previously
+stored the impedance under the `epr` key without flagging the unit
+mismatch).
+
 ### Function overview
-- `voltage_vt_epr` computes EPR and touch voltage summaries per measurement.
+- `voltage_vt_epr` computes per-ampere earthing impedance and per-ampere
+  touch-voltage summaries per measurement.
 
 ### Inputs and outputs
 | Function | Input | Output | Description |
 | --- | --- | --- | --- |
-| `voltage_vt_epr` | measurement id or list, frequency | dict | EPR and touch voltage summary. |
+| `voltage_vt_epr` | measurement id or list, frequency | dict | Per-ampere impedance (`z_per_amp`, alias `epr`) and per-ampere touch voltages. |
 
 ### General workflow
 1. Ensure impedance and current items share the same frequency.
@@ -331,6 +348,21 @@ gm-cli voltage-vt-epr 1 2 --frequency 50 --json-out vt.json
 
 ### Physical background
 Earth fault current can split between cable shields and the local earthing system. The split factor quantifies that ratio.
+
+**Vector convention (post 1.5.2).** `calculate_split_factor` returns
+
+```
+split_factor = |I_E - Σ I_shield| / |I_E|
+             = |I_local| / |I_E|
+```
+
+i.e. the ratio of the local (residual) earthing-current magnitude to the
+total earth-fault current magnitude.  All shield currents are summed as
+complex phasors before the magnitude is taken, so phase-shifted shields
+(typical for shielded MV cables) do not silently produce a negative
+split factor — the earlier formulation ``1 - |Σ shield| / |I_E|`` is fixed.
+Callers that need the vector residual itself find it under the
+``local_earthing_current`` key in the result dict.
 
 ### Function overview
 - `shield_currents_for_location` lists shield current items for a location.
@@ -617,3 +649,37 @@ gm-cli soil-inversion 2 --layers 2 --method wenner \
 - Use `forward=integral` when MN is not negligible (requires SciPy).
 - Inversion can be sensitive to initial guesses; start with 1 layer and add complexity gradually.
 - Use `backend="mlx"` on Apple hardware if MLX is installed for speed.
+
+### Convergence handling (1.5.2+)
+
+`invert_layered_earth` runs a damped Gauss-Newton scheme in log-space and exits the
+loop either when the change in RMSE drops below `tol` (converged) **or** when
+`max_iter` is exhausted. Starting with 1.5.2, non-convergence is no longer silent:
+
+* The result payload carries `"converged": False` at the top level and inside
+  `"misfit"` (which also records the final `"rmse_log"`, `"mae_log"`,
+  `"iterations"` and the `"tol"` actually used).
+* A `UserWarning` is emitted whose message contains `"did not converge within
+  max_iter=…"` plus the final RMSE / tolerance pair. The warning is raised at
+  `stacklevel=2`, so notebooks see it on the cell that called the inversion.
+
+`invert_soil_resistivity_layers` forwards to `invert_layered_earth` and therefore
+inherits the same contract. This behaviour closes the long-standing
+"swallowed `OptimizeResult.success=False`" issue.
+
+### `distance_profile_value` duplicate-distance warning contract
+
+`distance_profile_value` emits a `UserWarning` whenever it collapses two
+measurement items that share an identical electrode distance. The warning
+payload is intentionally rich so downstream notebooks can spot data-quality
+problems immediately:
+
+* The message lists up to five affected distances (`d_1, d_2, … m`).
+* It carries the `measurement_id` and the `measurement_type` of the offending
+  profile so the user can jump straight to the item table.
+* `stacklevel=3` ensures the reported source location is the *caller's*
+  notebook cell rather than the analytics module itself.
+
+Programmatic suppression is the usual `warnings.catch_warnings(record=True)`
+pattern; do not silence the warning globally, because it doubles as a
+data-quality red flag.

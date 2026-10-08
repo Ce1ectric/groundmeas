@@ -18,6 +18,46 @@ Not applicable. The dashboard is a user interface for the analytics already desc
 | `invert_soil_resistivity_layers` | measurement id, layers | dict | Fitted layered model and misfit. |
 | `soil_resistivity_curve` | measurement id, method | list | Spacing vs apparent resistivity points. |
 
+## Filesystem requirements (read-only mounts)
+
+The dashboard initialises the SQLite engine on startup via
+:func:`groundmeas.connect_db`. ``connect_db`` performs an eager
+writability probe on the parent directory of the database path. If the
+probe fails (for example because the database lives on a temporarily
+read-only NextCloud / Dropbox sync directory or on a Streamlit Cloud
+container without persistent writable storage) the dashboard shows a
+descriptive ``st.error`` message and halts before any data query is
+issued.
+
+Workaround: point ``GROUNDMEAS_DB`` (or the entry in
+``~/.config/groundmeas/config.json``) at a writable directory and
+restart the dashboard. Re-running the same path after fixing the
+permissions is enough; no cache reset is required.
+
+### Reconnecting after a path change (1.5.2+)
+
+Streamlit re-executes the dashboard script on every interaction. Up to
+1.5.1 ``init_db`` short-circuited as long as *any* engine was active —
+which meant that a user who switched ``GROUNDMEAS_DB`` after a
+permission fix would keep talking to the previous (read-only) mount
+until the whole Python process was restarted.
+
+Starting with 1.5.2, ``init_db`` is *rerun-aware*:
+
+* If the resolved DB path equals the active engine binding
+  (:func:`groundmeas.core.db.current_db_path`), the call is a no-op and
+  the existing connection is reused.
+* If the resolved DB path **differs** from the active binding,
+  ``init_db`` calls :func:`groundmeas.disconnect_db` first, then
+  reconnects to the new path. The previous engine is disposed cleanly
+  so no connections leak.
+
+For programmatic use outside the dashboard the same contract is
+available via the canonical
+``groundmeas.disconnect_db()`` /
+``groundmeas.connect_db(new_path)`` pair, or via the shortcut
+``groundmeas.connect_db(new_path, force=True)``.
+
 ## General workflow
 
 ### Scenario A: compare impedance across sites

@@ -1,7 +1,7 @@
 [project]
 name = "groundmeas"
-version = "1.5.1"
-description = ""
+version = "1.5.2"
+description = "Python toolkit for managing, analysing, and visualising grounding-system measurements (impedance, soil resistivity, split-factor, shield currents)."
 authors = [
     {name = "Christian Ehlert",email = "christian.ehlert@mailbox.org"}
 ]

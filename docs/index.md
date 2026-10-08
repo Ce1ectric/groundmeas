@@ -38,7 +38,22 @@ $$
 
 Soil resistivity surveys use Wenner or Schlumberger arrays and feed the multilayer soil model used later in analytics.
 
+## Minimal example
+
+```python
+import groundmeas as gm
+
+gm.connect_db("groundmeas.db")
+measurements, _ = gm.read_measurements_by()
+for meas in measurements:
+    print(meas["id"], gm.impedance_over_frequency(meas["id"]))
+```
+
+See `02_quickstart.md` for a CLI walk-through and `21_ref_api.md` for
+the full API surface.
+
 ## Navigation
 - Quickstart: `02_quickstart.md`
 - Tutorials: `10_tutorial_intro.md` and the tutorial series
 - Reference: `20_ref_intro.md`, `21_ref_api.md`, `22_ref_cli.md`
+- Contributing: `99_contributing.md`

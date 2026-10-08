@@ -49,15 +49,20 @@ gm-cli --db ./groundmeas.db plot-soil-inversion SOIL_MEAS_ID --layers 2 --out pl
 ```
 
 ## Python route
-```python
-from groundmeas.db import connect_db, create_measurement, create_item, read_items_by
-from groundmeas.analytics import distance_profile_value
-from groundmeas.plots import plot_value_over_distance
 
-connect_db("groundmeas.db")
+The recommended import style is the canonical top-level package
+(`import groundmeas as gm`). The legacy `from groundmeas.db import ...`,
+`from groundmeas.analytics import ...`, `from groundmeas.plots import ...`
+form still works but emits a `DeprecationWarning` on first attribute
+access (see `docs/21_ref_api.md` for the full list of compatibility shims).
+
+```python
+import groundmeas as gm
+
+gm.connect_db("groundmeas.db")
 
 # 1) Create a staged fault test measurement
-mid = create_measurement({
+mid = gm.create_measurement({
     "method": "staged_fault_test",
     "asset_type": "substation",
     "voltage_level_kv": 10.0,
@@ -68,7 +73,7 @@ mid = create_measurement({
 
 # 2) Add impedance items at multiple distances
 for idx, dist in enumerate(range(10, 110, 10)):
-    create_item({
+    gm.create_item({
         "measurement_type": "earthing_impedance",
         "frequency_hz": 50.0,
         "value": 0.3 + 0.02 * idx,
@@ -79,19 +84,19 @@ for idx, dist in enumerate(range(10, 110, 10)):
     }, measurement_id=mid)
 
 # 3) Analyze distance profile
-res = distance_profile_value(mid, algorithm="minimum_gradient")
+res = gm.distance_profile_value(mid, algorithm="minimum_gradient")
 print(res["result_value"], res["result_distance_m"])
 
 # 4) Plot impedance vs distance
-fig = plot_value_over_distance(mid, measurement_type="earthing_impedance")
+fig = gm.plot_value_over_distance(mid, measurement_type="earthing_impedance")
 fig.savefig("plots/impedance_distance.png")
 ```
 
 Optional soil survey (Python):
 ```python
-from groundmeas.analytics import soil_resistivity_profile, invert_soil_resistivity_layers
+import groundmeas as gm
 
-soil_id = create_measurement({
+soil_id = gm.create_measurement({
     "method": "wenner",
     "asset_type": "substation",
     "description": "Wenner soil survey",
@@ -101,17 +106,17 @@ soil_id = create_measurement({
 spacings = [1.0, 2.0, 4.0, 8.0, 16.0]
 values = [80.0, 75.0, 65.0, 55.0, 50.0]
 for spacing, rho_a in zip(spacings, values):
-    create_item({
+    gm.create_item({
         "measurement_type": "soil_resistivity",
         "value": rho_a,
         "unit": "ohm-m",
         "measurement_distance_m": spacing,
     }, measurement_id=soil_id)
 
-profile = soil_resistivity_profile(soil_id, method="wenner")
+profile = gm.soil_resistivity_profile(soil_id, method="wenner")
 print(profile[:3])
 
-inv = invert_soil_resistivity_layers(soil_id, method="wenner", layers=2)
+inv = gm.invert_soil_resistivity_layers(soil_id, method="wenner", layers=2)
 print(inv["rho_layers"], inv["thicknesses_m"])
 ```
 

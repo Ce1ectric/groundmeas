@@ -21,7 +21,12 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_folium import st_folium
 
-from groundmeas.core.db import read_measurements_by, connect_db
+from groundmeas.core.db import (
+    read_measurements_by,
+    connect_db,
+    disconnect_db,
+    current_db_path,
+)
 from groundmeas.visualization.vis_plotly import (
     plot_imp_over_f_plotly,
     plot_rho_f_model_plotly,
@@ -43,6 +48,7 @@ from groundmeas.services.analytics import (
 st.set_page_config(page_title="Groundmeas Dashboard", layout="wide")
 
 CONFIG_PATH = Path.home() / ".config" / "groundmeas" / "config.json"
+
 
 def resolve_db_path() -> str:
     """
@@ -206,19 +212,78 @@ def _location_marker_color(asset_types: List[str]) -> str:
     return "gray"
 
 
-def init_db():
+def init_db() -> bool:
     """
     Initialize the database connection.
 
-    Calls ``connect_db`` with the resolved path. Displays an error in Streamlit
-    if the connection fails.
+    Calls :func:`connect_db` with the resolved path. Displays a friendly
+    error in the Streamlit panel if the connection fails and returns
+    ``False`` so the caller can halt rendering before downstream queries
+    panic with ``"Database not initialized"``.
+
+    Rerun behaviour
+    ---------------
+    Streamlit re-executes the script on every interaction, so
+    :func:`init_db` is called many times within a session. The function
+    short-circuits when the engine is already bound to the *same* path
+    that :func:`resolve_db_path` returns, and triggers an explicit
+    :func:`disconnect_db` / :func:`connect_db` cycle when the resolved
+    path differs (e.g. the user updated ``GROUNDMEAS_DB`` after a
+    permission fix). Without this branch a stale engine bound to a
+    read-only mount would survive the rerun and downstream queries
+    would silently target the wrong database.
+
+    Returns
+    -------
+    bool
+        ``True`` if the engine was initialised (or successfully reused
+        on the same path), ``False`` otherwise.
     """
     db_path = resolve_db_path()
+    active_path = current_db_path()
+
+    # Streamlit-rerun-aware short-circuit: the engine is already bound
+    # to the path we would connect to → nothing to do.
+    if active_path is not None and active_path == db_path:
+        return True
+
+    # The engine is bound to a *different* path. Tear it down before
+    # connecting again so we don't keep talking to the previous mount
+    # ("stale engine after Streamlit rerun").
+    if active_path is not None and active_path != db_path:
+        try:
+            disconnect_db()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
     try:
         connect_db(db_path)
-        # st.toast(f"Connected to database: {db_path}")
-    except Exception as e:
+        return True
+    except RuntimeError as e:
+        msg = str(e)
+        if "not writable" in msg or "does not exist" in msg:
+            st.error(
+                f"The database path **{db_path}** is on a read-only "
+                "location or its parent directory is missing. "
+                "Set `GROUNDMEAS_DB` to a writable path or edit "
+                f"`{CONFIG_PATH}` and reload the dashboard.\n\n"
+                f"Underlying error: {e}"
+            )
+        elif "already initialised" in msg:
+            # Race with another caller — fold into a transient info
+            # banner so the rerun continues gracefully.
+            st.info(
+                "Database engine already initialised — reusing the "
+                "existing connection."
+            )
+            return True
+        else:
+            st.error(f"Failed to connect to database at {db_path}: {e}")
+        return False
+    except Exception as e:  # pragma: no cover - defensive fallback
         st.error(f"Failed to connect to database at {db_path}: {e}")
+        return False
+
 
 def main():
     """
@@ -227,8 +292,12 @@ def main():
     Sets up the layout, loads data, renders the map, and handles user interactions
     for filtering and analysis.
     """
-    # Initialize DB connection
-    init_db()
+    # Initialize DB connection. If the database is not reachable (e.g.
+    # the path lives on a read-only mount) we stop rendering rather than
+    # blow up downstream queries with an uncaught RuntimeError.
+    if not init_db():
+        st.title("Groundmeas Dashboard")
+        st.stop()
 
     st.title("Groundmeas Dashboard")
 
@@ -246,11 +315,14 @@ def main():
 
     # Filter by Asset Type
     asset_types = sorted(list(set(m.get("asset_type", "") for m in all_measurements)))
-    selected_assets = st.sidebar.multiselect("Asset Type", asset_types, default=asset_types)
+    selected_assets = st.sidebar.multiselect(
+        "Asset Type", asset_types, default=asset_types
+    )
 
     # Filter measurements
     filtered_measurements = [
-        m for m in all_measurements
+        m
+        for m in all_measurements
         if m.get("asset_type") in selected_assets
         and m.get("location")
         and m["location"].get("latitude") is not None
@@ -411,18 +483,14 @@ def main():
         # dropped. Measurements from other locations stay untouched so
         # multi-select mode keeps working across sites.
         other_locations = [
-            i
-            for i in current_selection
-            if i not in focused_group["measurement_ids"]
+            i for i in current_selection if i not in focused_group["measurement_ids"]
         ]
         new_selection = other_locations + list(picked)
         if new_selection != current_selection:
             st.session_state["multiselect_ids"] = new_selection
             st.rerun()
 
-    all_ids = [
-        mid for group in location_groups for mid in group["measurement_ids"]
-    ]
+    all_ids = [mid for group in location_groups for mid in group["measurement_ids"]]
 
     selected_ids = st.multiselect(
         "Selected Measurements for Analysis",
@@ -457,14 +525,25 @@ def main():
         with tabs[0]:
             st.subheader("Measurement Items")
             for meas in selected_objs:
-                with st.expander(f"Measurement {meas['id']} - {meas['location']['name']}", expanded=True):
-                    st.json(meas) # Show full metadata
+                with st.expander(
+                    f"Measurement {meas['id']} - {meas['location']['name']}",
+                    expanded=True,
+                ):
+                    st.json(meas)  # Show full metadata
 
                     # Show items as table
                     if meas.get("items"):
                         df_items = pd.DataFrame(meas["items"])
                         # Select relevant columns
-                        cols = ["id", "measurement_type", "value", "unit", "frequency_hz", "description", "measurement_distance_m"]
+                        cols = [
+                            "id",
+                            "measurement_type",
+                            "value",
+                            "unit",
+                            "frequency_hz",
+                            "description",
+                            "measurement_distance_m",
+                        ]
                         available_cols = [c for c in cols if c in df_items.columns]
                         st.dataframe(df_items[available_cols], width="stretch")
                     else:
@@ -513,7 +592,7 @@ def main():
             meas_type = st.selectbox(
                 "Measurement Type",
                 ["earthing_impedance", "soil_resistivity", "earthing_resistance"],
-                index=0
+                index=0,
             )
 
             show_all_freq = st.checkbox("Show all frequencies", value=False)
@@ -524,7 +603,9 @@ def main():
                 available_freqs = set()
                 try:
                     # selected_ids is a list from st.multiselect
-                    raw_data = value_over_distance_detailed(selected_ids, measurement_type=meas_type)
+                    raw_data = value_over_distance_detailed(
+                        selected_ids, measurement_type=meas_type
+                    )
                     if isinstance(raw_data, dict):
                         for mid, points in raw_data.items():
                             for p in points:
@@ -538,7 +619,9 @@ def main():
                     default_idx = 0
                     if 50.0 in sorted_freqs:
                         default_idx = sorted_freqs.index(50.0)
-                    target_freq = st.selectbox("Frequency (Hz)", sorted_freqs, index=default_idx)
+                    target_freq = st.selectbox(
+                        "Frequency (Hz)", sorted_freqs, index=default_idx
+                    )
                 else:
                     st.warning("No frequency data found for selection.")
 
@@ -548,7 +631,7 @@ def main():
                         selected_ids,
                         measurement_type=meas_type,
                         show_all_frequencies=show_all_freq,
-                        target_frequency=target_freq
+                        target_frequency=target_freq,
                     )
                     st.plotly_chart(fig, width="stretch")
                 except Exception as e:
@@ -690,7 +773,9 @@ def main():
                             spacing_values = _parse_float_list(spacing_text)
 
                     if not spacing_values:
-                        raise ValueError("Provide spacing values or select a measurement with spacing data.")
+                        raise ValueError(
+                            "Provide spacing values or select a measurement with spacing data."
+                        )
 
                     model = multilayer_soil_model(
                         rho_layers=rho_values,
@@ -941,6 +1026,7 @@ def main():
 
     else:
         st.info("Select measurements on the map or in the dropdown to see details.")
+
 
 if __name__ == "__main__":
     main()

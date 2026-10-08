@@ -20,7 +20,7 @@ import numpy as np
 from datetime import datetime, timezone
 from typing import Optional, List, Literal
 
-from sqlalchemy import Column, String, event
+from sqlalchemy import Column, String, event, inspect as sa_inspect
 from sqlmodel import SQLModel, Field, Relationship
 
 logger = logging.getLogger(__name__)
@@ -208,15 +208,61 @@ class MeasurementItem(SQLModel, table=True):
     measurement: Optional[Measurement] = Relationship(back_populates="items")
 
 
-@event.listens_for(MeasurementItem, "before_insert", propagate=True)
-@event.listens_for(MeasurementItem, "before_update", propagate=True)
+_POLAR_ATTRS = ("value", "value_angle_deg")
+_RECT_ATTRS = ("value_real", "value_imag")
+
+
+def _polar_from_rect(target: MeasurementItem) -> None:
+    """Derive ``value`` and ``value_angle_deg`` from the rectangular components."""
+    r = target.value_real or 0.0
+    i = target.value_imag or 0.0
+    target.value = math.hypot(r, i)
+    target.value_angle_deg = float(np.degrees(np.arctan2(i, r)))
+
+
+def _rect_from_polar(target: MeasurementItem) -> None:
+    """Derive ``value_real`` and ``value_imag`` from the polar components."""
+    if target.value is None or target.value_angle_deg is None:
+        return
+    angle_rad = math.radians(target.value_angle_deg)
+    target.value_real = float(target.value * math.cos(angle_rad))
+    target.value_imag = float(target.value * math.sin(angle_rad))
+
+
+def _history_has_real_change(target: MeasurementItem, attrs: tuple[str, ...]) -> bool:
+    """
+    Return True if any of ``attrs`` has a *persisted-value* change.
+
+    Unlike :meth:`History.has_changes`, this comparison ignores the
+    "initial None vs. currently None" case that SQLAlchemy reports for
+    transient/freshly-loaded instances where an attribute was touched but
+    never actually set to a non-default value. The comparison is therefore
+    reliable for the ``before_update`` listener, which is the only place
+    this helper is used.
+    """
+    state = sa_inspect(target)
+    for name in attrs:
+        try:
+            hist = state.attrs[name].history
+        except KeyError:
+            continue
+        if not hist.has_changes():
+            continue
+        added = hist.added or ()
+        deleted = hist.deleted or ()
+        current = tuple(added) + tuple(deleted)
+        if any(v is not None for v in current):
+            return True
+    return False
+
+
 def _compute_magnitude(mapper, connection, target: MeasurementItem):
     """
-    SQLAlchemy event listener for magnitude/angle consistency.
+    Insert-time listener that fills in the missing representation.
 
-    - If ``value`` is None but real/imag are set, computes magnitude and phase angle.
-    - If ``value`` and ``value_angle_deg`` are set, computes ``value_real`` and ``value_imag``.
-    - If neither representation is present, raises ``ValueError``.
+    * If ``value`` is None but real/imag are set, computes magnitude and phase angle.
+    * If ``value`` and ``value_angle_deg`` are set, computes ``value_real`` and ``value_imag``.
+    * If neither representation is present, raises ``ValueError``.
 
     Raises
     ------
@@ -227,10 +273,7 @@ def _compute_magnitude(mapper, connection, target: MeasurementItem):
         # Case A: only rectangular given → compute scalar and angle
         if target.value is None:
             if target.value_real is not None or target.value_imag is not None:
-                r = target.value_real or 0.0
-                i = target.value_imag or 0.0
-                target.value = math.hypot(r, i)
-                target.value_angle_deg = float(np.degrees(np.arctan2(i, r)))
+                _polar_from_rect(target)
             else:
                 logger.error(
                     "MeasurementItem %s lacks both magnitude and real/imag components",
@@ -241,13 +284,65 @@ def _compute_magnitude(mapper, connection, target: MeasurementItem):
                 )
         # Case B: polar given → compute rectangular components
         elif target.value_angle_deg is not None:
-            angle_rad = math.radians(target.value_angle_deg)
-            target.value_real = float(target.value * math.cos(angle_rad))
-            target.value_imag = float(target.value * math.sin(angle_rad))
+            _rect_from_polar(target)
     except Exception:
-        # Ensure that any unexpected error in conversion is logged
         logger.exception(
             "Failed to compute magnitude/angle for MeasurementItem %s",
             getattr(target, "id", "<new>"),
         )
         raise
+
+
+def _sync_magnitude_on_update(mapper, connection, target: MeasurementItem):
+    """
+    Keep polar (magnitude/angle) and rectangular (real/imag) in sync on update.
+
+    Decides, using SQLAlchemy attribute history, which representation the
+    caller actually modified in this flush and refreshes the other one:
+
+    * Only rectangular components changed → magnitude and phase angle are
+      recomputed from them.
+    * Only polar components changed → the rectangular fields are recomputed
+      from the new magnitude/angle.
+    * Both sides were modified in the same flush → the polar representation
+      wins and a warning is logged.
+
+    Rows that were not touched on the value axis are left alone so unrelated
+    updates (e.g., editing ``description`` only) never clobber existing data.
+    """
+    try:
+        polar_changed = _history_has_real_change(target, _POLAR_ATTRS)
+        rect_changed = _history_has_real_change(target, _RECT_ATTRS)
+
+        if polar_changed and rect_changed:
+            logger.warning(
+                "MeasurementItem %s updated both polar and rectangular "
+                "components in one flush; polar representation wins.",
+                getattr(target, "id", "<new>"),
+            )
+            _rect_from_polar(target)
+            return
+
+        if rect_changed and not polar_changed:
+            _polar_from_rect(target)
+            return
+
+        if polar_changed and not rect_changed:
+            if target.value is not None and target.value_angle_deg is not None:
+                _rect_from_polar(target)
+            elif target.value is None and (
+                target.value_real is not None or target.value_imag is not None
+            ):
+                _polar_from_rect(target)
+    except Exception:
+        logger.exception(
+            "Failed to sync magnitude/angle on update for MeasurementItem %s",
+            getattr(target, "id", "<new>"),
+        )
+        raise
+
+
+event.listen(MeasurementItem, "before_insert", _compute_magnitude, propagate=True)
+event.listen(
+    MeasurementItem, "before_update", _sync_magnitude_on_update, propagate=True
+)
