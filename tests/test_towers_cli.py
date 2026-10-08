@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 import pytest
@@ -12,9 +13,18 @@ from groundmeas.ui import cli as main_cli
 
 runner = CliRunner(mix_stderr=False)
 
+# typer forces coloured help output on GitHub Actions (GITHUB_ACTIONS,
+# FORCE_COLOR); rich then splits option names into styled segments
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
 
 def run(*args: str):
     return runner.invoke(main_cli.app, ["towers", *args])
+
+
+def plain(text: str) -> str:
+    """Help text without ANSI colour codes."""
+    return _ANSI.sub("", text)
 
 
 def test_help_lists_commands():
@@ -28,7 +38,7 @@ def test_help_lists_commands():
         "flatten",
         "import-db",
     ):
-        assert command in result.stdout
+        assert command in plain(result.stdout)
 
 
 def test_run_help_mentions_all_steps():
@@ -43,7 +53,7 @@ def test_run_help_mentions_all_steps():
         "--no-pdf",
         "--worker",
     ):
-        assert option in result.stdout
+        assert option in plain(result.stdout)
 
 
 def test_towers_commands_do_not_create_a_database(tmp_path, monkeypatch):
