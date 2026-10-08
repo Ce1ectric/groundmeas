@@ -356,11 +356,28 @@ def _connect(
         # the tower workflow is file based; `towers import-db` connects itself
         ctx.obj = {"db": db}
         return
+    _connect_database(db)
+
+
+def _connect_database(db: Optional[str]) -> str:
+    """Resolve the database path, create its folder and connect.
+
+    Parameters
+    ----------
+    db : str, optional
+        Value of ``--db`` / ``GROUNDMEAS_DB``; see :func:`_resolve_db`.
+
+    Returns
+    -------
+    str
+        Path of the connected database.
+    """
     db_path = _resolve_db(db)
     db_parent = Path(db_path).expanduser().resolve().parent
     db_parent.mkdir(parents=True, exist_ok=True)
     connect_db(db_path)
     typer.echo(f"Connected to {db_path}")
+    return db_path
 
 
 # ─── COMMANDS ───────────────────────────────────────────────────────────────────

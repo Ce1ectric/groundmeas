@@ -11,7 +11,9 @@ grid data) and a JSON configuration. The evaluation determines earthing
 impedance (62 % method), footing resistance, touch and step voltages at the
 earth-fault current, assesses every tower against the permissible touch
 voltage (EN 50522 / EN 50341) and writes JSON, Excel, HTML/PDF and statistics
-results. Most users run ``gm-cli towers run --config config.json``.
+results. Most users run ``gm-cli towers run --config config.json``;
+``gm-cli towers import-db`` copies the instrument data of a campaign into the
+groundmeas database (one location per tower).
 
 The building blocks are imported lazily, so ``import groundmeas.towers`` stays
 fast::
@@ -39,6 +41,8 @@ _LAZY = {
     "generate_pdf": "groundmeas.towers.pdf",
     "generate_asset_report": "groundmeas.towers.stats",
     "write_demo_campaign": "groundmeas.towers.demo",
+    "import_campaign": "groundmeas.towers.database",
+    "find_tower_files": "groundmeas.towers.database",
 }
 
 __all__ = sorted(_LAZY)

@@ -121,6 +121,22 @@ During regular work, add your entry under the matching category in
   (`calculate_summary`, `GroundingSystemAnalysis`, `read_config`, ...).
 - **Optional extra `groundmeas[pdf]`** (Playwright) for the PDF protocols;
   without it `gm-cli towers run --no-pdf` writes HTML protocols.
+- **`gm-cli towers import-db --config config.json`** and
+  `groundmeas.towers.import_campaign(...)` copy the instrument data of a
+  tower campaign into the database: one location per tower
+  (`"<line> tower <tower>"`, coordinates from optional `latitude` /
+  `longitude` or `Breitengrad` / `Längengrad` columns of the measurement
+  description) and one `overhead_line_tower` measurement per test —
+  fall-of-potential profile (current-electrode distance from the
+  description), touch voltages, transferred potential at the neighbouring
+  tower and soil resistivity — with operator, weather and instrument from
+  the measurement description. Files already in the database are skipped
+  (`--reimport` to import them again), `--dry-run` lists the files without
+  opening the database, `--timezone` converts the instrument clocks to UTC.
+  The imported data reproduce the evaluation: the conservative 62 % value
+  of `distance_profile_value` equals `ZE_62_Ohm` and the touch voltages
+  scaled to the earth-fault current equal `UT_V` of the JSON results
+  (tested on the demo campaign).
 
 ### Changed (Tower-grounding integration — 2026-10)
 

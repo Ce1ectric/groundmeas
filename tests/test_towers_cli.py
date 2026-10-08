@@ -20,7 +20,14 @@ def run(*args: str):
 def test_help_lists_commands():
     result = run("--help")
     assert result.exit_code == 0
-    for command in ("run", "demo", "example-config", "install-browser", "flatten"):
+    for command in (
+        "run",
+        "demo",
+        "example-config",
+        "install-browser",
+        "flatten",
+        "import-db",
+    ):
         assert command in result.stdout
 
 

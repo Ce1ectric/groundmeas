@@ -19,6 +19,7 @@ Without a step option ``--calc --print --zip`` is run. Examples::
     gm-cli towers run --config campaign/config.json --print --worker 4
     gm-cli towers run --config campaign/config.json --print --no-pdf
     gm-cli towers flatten delivery/ measurements/ --apply --report mapping.csv
+    gm-cli --db towers.db towers import-db --config campaign/config.json
 
 Exit codes: ``0`` success, ``1`` processing error, ``2`` invalid usage or
 configuration.
@@ -336,3 +337,103 @@ def cli_flatten(
         return
     copied = apply_flatten(rows, src_root, dest_flat, report=report)
     typer.echo(f"{copied} files copied to {dest_flat}")
+
+
+_STATUS_TEXT = {
+    "imported": "measurement {measurement_id}",
+    "skipped": "skipped (already imported)",
+    "failed": "FAILED: {message}",
+    "planned": "to import",
+}
+
+
+@app.command("import-db")
+def cli_import_db(
+    ctx: typer.Context,
+    config: Optional[Path] = _CONFIG_OPTION,
+    per_frequency: bool = typer.Option(
+        True,
+        "--per-frequency/--no-per-frequency",
+        help="Also store the values at both test frequencies",
+    ),
+    voltage_level_kv: Optional[float] = typer.Option(
+        None, "--voltage-level-kv", help="Nominal voltage of the line(s) in kV"
+    ),
+    timezone: Optional[str] = typer.Option(
+        None,
+        "--timezone",
+        help="Time zone of the instrument clocks, e.g. Europe/Berlin (stored as UTC)",
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Only list the files (the database is not opened)"
+    ),
+    reimport: bool = typer.Option(
+        False, "--reimport", help="Import files that are already in the database"
+    ),
+    verbose: bool = _VERBOSE_OPTION,
+    quiet: bool = _QUIET_OPTION,
+) -> None:
+    """Import the instrument files of a campaign into the groundmeas database.
+
+    One location per tower ("<line> tower <tower>") with a measurement per
+    test: fall-of-potential profile, touch voltages, transferred potential at
+    a neighbouring tower and soil resistivity. The database is chosen with
+    gm-cli --db (or GROUNDMEAS_DB / the default database). Files already in
+    the database are skipped unless --reimport is given.
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    from .database import import_campaign
+
+    if verbose and quiet:
+        typer.echo("Error: --verbose and --quiet exclude each other", err=True)
+        raise typer.Exit(code=2)
+    if timezone:
+        try:
+            ZoneInfo(timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            typer.echo(f"Error: unknown time zone {timezone!r}", err=True)
+            raise typer.Exit(code=2)
+    configure_logging(verbose=verbose, quiet=quiet)
+    config_path = _activate_config(config)
+    if not dry_run:
+        # imported here: groundmeas.ui.cli imports this module
+        from ..ui.cli import _connect_database
+
+        _connect_database((ctx.obj or {}).get("db"))
+    try:
+        records = import_campaign(
+            config_path,
+            per_frequency=per_frequency,
+            voltage_level_kv=voltage_level_kv,
+            timezone=timezone,
+            skip_existing=not reimport,
+            dry_run=dry_run,
+        )
+    except (ConfigError, FileNotFoundError) as exc:
+        logger.error("%s", exc)
+        raise typer.Exit(code=2)
+    for record in records:
+        status = _STATUS_TEXT[record["status"]].format(**record)
+        note = (
+            f"  ({record['message']})"
+            if record["message"] and record["status"] in ("imported", "planned")
+            else ""
+        )
+        typer.echo(
+            f"{record['location']:<30} {record['test']:<22} {record['file']}: "
+            f"{status}{note}"
+        )
+    counts = {
+        key: sum(1 for r in records if r["status"] == key) for key in _STATUS_TEXT
+    }
+    towers = len({r["location"] for r in records})
+    if dry_run:
+        typer.echo(f"{counts['planned']} files of {towers} towers (dry run)")
+        return
+    typer.echo(
+        f"{counts['imported']} measurements imported, {counts['skipped']} skipped, "
+        f"{counts['failed']} failed ({towers} towers)"
+    )
+    if counts["failed"]:
+        raise typer.Exit(code=1)
