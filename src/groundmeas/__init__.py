@@ -77,6 +77,11 @@ try:
         import_measurements,
         import_measurements_from_json,
     )
+    from .services.omicron_import import (
+        import_fall_of_potential,
+        import_soil_resistivity,
+        import_step_touch,
+    )
     from .services.vision_import import import_items_from_images
 
     # visualization
@@ -134,6 +139,9 @@ __all__ = [
     "export_measurements_to_xml",
     "import_measurements",
     "import_measurements_from_json",
+    "import_fall_of_potential",
+    "import_step_touch",
+    "import_soil_resistivity",
     "soil_resistivity_profile",
     "soil_resistivity_profile_detailed",
     "soil_resistivity_curve",

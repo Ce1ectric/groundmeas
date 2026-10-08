@@ -76,6 +76,22 @@ During regular work, add your entry under the matching category in
   (`mA`, `mV`, `kV`, `cm`, `km`, `ft`) are converted to SI, malformed files
   raise `MeasurementFileError` with the file name.
 
+- **Import of OMICRON exports into the database** —
+  `gm.import_fall_of_potential(...)`, `gm.import_step_touch(...)`,
+  `gm.import_soil_resistivity(...)` and
+  `gm-cli import-omicron --location ... --asset-type ... [--ze ZE.xml]
+  [--ut UT.txt] [--transferred UT2.txt] [--soil SOIL.xml] [-D 100]`. One
+  measurement per test: the fall-of-potential profile at the power
+  frequency and both test frequencies with footing resistance, injected
+  current and (from the clamp readings) `earth_fault_current` +
+  `shield_current` so that `calculate_split_factor` returns the footing
+  share; HGT1 touch voltages with `input_impedance_ohm` /
+  `additional_resistance_ohm` per termination and the reference current of
+  the step/touch test; soil resistivity as Wenner (`a`) or Schlumberger
+  (`AB/2`, `MN/2`). Instrument time stamps can be converted to UTC with
+  `--timezone Europe/Berlin`. Replaces the OCR path for these instruments
+  (roadmap item *Native importers for common instruments*).
+
 ### Changed (Tower-grounding integration — 2026-10)
 
 - **`impedance_over_frequency` returns one value per frequency from all

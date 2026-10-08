@@ -36,6 +36,11 @@ from ..core.db import (
 )
 from ..services.export import export_measurements_to_json
 from ..services.json_import import prepare_measurement_for_import
+from ..services.omicron_import import (
+    import_fall_of_potential,
+    import_soil_resistivity,
+    import_step_touch,
+)
 from ..core.models import MeasurementType
 from ..services.analytics import (
     calculate_split_factor,
@@ -1486,6 +1491,120 @@ def cli_plot_soil_inversion(
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output)
     typer.echo(f"Wrote {output}")
+
+
+@app.command("import-omicron")
+def cli_import_omicron(
+    location: str = typer.Option(..., "--location", "-l", help="Location name"),
+    asset_type: str = typer.Option(
+        ...,
+        "--asset-type",
+        "-a",
+        help="Asset type, e.g. overhead_line_tower or substation",
+    ),
+    fall_of_potential: Optional[Path] = typer.Option(
+        None,
+        "--fall-of-potential",
+        "--ze",
+        exists=True,
+        dir_okay=False,
+        help="COMPANO 100 XML export with the fall-of-potential test",
+    ),
+    step_touch: Optional[Path] = typer.Option(
+        None,
+        "--step-touch",
+        "--ut",
+        exists=True,
+        dir_okay=False,
+        help="HGT1 StepTouch report (touch voltages)",
+    ),
+    transferred: List[Path] = typer.Option(
+        [],
+        "--transferred",
+        exists=True,
+        dir_okay=False,
+        help="HGT1 report measured elsewhere (e.g. neighbouring tower); repeatable",
+    ),
+    soil: Optional[Path] = typer.Option(
+        None,
+        "--soil",
+        exists=True,
+        dir_okay=False,
+        help="COMPANO 100 XML export with a soil-resistivity measurement",
+    ),
+    current_electrode_distance: Optional[float] = typer.Option(
+        None,
+        "--current-electrode-distance",
+        "-D",
+        help="Distance of the current electrode in m (needed for the 62 % method)",
+    ),
+    per_frequency: bool = typer.Option(
+        True,
+        "--per-frequency/--no-per-frequency",
+        help="Also store the values at the two test frequencies",
+    ),
+    voltage_level_kv: Optional[float] = typer.Option(
+        None, "--voltage-level-kv", help="Nominal voltage in kV"
+    ),
+    operator: Optional[str] = typer.Option(None, "--operator", help="Operator"),
+    timezone: Optional[str] = typer.Option(
+        None,
+        "--timezone",
+        help="IANA time zone of the instrument clock, e.g. Europe/Berlin "
+        "(time stamps are converted to UTC)",
+    ),
+) -> None:
+    """Import OMICRON COMPANO 100 / HGT1 exports of one location.
+
+    Creates one measurement per test: fall of potential (--fall-of-potential),
+    touch voltages (--step-touch, reference current from the COMPANO export),
+    transferred potentials (--transferred) and soil resistivity (--soil).
+    """
+    if not any([fall_of_potential, step_touch, transferred, soil]):
+        raise _abort("Nothing to import: give at least one file option.")
+    common = {
+        "location": location,
+        "asset_type": asset_type,
+        "operator": operator,
+        "voltage_level_kv": voltage_level_kv,
+        "timezone": timezone,
+    }
+    created: List[Tuple[str, int]] = []
+    try:
+        if fall_of_potential is not None:
+            mid = import_fall_of_potential(
+                fall_of_potential,
+                current_electrode_distance_m=current_electrode_distance,
+                per_frequency=per_frequency,
+                **common,
+            )
+            created.append(("fall of potential", mid))
+        if step_touch is not None:
+            mid = import_step_touch(
+                step_touch,
+                compano_xml_path=fall_of_potential,
+                per_frequency=per_frequency,
+                **common,
+            )
+            created.append(("touch voltages", mid))
+        for path in transferred:
+            mid = import_step_touch(
+                path,
+                compano_xml_path=fall_of_potential,
+                per_frequency=per_frequency,
+                transferred=True,
+                **common,
+            )
+            created.append((f"transferred potential ({path.name})", mid))
+        if soil is not None:
+            mid = import_soil_resistivity(soil, **common)
+            created.append(("soil resistivity", mid))
+    except (ValueError, RuntimeError, FileNotFoundError) as exc:
+        for label, mid in created:
+            typer.echo(f"Imported {label}: measurement id={mid}")
+        raise _abort(f"Import failed: {exc}")
+    for label, mid in created:
+        typer.echo(f"Imported {label}: measurement id={mid}")
 
 
 @app.command("import-json")
