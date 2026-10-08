@@ -571,7 +571,7 @@ def write_demo_campaign(
                 soil_resistivity={
                     "rho": [85.0, 92.0, 110.0, 135.0, 150.0],
                     "a": spacing,
-                    "b": [3 * s for s in spacing],
+                    "b": [0.2] * len(spacing),  # electrode depth
                     "c": spacing,
                 },
             )

@@ -40,7 +40,9 @@ from .paths import sorted_listdir
 
 __all__ = [
     "find_neighbor_touch_voltage_file",
+    "find_neighbor_touch_voltage_files",
     "find_soil_file",
+    "find_soil_files",
     "find_touch_voltage_file",
     "read_from_device",
     "read_from_omicron",
@@ -96,13 +98,56 @@ def find_touch_voltage_file(
     return None
 
 
+def find_soil_files(
+    directory_path: str,
+    line_number: str,
+    tower: str,
+    structure: str = "PREFIX_LINENUMBER_TOWER",
+) -> list[str]:
+    """Find all soil-resistivity exports (``*_spez*.xml``) of a tower.
+
+    Parameters
+    ----------
+    directory_path : str
+        Flat measurement folder.
+    line_number : str
+        Line identifier.
+    tower : str
+        Tower identifier.
+    structure : str, optional
+        File-name structure, see `FILE_NAME_STRUCTURES`.
+
+    Returns
+    -------
+    list of str
+        Paths in file-name order (empty if there is none).
+    """
+    target = normalize_tower_id(tower)
+    found = []
+    for name in sorted_listdir(directory_path):
+        if not is_soil_resistivity_file(name):
+            continue
+        base = re.split(r"_spez", normalize_text(name), flags=re.IGNORECASE)[0]
+        line, found_tower = extract_line_and_tower(base + ".xml", structure)
+        if (
+            line == line_number
+            and found_tower is not None
+            and normalize_tower_id(found_tower) == target
+        ):
+            found.append(os.path.join(directory_path, name))
+    return found
+
+
 def find_soil_file(
     directory_path: str,
     line_number: str,
     tower: str,
     structure: str = "PREFIX_LINENUMBER_TOWER",
 ) -> str | None:
-    """Find a Schlumberger soil-resistivity export (``*_spez*.xml``) of a tower.
+    """Find a soil-resistivity export (``*_spez*.xml``) of a tower.
+
+    The evaluation uses one export per tower; if there are several, the
+    first one (file-name order) is used and a warning names the others.
 
     Parameters
     ----------
@@ -120,25 +165,22 @@ def find_soil_file(
     str or None
         Path of the export or ``None``.
     """
-    target = normalize_tower_id(tower)
-    for name in sorted_listdir(directory_path):
-        if not is_soil_resistivity_file(name):
-            continue
-        base = re.split(r"_spez", normalize_text(name), flags=re.IGNORECASE)[0]
-        line, found_tower = extract_line_and_tower(base + ".xml", structure)
-        if (
-            line == line_number
-            and found_tower is not None
-            and normalize_tower_id(found_tower) == target
-        ):
-            return os.path.join(directory_path, name)
-    return None
+    found = find_soil_files(directory_path, line_number, tower, structure)
+    if len(found) > 1:
+        logger.warning(
+            "Several soil-resistivity exports for %s tower %s; using %s, ignoring %s",
+            line_number,
+            tower,
+            os.path.basename(found[0]),
+            ", ".join(os.path.basename(f) for f in found[1:]),
+        )
+    return found[0] if found else None
 
 
-def find_neighbor_touch_voltage_file(
+def find_neighbor_touch_voltage_files(
     directory_path: str, line_number: str, tower: str
-) -> tuple[str | None, str | None]:
-    """Find an HGT1 report measured at a neighbouring tower.
+) -> list[tuple[str, str]]:
+    """Find all HGT1 reports measured at neighbouring towers.
 
     Such reports are named ``UT_<line>_<tower>-<neighbour>.txt`` and contain
     the voltage that the earth fault at ``tower`` causes at ``neighbour``.
@@ -154,18 +196,54 @@ def find_neighbor_touch_voltage_file(
 
     Returns
     -------
-    tuple of (str or None, str or None)
-        ``(path, neighbour_tower)`` or ``(None, None)``.
+    list of (str, str)
+        ``(path, neighbour_tower)`` in file-name order.
     """
     target = normalize_tower_id(tower)
+    found = []
     for name in sorted_listdir(directory_path):
         rest = _suffix_after(name, f"UT_{line_number}_", ".txt")
         if rest is None or "-" not in rest:
             continue
         own, neighbour = rest.split("-", 1)
         if normalize_tower_id(own) == target:
-            return os.path.join(directory_path, name), neighbour
-    return None, None
+            found.append((os.path.join(directory_path, name), neighbour))
+    return found
+
+
+def find_neighbor_touch_voltage_file(
+    directory_path: str, line_number: str, tower: str
+) -> tuple[str | None, str | None]:
+    """Find an HGT1 report measured at a neighbouring tower.
+
+    The evaluation shows one neighbouring tower; if there are several
+    reports, the first one (file-name order) is used and a warning names the
+    others.
+
+    Parameters
+    ----------
+    directory_path : str
+        Flat measurement folder.
+    line_number : str
+        Line identifier.
+    tower : str
+        Tower with the injected current.
+
+    Returns
+    -------
+    tuple of (str or None, str or None)
+        ``(path, neighbour_tower)`` or ``(None, None)``.
+    """
+    found = find_neighbor_touch_voltage_files(directory_path, line_number, tower)
+    if len(found) > 1:
+        logger.warning(
+            "Several neighbouring-tower reports for %s tower %s; using %s, ignoring %s",
+            line_number,
+            tower,
+            os.path.basename(found[0][0]),
+            ", ".join(os.path.basename(path) for path, _ in found[1:]),
+        )
+    return found[0] if found else (None, None)
 
 
 def read_from_omicron(

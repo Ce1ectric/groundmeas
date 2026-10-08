@@ -276,12 +276,82 @@ def test_import_transferred_potential_without_compano(db, hgt1_txt):
     )
 
 
-def test_step_touch_items_unknown_termination(hgt1_txt):
+def test_step_touch_items_unknown_termination(hgt1_txt, caplog):
     readings = Hgt1TXTReader(hgt1_txt).get_touchvoltage_dataframe()
     readings.loc[0, "Termination"] = "open"
-    items = step_touch_items(readings, per_frequency=False)
+    with caplog.at_level("WARNING", logger="groundmeas"):
+        items = step_touch_items(readings, per_frequency=False)
     assert "additional_resistance_ohm" not in items[0]
+    assert "input_impedance_ohm" not in items[0]  # not a 1 kΩ reading
+    assert items[0]["measurement_type"] == "touch_voltage"
     assert items[1]["additional_resistance_ohm"] == 1000.0
+    assert "Unknown HGT1 termination 'open'" in caplog.text
+
+
+@pytest.mark.parametrize("termination", ["HIGHZ", "High Z", "hi-z", "200k"])
+def test_step_touch_items_high_impedance(hgt1_txt, termination):
+    readings = Hgt1TXTReader(hgt1_txt).get_touchvoltage_dataframe()
+    readings.loc[0, "Termination"] = termination
+    items = step_touch_items(readings, per_frequency=False)
+    assert items[0]["measurement_type"] == "prospective_touch_voltage"
+    assert "input_impedance_ohm" not in items[0]
+    assert items[1]["measurement_type"] == "touch_voltage"
+    transferred = step_touch_items(
+        readings, per_frequency=False, measurement_type="transferred_potential"
+    )
+    assert transferred[0]["measurement_type"] == "transferred_potential"
+
+
+def _results_only(source: Path, target: Path) -> Path:
+    """Remove the values at the test frequencies (keep the instrument results)."""
+    tree = ET.parse(source)
+    for parent in tree.getroot().iter():
+        for child in list(parent):
+            if child.tag == "Measurements" and child.find("Complex") is not None:
+                parent.remove(child)
+    tree.write(target, encoding="utf-8", xml_declaration=True)
+    return target
+
+
+def test_import_fall_of_potential_results_only(db, compano_xml, tmp_path):
+    path = _results_only(compano_xml, tmp_path / "ZE_results_only.xml")
+    assert not CompanoXMLReader(path).read_fall_of_potential().has_test_frequency_values
+    mid = gm.import_fall_of_potential(
+        path,
+        location="LX-01 tower 8",
+        asset_type="overhead_line_tower",
+        current_electrode_distance_m=100,
+    )
+    profile = _items(mid, measurement_type="earthing_impedance")
+    assert {i["frequency_hz"] for i in profile} == {50.0}
+    reference = _items(
+        gm.import_fall_of_potential(
+            compano_xml,
+            location="LX-01 tower 8",
+            asset_type="overhead_line_tower",
+            current_electrode_distance_m=100,
+        ),
+        measurement_type="earthing_impedance",
+        frequency_hz=50.0,
+    )
+    assert [i["value"] for i in profile] == pytest.approx(
+        [i["value"] for i in reference]
+    )
+
+
+def test_import_is_atomic(db, compano_xml, monkeypatch):
+    import groundmeas.services.omicron_import as omicron_import
+
+    monkeypatch.setattr(
+        omicron_import,
+        "fall_of_potential_items",
+        lambda *args, **kwargs: [{"measurement_type": "earthing_current"}],
+    )
+    with pytest.raises(ValueError):
+        gm.import_fall_of_potential(
+            compano_xml, location="LX-01 tower 8", asset_type="overhead_line_tower"
+        )
+    assert gm.read_measurements_by()[0] == []  # no empty measurement left behind
 
 
 # --------------------------------------------------------------------------- soil

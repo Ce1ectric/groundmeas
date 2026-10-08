@@ -100,12 +100,19 @@ The tool evaluates every profile as follows
 2. $Z(d_{62})$ is interpolated linearly between the three measuring points
    closest to $d_{62}$ (extrapolated if $d_{62}$ lies outside the measured
    range).
-3. Two conservative corrections handle profiles that do not look like the
+3. Conservative corrections handle profiles that do not look like the
    textbook curve:
     - the profile ends before $d_{62}$ and its maximum is higher → the
       maximum is used;
     - a point closer to the tower than $d_{62}$ shows a higher impedance →
-      that higher value is used.
+      that higher value is used;
+    - the profile starts after $d_{62}$ (all probes farther away) and the
+      extrapolated value is lower than the value at the first probe → that
+      value is used (the extrapolation could otherwise even become
+      negative).
+
+   Repeated probe distances are merged into their highest reading before
+   the interpolation.
 4. The result is $Z_{E,62}$, the earthing impedance used for the assessment.
 
 The same procedure is available as the pure function

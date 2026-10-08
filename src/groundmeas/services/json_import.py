@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ..core.db import create_items, create_measurement
+from ..core.db import create_measurements_with_items
 
 logger = logging.getLogger(__name__)
 
@@ -223,18 +223,16 @@ def import_measurements(
     ------
     ValueError
         If a measurement is malformed (see
-        :func:`prepare_measurement_for_import`); all measurements are checked
-        before the first one is inserted, so nothing is imported in this case.
+        :func:`prepare_measurement_for_import`) or an item carries no value.
+        Nothing is imported in this case.
     RuntimeError
-        On database errors.
+        On database errors (nothing is imported).
     """
     entries = [data] if isinstance(data, dict) else list(data)
     prepared = [prepare_measurement_for_import(entry) for entry in entries]
-    created: List[Tuple[int, int]] = []
-    for measurement, items in prepared:
-        measurement_id = create_measurement(measurement)
-        create_items(items, measurement_id=measurement_id)
-        created.append((measurement_id, len(items)))
+    # one transaction for all measurements: all or nothing
+    stored = create_measurements_with_items(prepared)
+    created = [(measurement_id, len(item_ids)) for measurement_id, item_ids in stored]
     logger.info("Imported %d measurements from JSON", len(created))
     return created
 

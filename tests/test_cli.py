@@ -616,14 +616,12 @@ def test_import_json_single(tmp_path, monkeypatch, capsys):
     file_path.write_text(json.dumps(payload))
 
     created = {"items": 0}
-    monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
-    monkeypatch.setattr(
-        cli,
-        "create_items",
-        lambda items, measurement_id: created.__setitem__(
-            "items", created["items"] + len(items)
-        ),
-    )
+
+    def fake_create(measurement, items):
+        created["items"] += len(items)
+        return 1, list(range(len(items)))
+
+    monkeypatch.setattr(cli, "create_measurement_with_items", fake_create)
 
     cli.import_json(file_path)
     assert "Successfully imported" in capsys.readouterr().out
@@ -637,14 +635,12 @@ def test_import_json_directory_merge(tmp_path, monkeypatch, capsys):
     items_path.write_text(json.dumps([{"value": 1}, {"value": 2}]))
 
     created = {"items": 0}
-    monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
-    monkeypatch.setattr(
-        cli,
-        "create_items",
-        lambda items, measurement_id: created.__setitem__(
-            "items", created["items"] + len(items)
-        ),
-    )
+
+    def fake_create(measurement, items):
+        created["items"] += len(items)
+        return 1, list(range(len(items)))
+
+    monkeypatch.setattr(cli, "create_measurement_with_items", fake_create)
 
     cli.import_json(tmp_path)
     out = capsys.readouterr().out
@@ -700,14 +696,12 @@ def test_import_json_parses_timestamp_and_drops_db_keys(tmp_path, monkeypatch, c
     file_path.write_text(json.dumps([payload]))
 
     seen = {}
-    monkeypatch.setattr(
-        cli, "create_measurement", lambda m: seen.setdefault("m", m) and 1
-    )
-    monkeypatch.setattr(
-        cli,
-        "create_items",
-        lambda items, measurement_id: seen.setdefault("items", items),
-    )
+
+    def fake_create(measurement, items):
+        seen["m"], seen["items"] = measurement, items
+        return 1, [1]
+
+    monkeypatch.setattr(cli, "create_measurement_with_items", fake_create)
 
     cli.import_json(file_path)
     assert "Successfully imported 1" in capsys.readouterr().out
@@ -857,3 +851,44 @@ def test_cli_distance_profile_frequency_and_conservative(tmp_path):
     assert data["frequency_hz"] == 50.0
     assert data["details"]["conservative"] is True
     assert data["result_value"] == pytest.approx(0.55 + 0.4 * 0.01)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["distance-profile", "1", "-a", "62percent"],
+        ["impedance-over-frequency", "1", "--profile-algorithm", "62percent"],
+        ["voltage-vt-epr", "1", "--profile-algorithm", "62percent"],
+    ],
+)
+def test_cli_rejects_unknown_profile_algorithm(tmp_path, args):
+    from typer.testing import CliRunner
+
+    result = CliRunner().invoke(cli.app, ["--db", str(tmp_path / "g.db"), *args])
+    assert result.exit_code == 2
+    assert "Unsupported algorithm" in result.output
+
+
+def test_cli_import_omicron_rejects_unknown_time_zone(tmp_path):
+    from typer.testing import CliRunner
+
+    data = Path(__file__).parent / "data" / "compano_fall_of_potential.xml"
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "--db",
+            str(tmp_path / "g.db"),
+            "import-omicron",
+            "--location",
+            "X",
+            "--asset-type",
+            "substation",
+            "--ze",
+            str(data),
+            "--timezone",
+            "Europe/Berln",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "unknown time zone" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)

@@ -52,8 +52,21 @@ UNIT_FACTORS: dict[str, dict[str, float]] = {
     "current": {"A": 1.0, "mA": 1e-3, "kA": 1e3, "µA": 1e-6, "uA": 1e-6},
     "voltage": {"V": 1.0, "mV": 1e-3, "kV": 1e3, "µV": 1e-6, "uV": 1e-6},
     "distance": {"m": 1.0, "cm": 1e-2, "km": 1e3, "ft": 0.3048},
+    "resistance": {"Ω": 1.0, "Ohm": 1.0, "mΩ": 1e-3, "kΩ": 1e3, "MΩ": 1e6},
+    "resistivity": {
+        "Ωm": 1.0,
+        "Ω m": 1.0,
+        "Ω·m": 1.0,
+        "Ohm m": 1.0,
+        "Ohmm": 1.0,
+        "mΩm": 1e-3,
+        "kΩm": 1e3,
+        "kΩ m": 1e3,
+        "kΩ·m": 1e3,
+        "MΩm": 1e6,
+    },
 }
-"""Accepted units per quantity and their factor to the SI base unit (A, V, m)."""
+"""Accepted units per quantity and their factor to the SI base unit (A, V, m, Ω, Ωm)."""
 
 _FALL_OF_POTENTIAL = "FallOfPotentialReport/FallOfPotentialWidgetData/FallOfPotentialMeasurementScreenData"
 _REDUCTION_FACTOR = (
@@ -101,7 +114,7 @@ def _to_base_unit(
         Values in the units given by ``units`` (one unit per value).
     units : list of str
         Unit of every value as written in the export.
-    quantity : {"current", "voltage", "distance"}
+    quantity : {"current", "voltage", "distance", "resistance", "resistivity"}
         Physical quantity, used to check that the units are compatible.
     source : str
         Description used in error messages.
@@ -115,7 +128,8 @@ def _to_base_unit(
     accepted = UNIT_FACTORS[quantity]
     factors = []
     for unit in units:
-        unit = (unit or "").strip()
+        # U+2126 OHM SIGN and U+03A9 GREEK CAPITAL OMEGA look the same
+        unit = (unit or "").strip().replace("\u2126", "\u03a9")
         if unit not in accepted:
             raise MeasurementFileError(f"{source}: unexpected {quantity} unit {unit!r}")
         factors.append(accepted[unit])
@@ -193,6 +207,20 @@ class FallOfPotentialData:
             return self.result_voltages / self.result_currents
         k = self._frequency_index(frequency_hz)
         return self.voltages[:, k] / self.currents[:, k]
+
+    @property
+    def has_test_frequency_values(self) -> bool:
+        """Whether the export contains the values at the test frequencies.
+
+        Some exports carry only the instrument results (power frequency).
+        """
+        return (
+            len(self.test_frequencies_hz) > 0
+            and self.voltages.ndim == 2
+            and self.voltages.shape
+            == (self.distances_m.size, len(self.test_frequencies_hz))
+            and self.currents.shape == self.voltages.shape
+        )
 
     def footing_resistance(self) -> np.ndarray | None:
         """Complex footing (residual) resistance per distance in Ω.
@@ -547,35 +575,23 @@ class CompanoXMLReader:
         -------
         dict or None
             ``{"rho_OhmMeter": [...], "DistanzA_m": [...], "DistanzB_m": [...],
-            "DistanzC_m": [...]}`` or ``None`` if the export contains no
-            soil-resistivity report.
+            "DistanzC_m": [...]}`` (Ωm and m) or ``None`` if the export
+            contains no soil-resistivity report.
+
+        Raises
+        ------
+        MeasurementFileError
+            If a unit is unknown or the geometry does not match the readings.
         """
-        report_data = self._root()
-        screen = report_data.find(
-            "SoilResistanceReport/SoilResistanceWidgetData/SoilResistanceMeasurementScreenData"
-        )
-        if screen is None:
+        data = self.read_soil_resistivity()
+        if data is None:
             return None
-
-        def _values(tag: str) -> list[float]:
-            element = screen.find(tag)
-            if element is None:
-                return []
-            collected = []
-            for item in element:
-                value = item.find("Value")
-                if value is not None and value.text is not None:
-                    collected.append(float(value.text))
-            return collected
-
-        rho = _values("SpecificResistances")
-        if not rho:
-            return None
+        # values in base units are passed through unchanged (bit-identical)
         return {
-            "rho_OhmMeter": rho,
-            "DistanzA_m": _values("DistancesA"),
-            "DistanzB_m": _values("DistancesB"),
-            "DistanzC_m": _values("DistancesC"),
+            "rho_OhmMeter": [float(v) for v in data.rho_ohm_m],
+            "DistanzA_m": [float(v) for v in data.spacing_a_m],
+            "DistanzB_m": [float(v) for v in data.depth_b_m],
+            "DistanzC_m": [float(v) for v in data.distance_c_m],
         }
 
     def get_nominal_frequency(self) -> float | None:
@@ -887,7 +903,7 @@ class CompanoXMLReader:
                 array = _to_base_unit(array, units, quantity, f"{self._name} {tag}")
             return array
 
-        rho = _values("SpecificResistances", None)
+        rho = _values("SpecificResistances", "resistivity")
         if not len(rho):
             return None
         a = _values("DistancesA", "distance")
@@ -898,7 +914,7 @@ class CompanoXMLReader:
                 f"{self._name}: {len(rho)} resistivities but {len(a)}/{len(b)}/{len(c)} "
                 "distances a/b/c"
             )
-        resistance = _values("Impedances", None)
+        resistance = _values("Impedances", "resistance")
         return SoilResistivityData(
             rho_ohm_m=rho,
             spacing_a_m=a,

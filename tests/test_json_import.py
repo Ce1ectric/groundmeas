@@ -231,3 +231,41 @@ def test_create_items_requires_connection():
     db.disconnect_db()
     with pytest.raises(RuntimeError):
         gm.create_items([{"value": 1, "unit": "Ω"}], measurement_id=1)
+
+
+def test_create_measurement_with_items_is_atomic():
+    gm.connect_db(":memory:")
+    bad_items = _sample_items() + [{"measurement_type": "earthing_current"}]
+    with pytest.raises(ValueError):
+        gm.create_measurement_with_items(_sample_measurement("New site"), bad_items)
+    measurements, _ = gm.read_measurements_by()
+    assert measurements == []  # no empty measurement, no new location
+    mid, item_ids = gm.create_measurement_with_items(
+        _sample_measurement("New site"), _sample_items()
+    )
+    measurements, _ = gm.read_measurements_by()
+    assert [m["id"] for m in measurements] == [mid]
+    assert measurements[0]["location"]["name"] == "New site"
+    assert sorted(i["id"] for i in measurements[0]["items"]) == item_ids
+
+
+def test_create_measurements_with_items_does_not_modify_the_input():
+    gm.connect_db(":memory:")
+    measurement, items = _sample_measurement(), _sample_items()
+    gm.create_measurements_with_items([(measurement, items), (measurement, items)])
+    assert "location" in measurement and "measurement_id" not in items[0]
+    measurements, _ = gm.read_measurements_by()
+    assert len(measurements) == 2
+    assert len({m["location"]["id"] for m in measurements}) == 1
+
+
+def test_import_measurements_is_all_or_nothing():
+    gm.connect_db(":memory:")
+    good = {**_sample_measurement(), "items": _sample_items()}
+    bad = {
+        **_sample_measurement("Other"),
+        "items": [{"measurement_type": "earthing_current", "unit": "A"}],
+    }
+    with pytest.raises(ValueError):
+        gm.import_measurements([good, bad])
+    assert gm.read_measurements_by()[0] == []

@@ -26,8 +26,8 @@ from prompt_toolkit.completion import WordCompleter
 from ..core.db import (
     connect_db,
     create_item,
-    create_items,
     create_measurement,
+    create_measurement_with_items,
     delete_item,
     delete_measurement,
     read_items_by,
@@ -56,6 +56,7 @@ from ..services.analytics import (
     invert_soil_resistivity_layers,
     voltage_vt_epr,
     DX_DEFAULT,
+    _algorithm_key,
 )
 from ..services.vision_import import import_items_from_images
 from ..visualization.plots import (
@@ -335,6 +336,27 @@ def _print_measurement_summary(
 
 
 # ─── APP CALLBACK ───────────────────────────────────────────────────────────────
+
+
+def _time_zone(value: Optional[str]) -> Optional[str]:
+    """Typer callback: reject unknown IANA time zones before importing."""
+    if not value:
+        return value
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(f"unknown time zone {value!r}") from exc
+    return value
+
+
+def _profile_algorithm(value: str) -> str:
+    """Typer callback: reject unknown profile algorithms before any work is done."""
+    try:
+        return _algorithm_key(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 _COMMANDS_WITHOUT_DATABASE = frozenset({"towers"})
@@ -930,6 +952,7 @@ def cli_distance_profile_value(
         "--algorithm",
         "-a",
         help="Algorithm: maximum, 62_percent, minimum_gradient, minimum_stddev, inverse",
+        callback=_profile_algorithm,
     ),
     window: int = typer.Option(
         3, "--window", "-w", help="Window size for minimum_stddev (>=2)"
@@ -1068,6 +1091,7 @@ def cli_impedance_over_frequency(
         "62_percent",
         "--profile-algorithm",
         help="Reduction of distance profiles (one value per frequency)",
+        callback=_profile_algorithm,
     ),
     json_out: Optional[Path] = typer.Option(
         None, "--json-out", help="Write result to JSON file"
@@ -1312,6 +1336,7 @@ def cli_voltage_vt_epr(
         "62_percent",
         "--profile-algorithm",
         help="Reduction of an earthing-impedance profile",
+        callback=_profile_algorithm,
     ),
     json_out: Optional[Path] = typer.Option(
         None, "--json-out", help="Write result to JSON file"
@@ -1581,6 +1606,7 @@ def cli_import_omicron(
         "--timezone",
         help="IANA time zone of the instrument clock, e.g. Europe/Berlin "
         "(time stamps are converted to UTC)",
+        callback=_time_zone,
     ),
 ) -> None:
     """Import OMICRON COMPANO 100 / HGT1 exports of one location.
@@ -1729,8 +1755,8 @@ def import_json(
         for m in measurements:
             try:
                 measurement, items = prepare_measurement_for_import(m)
-                mid = create_measurement(measurement)
-                create_items(items, measurement_id=mid)
+                # one transaction: a failing item leaves no empty measurement
+                mid, _item_ids = create_measurement_with_items(measurement, items)
                 total_created.append((mid, len(items)))
             except Exception as e:
                 typer.echo(

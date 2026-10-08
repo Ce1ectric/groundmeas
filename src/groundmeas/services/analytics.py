@@ -108,9 +108,12 @@ def impedance_over_frequency(
 
     Raises
     ------
+    ValueError
+        If ``profile_algorithm`` is unknown.
     RuntimeError
         If database access fails.
     """
+    _algorithm_key(profile_algorithm)  # fail early on unknown names
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)
     all_results: Dict[int, Dict[float, float]] = {}
@@ -310,13 +313,21 @@ def value_at_62_percent(
       nearest points; outside their range the end value is kept.
     * ``conservative=True`` (the procedure of the tower evaluation,
       formerly ``tower-grounding-measurement``): linear interpolation with
-      extrapolation outside the nearest points, followed by two
-      conservative corrections:
+      extrapolation outside the nearest points, followed by conservative
+      corrections:
 
       1. if $d_{62}$ lies beyond the profile and a higher value was
          measured, the profile maximum is used (``"beyond_profile"``);
       2. if a point closer than $d_{62}$ shows a higher value, the highest
-         such value is used (``"closer_point_higher"``).
+         such value is used (``"closer_point_higher"``);
+      3. if $d_{62}$ lies before the first probe and the extrapolated value
+         is lower than the value at the first probe, that value is used
+         (``"before_profile"``; the extrapolation can otherwise become
+         negative).
+
+      Repeated probe distances are merged into their highest reading
+      before the evaluation (``"repeated_distances"``); profiles without
+      repeated distances are evaluated exactly as before.
 
     Parameters
     ----------
@@ -392,33 +403,52 @@ def value_at_62_percent(
 
     from scipy import interpolate  # local import: scipy is optional elsewhere
 
-    n_points = dist.size
-    offsets = np.abs(dist - target)
+    corrections: List[str] = []
+    if np.unique(dist).size < dist.size:
+        # Repeated probe distances: keep the highest reading per distance. Two
+        # equal distances among the nearest points would make the linear
+        # interpolation divide by zero.
+        by_distance = np.lexsort((-vals, dist))
+        first = np.ones(by_distance.size, dtype=bool)
+        first[1:] = dist[by_distance][1:] != dist[by_distance][:-1]
+        keep = by_distance[first]
+        corrections.append("repeated_distances")
+    else:
+        # unchanged order: ties in the nearest-point selection are resolved
+        # exactly as in the former tower evaluation
+        keep = np.arange(dist.size)
+    d, v = dist[keep], vals[keep]
+
+    n_points = d.size
+    offsets = np.abs(d - target)
     if n_points > 3:
         nearest = np.argpartition(offsets, 3)[:3]
     else:
         nearest = np.arange(n_points)
     if n_points >= 2:
         interpolation = interpolate.interp1d(
-            dist[nearest], vals[nearest], kind="linear", fill_value="extrapolate"
+            d[nearest], v[nearest], kind="linear", fill_value="extrapolate"
         )
         value = float(interpolation(target))
     else:
-        value = float(vals[0])
+        value = float(v[0])
 
-    corrections: List[str] = []
-    profile_max = float(vals.max())
-    if target > dist.max() and value < profile_max:
+    profile_max = float(v.max())
+    if target > d.max() and value < profile_max:
         value = profile_max
         corrections.append("beyond_profile")
-    closer_and_higher = (dist < target) & (vals > value)
-    if closer_and_higher.any() and target <= dist.max():
-        value = float(vals[closer_and_higher].max())
+    closer_and_higher = (d < target) & (v > value)
+    if closer_and_higher.any() and target <= d.max():
+        value = float(v[closer_and_higher].max())
         corrections.append("closer_point_higher")
+    first_value = float(v[int(np.argmin(d))])
+    if target < d.min() and value < first_value:
+        value = first_value
+        corrections.append("before_profile")
     return {
         "value": value,
         "target_distance_m": target,
-        "used_indices": sorted((int(i) for i in nearest), key=lambda i: dist[i]),
+        "used_indices": sorted((int(keep[i]) for i in nearest), key=lambda i: dist[i]),
         "corrections": corrections,
     }
 
@@ -479,6 +509,7 @@ def _dedupe_profile_points(
     raw_points: List[Dict[str, Any]],
     measurement_id: Any,
     measurement_type: str,
+    stacklevel: int = 3,
 ) -> List[Dict[str, Any]]:
     """For duplicate distances, keep the point closest to linear interpolation.
 
@@ -502,7 +533,7 @@ def _dedupe_profile_points(
             f"(measurement_id={measurement_id}, "
             f"measurement_type={measurement_type!r}).",
             UserWarning,
-            stacklevel=3,
+            stacklevel=stacklevel,
         )
 
     def _mean_val(d: float) -> float:
@@ -560,6 +591,60 @@ def _injection_distance(injection_candidates: List[float]) -> Optional[float]:
             UserWarning,
         )
     return injection_candidates[0]
+
+
+_PROFILE_ALGORITHMS = (
+    "maximum",
+    "62_percent",
+    "minimum_gradient",
+    "minimum_stddev",
+    "inverse",
+)
+
+
+def _algorithm_key(algorithm: str) -> str:
+    """Normalise a profile-algorithm name; raise ``ValueError`` if unknown."""
+    key = str(algorithm).lower().strip().replace(" ", "_").replace("-", "_")
+    if key == "62%":
+        key = "62_percent"
+    if key not in _PROFILE_ALGORITHMS:
+        raise ValueError(
+            f"Unsupported algorithm '{algorithm}'; choose one of "
+            f"{', '.join(_PROFILE_ALGORITHMS)}"
+        )
+    return key
+
+
+def _prepare_profile(
+    points: List[Dict[str, Any]],
+    algorithm: str,
+    *,
+    conservative: bool,
+    measurement_id: Any,
+    measurement_type: str,
+) -> List[Dict[str, Any]]:
+    """Collapse repeated distances unless the conservative 62 % method handles them.
+
+    :func:`value_at_62_percent` with ``conservative=True`` merges repeated
+    distances into their highest reading itself, exactly like the tower
+    evaluation; every other algorithm gets de-duplicated points.
+    """
+    if _algorithm_key(algorithm) == "62_percent" and conservative:
+        distances = [p["distance_m"] for p in points]
+        repeated = sorted({d for d in distances if distances.count(d) > 1})
+        if repeated:
+            preview = ", ".join(f"{d:g}" for d in repeated[:5])
+            warnings.warn(
+                f"Measurement {measurement_id}: repeated {measurement_type} "
+                f"distances {preview}{'...' if len(repeated) > 5 else ''} are "
+                "merged into their highest reading (conservative 62 % method).",
+                UserWarning,
+                stacklevel=3,
+            )
+        return points
+    return _dedupe_profile_points(
+        points, measurement_id, measurement_type, stacklevel=4
+    )
 
 
 def _reduce_profile(
@@ -666,9 +751,7 @@ def _reduce_profile(
         limit_value = 1.0 / intercept
         return limit_value, float("inf"), {"slope": slope, "intercept": intercept}
 
-    algo_key = algorithm.lower().strip().replace(" ", "_").replace("-", "_")
-    if algo_key == "62%":
-        algo_key = "62_percent"
+    algo_key = _algorithm_key(algorithm)
     algo_map: Dict[str, Callable[[], Tuple[float, float, Dict[str, Any]]]] = {
         "maximum": _algo_maximum,
         "62_percent": _algo_62_percent,
@@ -676,9 +759,6 @@ def _reduce_profile(
         "minimum_stddev": _algo_minimum_stddev,
         "inverse": _algo_inverse,
     }
-
-    if algo_key not in algo_map:
-        raise ValueError(f"Unsupported algorithm '{algorithm}'")
 
     result_value, result_distance, details = algo_map[algo_key]()
     return algo_key, float(result_value), float(result_distance), details
@@ -774,7 +854,13 @@ def distance_profile_value(
             f"No {measurement_type} items with distance/value found for measurement {measurement_id}"
         )
 
-    points = _dedupe_profile_points(points, measurement_id, measurement_type)
+    points = _prepare_profile(
+        points,
+        algorithm,
+        conservative=conservative,
+        measurement_id=measurement_id,
+        measurement_type=measurement_type,
+    )
     injection_distance = _injection_distance(injection_candidates)
 
     algo_key, result_value, result_distance, details = _reduce_profile(
@@ -818,7 +904,13 @@ def _profile_value_from_items(
     points, injection_candidates, _units = _profile_points(items)
     if not points:
         raise ValueError(f"No {measurement_type} items with distance/value found")
-    points = _dedupe_profile_points(points, measurement_id, measurement_type)
+    points = _prepare_profile(
+        points,
+        algorithm,
+        conservative=conservative,
+        measurement_id=measurement_id,
+        measurement_type=measurement_type,
+    )
     try:
         _key, value, _dist, _details = _reduce_profile(
             points,
@@ -2325,11 +2417,14 @@ def voltage_vt_epr(
 
     Raises
     ------
+    ValueError
+        If ``profile_algorithm`` is unknown.
     LookupError, KeyError, IndexError
         Propagated when underlying ``read_items_by`` access fails for reasons
         other than "no rows match"; these used to be swallowed by a bare
         ``except Exception``.
     """
+    _algorithm_key(profile_algorithm)  # fail early on unknown names
     single = isinstance(measurement_ids, int)
     ids = [measurement_ids] if single else list(measurement_ids)
     results: Dict[int, Dict[str, float]] = {}

@@ -382,6 +382,101 @@ def create_measurement(data: Dict[str, Any]) -> int:
         raise RuntimeError(f"Could not create Measurement: {e}") from e
 
 
+def create_measurements_with_items(
+    entries: Sequence[Tuple[Dict[str, Any], Sequence[Dict[str, Any]]]],
+) -> List[Tuple[int, List[int]]]:
+    """
+    Insert measurements together with their items in one transaction.
+
+    Either everything is stored or nothing: a failing item (database error or
+    an item without value) rolls back all measurements, items and new
+    locations of the call. Nested ``location`` dicts are resolved like in
+    :func:`create_measurement`.
+
+    Parameters
+    ----------
+    entries : sequence of (dict, sequence of dict)
+        ``(measurement, items)`` pairs; ``measurement`` may contain a nested
+        ``location`` dict, ``items`` are MeasurementItem fields without
+        ``measurement_id``. The dicts are not modified.
+
+    Returns
+    -------
+    list of (int, list of int)
+        ``(measurement_id, item_ids)`` per entry, in input order.
+
+    Raises
+    ------
+    RuntimeError
+        On any database error (nothing is stored).
+    ValueError
+        If an item carries neither ``value`` nor ``value_real``/``value_imag``
+        (nothing is stored).
+    """
+    created: List[Tuple[int, List[int]]] = []
+    try:
+        with _get_session() as session:
+            for measurement_data, items_data in entries:
+                payload = dict(measurement_data)
+                loc_data = payload.pop("location", None)
+                if loc_data:
+                    loc = _find_or_create_location(session, dict(loc_data))
+                    payload["location_id"] = loc.id
+                measurement = Measurement(**payload)
+                session.add(measurement)
+                session.flush()
+                items = [
+                    MeasurementItem(**{**item, "measurement_id": measurement.id})
+                    for item in items_data
+                ]
+                session.add_all(items)
+                session.flush()
+                created.append(
+                    (
+                        int(measurement.id),  # type: ignore[arg-type]
+                        [int(item.id) for item in items],  # type: ignore[arg-type]
+                    )
+                )
+            session.commit()
+    except SQLAlchemyError as e:
+        logger.exception(
+            "Failed to create %d measurements with their items", len(entries)
+        )
+        raise RuntimeError(f"Could not create measurements: {e}") from e
+    return created
+
+
+def create_measurement_with_items(
+    data: Dict[str, Any], items: Sequence[Dict[str, Any]]
+) -> Tuple[int, List[int]]:
+    """
+    Insert one measurement and its items in one transaction.
+
+    Unlike :func:`create_measurement` followed by :func:`create_items`, a
+    failure while storing the items leaves no empty measurement behind.
+
+    Parameters
+    ----------
+    data : dict
+        Measurement fields, optionally with a nested ``location`` dict.
+    items : sequence of dict
+        MeasurementItem fields (excluding ``measurement_id``).
+
+    Returns
+    -------
+    tuple of (int, list of int)
+        Measurement ID and item IDs.
+
+    Raises
+    ------
+    RuntimeError
+        On any database error (nothing is stored).
+    ValueError
+        If an item carries no value (nothing is stored).
+    """
+    return create_measurements_with_items([(data, items)])[0]
+
+
 def create_item(data: Dict[str, Any], measurement_id: int) -> int:
     """
     Insert a MeasurementItem linked to a Measurement.

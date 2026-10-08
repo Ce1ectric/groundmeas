@@ -896,6 +896,48 @@ def test_value_at_62_percent_conservative_reference_cases():
     assert out["corrections"] == []
 
 
+def test_value_at_62_percent_conservative_repeated_distances():
+    """Repeated distances are merged into their highest reading (no inf)."""
+    out = analytics.value_at_62_percent(
+        [60.0, 60.0, 60.0, 80.0], [1.0, 1.4, 1.2, 1.6], 100.0, conservative=True
+    )
+    assert np.isfinite(out["value"])
+    assert out["value"] == pytest.approx(1.4 + 2 * (0.2 / 20))
+    assert out["corrections"] == ["repeated_distances"]
+    assert out["used_indices"] == [1, 3]  # indices of the input points
+    merged = analytics.value_at_62_percent(
+        [60.0, 80.0], [1.4, 1.6], 100.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(merged["value"])
+
+
+def test_value_at_62_percent_conservative_repeated_closer_point():
+    # the higher of two readings at 30 m triggers the closer-point correction
+    out = analytics.value_at_62_percent(
+        [10.0, 20.0, 30.0, 30.0, 40.0, 60.0, 70.0],
+        [0.30, 0.45, 0.50, 0.90, 0.55, 0.58, 0.60],
+        100.0,
+        conservative=True,
+    )
+    assert out["value"] == pytest.approx(0.90)
+    assert out["corrections"] == ["repeated_distances", "closer_point_higher"]
+
+
+def test_value_at_62_percent_conservative_before_profile():
+    """A target before the first probe never gives less than the first value."""
+    out = analytics.value_at_62_percent(
+        [50.0, 60.0, 70.0], [1.0, 2.0, 3.0], 50.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(1.0)  # extrapolation would give -0.9
+    assert out["corrections"] == ["before_profile"]
+    # a falling start keeps the (higher) extrapolated value
+    out = analytics.value_at_62_percent(
+        [50.0, 60.0, 70.0], [3.0, 2.0, 1.0], 50.0, conservative=True
+    )
+    assert out["value"] == pytest.approx(4.9)
+    assert out["corrections"] == []
+
+
 @pytest.mark.parametrize(
     ("distances", "values", "injection"),
     [
@@ -983,6 +1025,57 @@ def test_distance_profile_value_conservative(profile_db):
             x, _hemisphere_profile(x), 100.0, conservative=True
         )["value"]
     )
+
+
+def test_distance_profile_value_conservative_matches_tower_evaluation():
+    """Two methods: database profile vs. GroundingSystemAnalysis (raw points)."""
+    import datetime as dt
+
+    import pandas as pd
+
+    import groundmeas as gm
+    from groundmeas.towers.analysis import GroundingSystemAnalysis
+
+    x = [10.0, 20.0, 30.0, 30.0, 40.0, 60.0, 70.0]
+    z = [0.30, 0.45, 0.50, 0.90, 0.55, 0.58, 0.60]
+    gm.connect_db(":memory:")
+    mid, _ = gm.create_measurement_with_items(
+        {
+            "timestamp": dt.datetime(2026, 5, 12),
+            "method": "injection_earth_electrode",
+            "asset_type": "overhead_line_tower",
+        },
+        [
+            {
+                "measurement_type": "earthing_impedance",
+                "value": zi,
+                "unit": "Ω",
+                "frequency_hz": 50.0,
+                "measurement_distance_m": xi,
+                "distance_to_current_injection_m": 100.0,
+            }
+            for xi, zi in zip(x, z)
+        ],
+    )
+    with pytest.warns(UserWarning, match="merged into their highest reading"):
+        db_value = analytics.distance_profile_value(
+            mid, algorithm="62_percent", conservative=True, frequency_hz=50.0
+        )["result_value"]
+    tower = object.__new__(GroundingSystemAnalysis)
+    tower.current_probe_dist = 100.0
+    tower.impedance_to_ground = pd.DataFrame({"Distance": x, "Impedance": z})
+    tower.impedance_max = max(z)
+    tower.residual_resistance = None
+    tower.get_62_percentage_value()
+    assert db_value == pytest.approx(tower.grounding_impedance_62) == 0.90
+
+
+def test_profile_algorithm_is_validated(profile_db):
+    mid, _ = profile_db
+    with pytest.raises(ValueError, match="Unsupported algorithm"):
+        analytics.impedance_over_frequency(mid, profile_algorithm="62percent")
+    with pytest.raises(ValueError, match="Unsupported algorithm"):
+        analytics.voltage_vt_epr(mid, profile_algorithm="62percent")
 
 
 def test_impedance_over_frequency_reduces_profiles(profile_db):

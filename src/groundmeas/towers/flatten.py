@@ -95,7 +95,8 @@ def plan_flatten(
     src_root : pathlib.Path
         Root folder of the nested delivery.
     only : sequence of str, optional
-        Restrict to these tower folders (paths relative to ``src_root``).
+        Restrict to these tower folders (paths relative to ``src_root``;
+        trailing separators and backslashes are accepted).
     line_pattern, tower_pattern : str
         Regular expressions (case-insensitive) with one group for the line
         and the tower folder.
@@ -111,6 +112,8 @@ def plan_flatten(
     """
     line_re = re.compile(line_pattern, re.IGNORECASE)
     tower_re = re.compile(tower_pattern, re.IGNORECASE)
+    # "LH-01/Mast 5/" (tab completion) and "LH-01\\Mast 5" mean the same folder
+    only = [o.replace("\\", "/").strip("/") for o in only or [] if o.strip("/\\")]
     rows: List[Dict[str, str]] = []
     for dirpath, dirnames, filenames in os.walk(src_root):
         dirnames.sort()
@@ -119,7 +122,7 @@ def plan_flatten(
         if not tower_match:
             continue
         rel = folder.relative_to(src_root).as_posix()
-        if only and not any(rel.endswith(o) or rel == o for o in only):
+        if only and not any(rel == o or rel.endswith("/" + o) for o in only):
             continue
         line = _line_from_path(folder / "x", line_re)
         tower = _normalize_tower(tower_match.group(1))

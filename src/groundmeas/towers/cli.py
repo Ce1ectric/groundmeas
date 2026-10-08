@@ -379,7 +379,10 @@ def cli_import_db(
     test: fall-of-potential profile, touch voltages, transferred potential at
     a neighbouring tower and soil resistivity. The database is chosen with
     gm-cli --db (or GROUNDMEAS_DB / the default database). Files already in
-    the database are skipped unless --reimport is given.
+    the database are skipped unless --reimport is given. Files that cannot be
+    imported (no row in the measurement description, no current-electrode
+    distance, unreadable file) are reported as FAILED (exit code 1); fix the
+    cause and run the command again.
     """
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -413,6 +416,9 @@ def cli_import_db(
     except (ConfigError, FileNotFoundError) as exc:
         logger.error("%s", exc)
         raise typer.Exit(code=2)
+    except ValueError as exc:  # unusable measurement description
+        logger.error("%s", exc)
+        raise typer.Exit(code=1)
     for record in records:
         status = _STATUS_TEXT[record["status"]].format(**record)
         note = (
@@ -429,7 +435,12 @@ def cli_import_db(
     }
     towers = len({r["location"] for r in records})
     if dry_run:
-        typer.echo(f"{counts['planned']} files of {towers} towers (dry run)")
+        typer.echo(
+            f"{counts['planned']} files of {towers} towers to import, "
+            f"{counts['failed']} cannot be imported (dry run)"
+        )
+        if counts["failed"]:
+            raise typer.Exit(code=1)
         return
     typer.echo(
         f"{counts['imported']} measurements imported, {counts['skipped']} skipped, "

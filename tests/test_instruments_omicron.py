@@ -389,6 +389,32 @@ def test_soil_resistivity_wenner(tmp_path):
     )
 
 
+def test_soil_resistivity_units(tmp_path):
+    a, c = [4.0, 4.0], [2.0, 6.0]
+    path = _soil_export(tmp_path / "soil.xml", a, [0.2] * 2, c, [3.5, 0.6])
+    base = CompanoXMLReader(path).read_soil_resistivity()
+    text = path.read_text(encoding="utf-8")
+    scaled = tmp_path / "soil_k.xml"
+    rho_k = [repr(float(v) / 1000) for v in base.rho_ohm_m]
+    for old_value, new_value in zip((repr(float(v)) for v in base.rho_ohm_m), rho_k):
+        text = text.replace(
+            f"<Value>{old_value}</Value>", f"<Value>{new_value}</Value>"
+        )
+    text = text.replace("<Unit>Ωm</Unit>", "<Unit>kΩm</Unit>")
+    text = text.replace("<Value>3.5</Value>", "<Value>3500.0</Value>")
+    text = text.replace("<Value>0.6</Value>", "<Value>600.0</Value>")
+    text = text.replace("<Unit>Ω</Unit>", "<Unit>mΩ</Unit>")
+    scaled.write_text(text, encoding="utf-8")
+    data = CompanoXMLReader(scaled).read_soil_resistivity()
+    assert data.rho_ohm_m == pytest.approx(base.rho_ohm_m)
+    assert data.resistance_ohm == pytest.approx([3.5, 0.6])
+    legacy = CompanoXMLReader(scaled).get_soil_resistivity()
+    assert legacy["rho_OhmMeter"] == pytest.approx(list(base.rho_ohm_m))
+    scaled.write_text(text.replace("<Unit>kΩm</Unit>", "<Unit>Ωft</Unit>"), "utf-8")
+    with pytest.raises(MeasurementFileError, match="unexpected resistivity unit"):
+        CompanoXMLReader(scaled).read_soil_resistivity()
+
+
 def test_soil_resistivity_absent_or_inconsistent(compano_xml, tmp_path):
     assert CompanoXMLReader(compano_xml).read_soil_resistivity() is None
     assert CompanoXMLReader(compano_xml).get_soil_resistivity() is None

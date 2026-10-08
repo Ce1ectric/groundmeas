@@ -50,12 +50,16 @@ metadata from the measurement description) use
 | Measurement (`method`) | Items |
 | --- | --- |
 | fall of potential (`injection_earth_electrode`) | `earthing_impedance` per probe distance (`measurement_distance_m`, `distance_to_current_injection_m` = `-D`) at the power frequency – the instrument result, the mean of both test frequencies – and at both test frequencies; `earthing_resistance` (footing resistance: probe voltage / current into the footing) if the reduction factor was applied; `earthing_current` (injected current); `earth_fault_current` and `shield_current` from the clamp readings of the reduction factor |
-| touch voltages (`injection_earth_electrode`) | `touch_voltage` per reading with `input_impedance_ohm` = 1000 Ω and `additional_resistance_ohm` = 0 (`1k`) or 1000 Ω (`2x1k`), the measuring point in the description; values at the power frequency (interpolated) and at both test frequencies; `earthing_current` = output current of the step/touch test from the COMPANO export |
+| touch voltages (`injection_earth_electrode`) | `touch_voltage` per reading with `input_impedance_ohm` = 1000 Ω and `additional_resistance_ohm` = 0 (`1k`) or 1000 Ω (`2x1k`), the measuring point in the description; high-impedance readings (`HIGH Z`) as `prospective_touch_voltage`, other terminations without input impedance (with a warning); values at the power frequency (interpolated) and at both test frequencies; `earthing_current` = output current of the step/touch test from the COMPANO export |
 | transferred potential (`injection_earth_electrode`) | `transferred_potential` per reading, reference current as above |
 | soil resistivity (`wenner` or `schlumberger`) | `soil_resistivity` per reading; Wenner (`c = a`): spacing `a` in `measurement_distance_m`; Schlumberger: `AB/2 = c + a/2` in `measurement_distance_m` and `MN/2 = a/2` in `distance_to_current_injection_m` (COMPANO: `a` = MN spacing, `b` = electrode depth, `c` = distance current – potential electrode) |
 
-Units are converted to SI (`mA`, `mV`, `kV`, `cm`, `km`, `ft`). A file that
-lacks required elements raises `MeasurementFileError` with the file name.
+Units are converted to SI (`mA`, `mV`, `kV`, `cm`, `km`, `ft`, `kΩm`, …). An
+export that contains only the instrument results (no values at the test
+frequencies) is stored at the power frequency. A file that lacks required
+elements raises `MeasurementFileError` with the file name. Each test is
+stored in one transaction: if an item cannot be stored, no empty
+measurement is left behind.
 
 ## Python API
 

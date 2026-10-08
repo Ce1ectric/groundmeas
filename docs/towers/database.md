@@ -19,7 +19,7 @@ LX-01 tower 8                  fall_of_potential      ZE_LX-01_8.xml: measuremen
 
 The database is chosen like for every `gm-cli` command (`--db`,
 `GROUNDMEAS_DB`, the stored default, `./groundmeas.db`). `--dry-run` lists the
-files without opening the database.
+files and the problems (see below) without opening the database.
 
 ## What is stored
 
@@ -34,9 +34,9 @@ Each test becomes a **measurement** with `asset_type = "overhead_line_tower"`:
 | File | Measurement (`method`) | Items |
 | --- | --- | --- |
 | `ZE_<line>_<tower>.xml` | fall-of-potential test (`injection_earth_electrode`) | `earthing_impedance` per probe distance at the power frequency and at both test frequencies, with `distance_to_current_injection_m` = `Entfernung_Hilfserder_m` of the measurement description; `earthing_resistance` (footing resistance) if the reduction factor was applied; `earthing_current` (injected current); `earth_fault_current` and `shield_current` from the clamp readings of the reduction factor |
-| `UT_<line>_<tower>.txt` | touch voltages (`injection_earth_electrode`) | `touch_voltage` per HGT1 reading (`input_impedance_ohm` 1000 Ω, `additional_resistance_ohm` 0 for `1k` and 1000 Ω for `2x1k`, measuring point in the description) at the power frequency and both test frequencies; `earthing_current` = output current of the step/touch test from the COMPANO export |
-| `UT_<line>_<tower>-<neighbour>.txt` | transferred potential (`injection_earth_electrode`) | `transferred_potential` per reading, reference current as above |
-| `ZE_<line>_<tower>_spez….xml` | soil resistivity (`wenner` or `schlumberger`) | `soil_resistivity` per reading; Wenner: spacing `a`; Schlumberger: `AB/2 = c + a/2` and `MN/2 = a/2` |
+| `UT_<line>_<tower>.txt` | touch voltages (`injection_earth_electrode`) | `touch_voltage` per HGT1 reading (`input_impedance_ohm` 1000 Ω, `additional_resistance_ohm` 0 for `1k` and 1000 Ω for `2x1k`, measuring point in the description; high-impedance readings as `prospective_touch_voltage`) at the power frequency and both test frequencies; `earthing_current` = output current of the step/touch test from the COMPANO export |
+| `UT_<line>_<tower>-<neighbour>.txt` (each) | transferred potential (`injection_earth_electrode`) | `transferred_potential` per reading, reference current as above |
+| `ZE_<line>_<tower>_spez….xml` (each) | soil resistivity (`wenner` or `schlumberger`) | `soil_resistivity` per reading; Wenner: spacing `a`; Schlumberger: `AB/2 = c + a/2` and `MN/2 = a/2` |
 
 The measurement description provides the **operator** (`Vorname Name, Firma`)
 and notes in the measurement description (file name, weather, instruments,
@@ -49,19 +49,29 @@ The **evaluation results** (grid values, permissible touch voltage, category,
 protocols) are not stored in the database; they stay in the JSON and Excel
 output of [`gm-cli towers run`](cli.md).
 
-## Repeated imports
+## Problems and repeated imports
 
-Files that are already in the database – same location, file name in the
-measurement description – are skipped, so the command can be run again after
-further deliveries:
+The measurement description is required: if it cannot be read or lacks the
+columns `Leitung`, `Mast` or `Entfernung_Hilfserder_m`, nothing is imported
+(exit code 1). A file is reported with `FAILED` and the reason – and not
+imported – if
+
+- its tower has no row in the measurement description,
+- it is a fall-of-potential export and the row has no current-electrode
+  distance (the 62 % method needs it),
+- it cannot be read or stored.
+
+The other files are imported and the command exits with code 1. Every file
+is stored in its own transaction, so a failure leaves nothing behind. Files
+that are already in the database – same location, file name in the
+measurement description – are skipped; after fixing the cause, simply run
+the command again:
 
 ```text
 0 measurements imported, 10 skipped, 0 failed (4 towers)
 ```
 
-`--reimport` imports them again (as additional measurements). A file that
-cannot be read is reported with `FAILED` and the reason; the other files are
-imported and the command exits with code 1.
+`--reimport` imports all files again (as additional measurements).
 
 ## Evaluating the imported data
 
@@ -92,9 +102,9 @@ print([int(np.ceil(i["value"] * earth_current / reference))
 # [133, 95, 127, 91, 43, 31] = UT_V of the JSON result
 ```
 
-`conservative=True` applies the corrections of the tower evaluation (see
-[The 62 % method](physics.md#the-62-method)); without it the plain 62 %
-interpolation of groundmeas is used. Other profile algorithms
+`conservative=True` applies the procedure of the tower evaluation (see
+[The 62 % method](physics.md#the-62-method)) and gives the same value as
+`ZE_62_Ohm`; without it the plain 62 % interpolation of groundmeas is used. Other profile algorithms
 (`maximum`, `minimum_gradient`, `minimum_stddev`, `inverse`) are useful for a
 comparison, see [Analytics](../15_analytics.md).
 

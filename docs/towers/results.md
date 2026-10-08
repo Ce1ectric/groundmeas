@@ -85,7 +85,7 @@ measurement description keep the type of the Excel cell.
     "vorhanden": true,
     "rho_OhmMeter": [85.0, 92.0, 110.0, 135.0, 150.0],
     "DistanzA_m": [1.0, 2.0, 5.0, 10.0, 20.0],
-    "DistanzB_m": [3.0, 6.0, 15.0, 30.0, 60.0],
+    "DistanzB_m": [0.2, 0.2, 0.2, 0.2, 0.2],
     "DistanzC_m": [1.0, 2.0, 5.0, 10.0, 20.0]
 },
 "Erdungsspannung_Nachbarmast": {
@@ -97,7 +97,7 @@ measurement description keep the type of the Excel cell.
 
 | Key | Meaning |
 | --- | --- |
-| `Bodenwiderstand_Schlumberger` | apparent soil resistivity $\rho$ in Ωm and electrode distances a, b, c in m from the `…spez….xml` export |
+| `Bodenwiderstand_Schlumberger` | apparent soil resistivity $\rho$ in Ωm and the electrode geometry in m from the `…spez….xml` export: `a` spacing of the potential electrodes, `b` electrode depth, `c` distance current – potential electrode |
 | `Erdungsspannung_Nachbarmast` | voltages measured at the neighbouring tower (`UT_<line>_<tower>-<neighbour>.txt`), scaled to the earth-fault current like the own touch voltages |
 | `rhoE_Distanz_m`, `rhoE_OhmMeter` | legacy single values; filled only if the measurement description has such columns |
 

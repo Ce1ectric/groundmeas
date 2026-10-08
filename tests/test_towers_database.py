@@ -60,11 +60,12 @@ def test_find_tower_files(demo_campaign):
     tower8 = towers[1]
     assert tower8.fall_of_potential.name == "ZE_LX-01_8.xml"
     assert tower8.touch_voltage.name == "UT_LX-01_8.txt"
-    assert tower8.neighbour_touch_voltage.name == "UT_LX-01_8-9.txt"
-    assert tower8.neighbour_tower == "9"
-    assert tower8.soil.name == "ZE_LX-01_8_spez.Erdw..xml"
+    assert [(p.name, n) for p, n in tower8.neighbour_reports] == [
+        ("UT_LX-01_8-9.txt", "9")
+    ]
+    assert [p.name for p in tower8.soil] == ["ZE_LX-01_8_spez.Erdw..xml"]
     assert tower8.location_name == "LX-01 tower 8"
-    assert towers[0].soil is None and towers[0].neighbour_touch_voltage is None
+    assert towers[0].soil == () and towers[0].neighbour_reports == ()
 
 
 def test_dry_run_needs_no_database(demo_campaign):
@@ -156,25 +157,142 @@ def test_coordinates_from_the_description(db, demo_campaign):
     assert all(lat is not None and lon == 10.0 for lat, lon in locations.values())
 
 
-def test_broken_file_and_missing_description(db, demo_campaign):
+def test_broken_file_is_reported_and_retried(db, demo_campaign):
     folder = Path(read_config(demo_campaign)["directory_path"])
-    (folder / "ZE_LX-01_99.xml").write_text("<x/>", encoding="utf-8")
+    original = (folder / "ZE_LX-01_37.xml").read_bytes()
+    (folder / "ZE_LX-01_37.xml").write_text("<x/>", encoding="utf-8")
     records = import_campaign(demo_campaign)
-    broken = [r for r in records if r["tower"] == "99"]
-    assert len(broken) == 1
-    assert broken[0]["status"] == "failed"
-    assert "MeasurementFileError" in broken[0]["message"]
-    assert sum(r["status"] == "imported" for r in records) == 10
+    failed = [r for r in records if r["status"] == "failed"]
+    # the profile and the touch voltages (reference current) need the export
+    assert [(r["tower"], r["test"]) for r in failed] == [
+        ("37", "fall_of_potential"),
+        ("37", "touch_voltage"),
+    ]
+    assert all("MeasurementFileError" in r["message"] for r in failed)
+    assert sum(r["status"] == "imported" for r in records) == 8
+    (folder / "ZE_LX-01_37.xml").write_bytes(original)
+    again = import_campaign(demo_campaign)
+    assert [r["status"] for r in again if r["tower"] == "37"] == ["imported"] * 2
+    assert len(_measurements()) == 10
 
 
-def test_missing_current_electrode_distance_is_reported(demo_campaign):
+def test_tower_without_description_row_is_not_imported(db, demo_campaign):
+    folder = Path(read_config(demo_campaign)["directory_path"])
+    for name in ("ZE_LX-01_8.xml", "UT_LX-01_8.txt"):
+        (folder / name.replace("_8.", "_99.")).write_bytes((folder / name).read_bytes())
+    records = import_campaign(demo_campaign)
+    tower99 = [r for r in records if r["tower"] == "99"]
+    assert [r["status"] for r in tower99] == ["failed", "failed"]
+    assert all("no row in the measurement description" in r["message"] for r in tower99)
+    assert "LX-01 tower 99" not in {m["location"]["name"] for m in _measurements()}
+
+
+def test_missing_current_electrode_distance(db, demo_campaign):
     path = Path(read_config(demo_campaign)["measurement_description_path"])
-    description = pd.read_excel(path)
+    original = pd.read_excel(path)
+    description = original.copy()
     description["Entfernung_Hilfserder_m"] = np.nan
     description.to_excel(path, index=False)
-    records = import_campaign(demo_campaign, dry_run=True)
-    notes = [r["message"] for r in records if r["test"] == "fall_of_potential"]
-    assert all("62 % method not available" in note for note in notes)
+    planned = import_campaign(demo_campaign, dry_run=True)
+    profiles = [r for r in planned if r["test"] == "fall_of_potential"]
+    assert {r["status"] for r in profiles} == {"failed"}
+    assert all("no current-electrode distance" in r["message"] for r in profiles)
+    records = import_campaign(demo_campaign)
+    assert sum(r["status"] == "imported" for r in records) == 6  # not the profiles
+    # after fixing the description the profiles are imported
+    original.to_excel(path, index=False)
+    again = import_campaign(demo_campaign)
+    assert [r["test"] for r in again if r["status"] == "imported"] == [
+        "fall_of_potential"
+    ] * 4
+    assert {r["status"] for r in again if r["test"] != "fall_of_potential"} == {
+        "skipped"
+    }
+
+
+@pytest.mark.parametrize("broken", ["missing column", "title row", "not a workbook"])
+def test_unusable_description_stops_the_import(db, demo_campaign, broken):
+    path = Path(read_config(demo_campaign)["measurement_description_path"])
+    description = pd.read_excel(path)
+    if broken == "missing column":
+        description.drop(columns="Entfernung_Hilfserder_m").to_excel(path, index=False)
+    elif broken == "title row":
+        with pd.ExcelWriter(path) as writer:
+            description.to_excel(writer, index=False, startrow=1)
+    else:
+        path.write_text("not a workbook", encoding="utf-8")
+    with pytest.raises(ValueError, match="measurement description"):
+        import_campaign(demo_campaign)
+    assert _measurements() == []
+
+
+def test_all_neighbour_reports_and_soil_exports(db, demo_campaign):
+    folder = Path(read_config(demo_campaign)["directory_path"])
+    (folder / "UT_LX-01_8-7.txt").write_bytes(
+        (folder / "UT_LX-01_8-9.txt").read_bytes()
+    )
+    (folder / "ZE_LX-01_8_spez_2.xml").write_bytes(
+        (folder / "ZE_LX-01_8_spez.Erdw..xml").read_bytes()
+    )
+    records = import_campaign(demo_campaign)
+    tower8 = [(r["test"], r["file"]) for r in records if r["tower"] == "8"]
+    assert ("transferred_potential", "UT_LX-01_8-7.txt") in tower8
+    assert ("transferred_potential", "UT_LX-01_8-9.txt") in tower8
+    assert [f for t, f in tower8 if t == "soil"] == [
+        "ZE_LX-01_8_spez.Erdw..xml",
+        "ZE_LX-01_8_spez_2.xml",
+    ]
+    descriptions = [
+        m["description"]
+        for m in _measurements()
+        if m["location"]["name"] == "LX-01 tower 8"
+    ]
+    assert any(d.startswith("Transferred potential at tower 7") for d in descriptions)
+    assert len(descriptions) == 6
+
+
+def test_two_exports_of_one_tower(db, demo_campaign, caplog):
+    folder = Path(read_config(demo_campaign)["directory_path"])
+    (folder / "ZE_LX-01_008.xml").write_bytes((folder / "ZE_LX-01_8.xml").read_bytes())
+    with caplog.at_level("WARNING", logger="groundmeas"):
+        records = import_campaign(demo_campaign)
+    assert "Several fall-of-potential exports for LX-01 tower 8" in caplog.text
+    tower8 = [r for r in records if r["tower"] in ("8", "008")]
+    imported = [r["file"] for r in tower8 if r["status"] == "imported"]
+    assert sorted(imported) == sorted(
+        [
+            "ZE_LX-01_008.xml",
+            "ZE_LX-01_8.xml",
+            "UT_LX-01_8.txt",
+            "UT_LX-01_8-9.txt",
+            "ZE_LX-01_8_spez.Erdw..xml",
+        ]
+    )
+    statuses: dict[str, list[str]] = {}
+    for r in tower8:
+        statuses.setdefault(r["file"], []).append(r["status"])
+    # both exports list the same further files; they are imported once
+    assert statuses["UT_LX-01_8.txt"] == ["imported", "skipped"]
+    assert statuses["ZE_LX-01_8_spez.Erdw..xml"] == ["imported", "skipped"]
+
+
+def test_failed_import_leaves_nothing_behind(db, demo_campaign, monkeypatch):
+    import groundmeas.towers.database as database
+
+    real = database.import_step_touch
+
+    def flaky(path, **kwargs):
+        if Path(path).name == "UT_LX-01_3.txt":
+            raise RuntimeError("database is locked")
+        return real(path, **kwargs)
+
+    monkeypatch.setattr(database, "import_step_touch", flaky)
+    records = import_campaign(demo_campaign)
+    assert [r["file"] for r in records if r["status"] == "failed"] == ["UT_LX-01_3.txt"]
+    monkeypatch.setattr(database, "import_step_touch", real)
+    again = import_campaign(demo_campaign)
+    assert [r["file"] for r in again if r["status"] == "imported"] == ["UT_LX-01_3.txt"]
+    assert len(_measurements()) == 10
 
 
 def test_database_reproduces_the_tower_evaluation(db, evaluated_demo):
@@ -245,13 +363,29 @@ def test_cli_dry_run_does_not_create_a_database(tmp_path, demo_campaign):
         "--dry-run",
     )
     assert result.exit_code == 0, result.output
-    assert "10 files of 4 towers (dry run)" in result.stdout
+    assert "10 files of 4 towers to import, 0 cannot be imported (dry run)" in (
+        result.stdout
+    )
     assert not db_path.exists()
 
 
 def test_cli_reports_failures(tmp_path, demo_campaign):
     folder = Path(read_config(demo_campaign)["directory_path"])
     (folder / "ZE_LX-01_99.xml").write_text("<x/>", encoding="utf-8")
+    args = ["--db", str(tmp_path / "t.db"), "towers", "import-db"]
+    args += ["--config", str(demo_campaign), "-q"]
+    result = run(*args, "--dry-run")
+    assert result.exit_code == 1
+    assert "10 files of 5 towers to import, 1 cannot be imported" in result.stdout
+    result = run(*args)
+    assert result.exit_code == 1
+    assert "FAILED: no row in the measurement description" in result.stdout
+    assert "10 measurements imported, 0 skipped, 1 failed (5 towers)" in result.stdout
+
+
+def test_cli_unusable_description(tmp_path, demo_campaign):
+    path = Path(read_config(demo_campaign)["measurement_description_path"])
+    path.write_text("not a workbook", encoding="utf-8")
     result = run(
         "--db",
         str(tmp_path / "t.db"),
@@ -259,11 +393,9 @@ def test_cli_reports_failures(tmp_path, demo_campaign):
         "import-db",
         "--config",
         str(demo_campaign),
-        "-q",
     )
     assert result.exit_code == 1
-    assert "FAILED" in result.stdout
-    assert "10 measurements imported, 0 skipped, 1 failed" in result.stdout
+    assert "could not be read" in result.stderr
 
 
 @pytest.mark.parametrize(

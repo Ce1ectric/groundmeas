@@ -105,13 +105,21 @@ errors. Every warning names the file or the tower it refers to.
     The statistics are created from the JSON results; run `--calc` before
     `--stats`.
 
-??? question "`import-db`: `no current-electrode distance … 62 % method not available`"
+??? question "`import-db`: `FAILED: no current-electrode distance …` / `no row in the measurement description`"
 
-    The measurement description has no `Entfernung_Hilfserder_m` for the
-    tower. The profile is imported without the distance of the current
-    electrode; `distance_profile_value(..., algorithm="62_percent")` then
-    cannot evaluate it. Fill in the distance and import the file again
-    (`--reimport`, after deleting the old measurement).
+    The profile of a tower is imported only with the distance of the
+    current electrode (`Entfernung_Hilfserder_m`), and the files of a tower
+    only if the measurement description has a row for it. Correct the
+    description and run `gm-cli towers import-db` again (without
+    `--reimport`): files that are already in the database are skipped, the
+    failed ones are imported. `--dry-run` shows these problems without
+    touching the database.
+
+??? question "`import-db`: `The measurement description … lacks the columns …` / `could not be read`"
+
+    The first worksheet must start with the header row and contain the
+    columns `Leitung`, `Mast` and `Entfernung_Hilfserder_m` (a title row
+    above the header is not supported). Nothing is imported in this case.
 
 ## Reporting a problem
 

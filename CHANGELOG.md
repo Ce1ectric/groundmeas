@@ -49,9 +49,14 @@ During regular work, add your entry under the matching category in
   `conservative=True` it applies the procedure of the tower evaluation:
   linear extrapolation outside the three nearest points, the profile
   maximum when 0.62 D lies beyond the profile, and the highest value of a
-  closer point when that exceeds the interpolated value. Verified
-  bit-identical to `tower-grounding-measurement` on 160 measured and
-  20 000 random profiles.
+  closer point when that exceeds the interpolated value. Identical to
+  `tower-grounding-measurement` on 160 measured and 20 000 random
+  profiles, except for two cases TGM got wrong (see *Fixed*): repeated
+  probe distances and 0.62 D before the first probe.
+- **`gm.create_measurement_with_items(measurement, items)` /
+  `gm.create_measurements_with_items([(measurement, items), ...])`** store
+  measurements together with their items in one transaction; used by all
+  file imports, so a failing item leaves no empty measurement behind.
 - **`distance_profile_value(..., frequency_hz=None, conservative=False)`**
   and `gm-cli distance-profile --frequency/-f --conservative`: evaluate
   one frequency of a profile stored at several frequencies (e.g. the
@@ -192,6 +197,56 @@ During regular work, add your entry under the matching category in
 - MkDocs: admonitions, collapsible blocks, tabs, task lists, card grids
   (`md_in_html` + emoji icons) and Mermaid diagrams are enabled
   (existing `!!! note` blocks now render as notes).
+
+### Fixed (Tower-grounding integration, review — 2026-10)
+
+- **Conservative 62 % with repeated probe distances** returned `inf`
+  (three nearest points at one distance) or ignored the higher reading.
+  Repeated distances are now merged into their highest reading, in the
+  tower evaluation and in `distance_profile_value(conservative=True)` alike
+  (before, the database path de-duplicated differently and could differ
+  from `ZE_62_Ohm`).
+- **Conservative 62 % before the first probe**: when 0.62 D lies before
+  the first probe the extrapolation could give a too low or even negative
+  impedance (e.g. −0.9 Ω); the value at the first probe is now the lower
+  bound (correction `"before_profile"`). Real profiles are not affected
+  (160 measured profiles unchanged).
+- **`towers import-db` data integrity**: an unreadable measurement
+  description or one without `Leitung`/`Mast`/`Entfernung_Hilfserder_m`
+  stops the import (before, it continued without metadata and a later run
+  skipped the files as "already imported"); towers without a description
+  row and profiles without current-electrode distance are reported as
+  `FAILED` and imported by the next run once the description is fixed;
+  every neighbouring-tower report and soil export of a tower is imported
+  (before, only the first); a file listed for two exports of one tower
+  (`ZE_L_8.xml`, `ZE_L_008.xml`) is imported once; `--dry-run` reports the
+  problems (exit code 1).
+- **Imports are atomic per measurement**: `import-omicron`, `towers
+  import-db`, `import-json` and `import_measurements` no longer leave an
+  empty measurement behind when storing an item fails (e.g. a locked
+  database); `import_measurements` is all-or-nothing as documented.
+- **Unknown `--profile-algorithm`** of `impedance-over-frequency` and
+  `voltage-vt-epr` silently fell back to the profile maximum; the CLI now
+  rejects unknown names (exit code 2, also for `distance-profile -a`) and
+  the Python functions raise `ValueError`.
+- `import-omicron --timezone` with an unknown zone exits with a message
+  instead of a traceback.
+- `towers flatten --only` accepts trailing separators and backslashes
+  (`"LH-01/Mast 5/"`) and matches whole folder names (`--only 5` no longer
+  selects `Mast 15`).
+- HGT1 readings with a high-impedance termination are stored as
+  `prospective_touch_voltage`; other unknown terminations without input
+  impedance (with a warning) instead of as 1 kΩ touch voltages.
+- COMPANO soil-resistivity exports: the units of the resistivities and
+  resistances are converted (`kΩm`, `mΩ`, …; unknown units raise
+  `MeasurementFileError`) – before they were read as Ωm/Ω regardless.
+- COMPANO exports with only the instrument results (no values at the test
+  frequencies) can be imported with the default `per_frequency=True`
+  (before: `IndexError`).
+- The tower evaluation logs a warning when a tower has several
+  neighbouring-tower reports or soil exports (it uses the first one).
+- Demo campaign: the soil-resistivity export has a realistic electrode
+  depth `b` (0.2 m instead of 3·a).
 
 ### Internal (Tower-grounding integration — 2026-10)
 

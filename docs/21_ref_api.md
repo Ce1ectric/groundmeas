@@ -56,6 +56,8 @@ emits a spurious deprecation warning.
 | `create_measurement` | measurement dict | measurement id | Create a measurement, optionally with nested location. |
 | `create_item` | item dict, `measurement_id` | item id | Create a measurement item. |
 | `create_items` | list of item dicts, `measurement_id` | list of item ids | Create many items in one transaction (all or nothing). |
+| `create_measurement_with_items` | measurement dict, list of item dicts | (measurement id, item ids) | Create a measurement and its items in one transaction. |
+| `create_measurements_with_items` | list of (measurement dict, item dicts) | list of (measurement id, item ids) | Create several measurements with their items in one transaction. |
 | `read_measurements` | `where` clause | list of measurements, list of ids | Read measurements with nested items and location. |
 | `read_measurements_by` | filters | list of measurements, list of ids | Read measurements with suffix operators (`__lt`, `__in`, etc). |
 | `read_items_by` | filters | list of items, list of ids | Read items with suffix operators. |

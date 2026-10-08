@@ -22,8 +22,10 @@ electrode``)              ``earthing_resistance`` (footing resistance) if
 touch voltages            ``touch_voltage`` (or ``transferred_potential``)
 (HGT1 report,             per reading with ``input_impedance_ohm = 1000``
 ``injection_earth_        and ``additional_resistance_ohm`` 0 (``1k``) or
-electrode``)              1000 (``2x1k``); ``earthing_current`` of the
-                          step/touch test from the COMPANO export.
+electrode``)              1000 (``2x1k``); high-impedance readings
+                          (``HIGH Z``) as ``prospective_touch_voltage``;
+                          ``earthing_current`` of the step/touch test from
+                          the COMPANO export.
 soil resistivity          ``soil_resistivity`` per reading; Wenner: spacing
 (COMPANO XML, ``wenner``  ``a`` in ``measurement_distance_m``;
 or ``schlumberger``)      Schlumberger: ``AB/2`` in ``measurement_distance_m``
@@ -38,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from datetime import datetime, timezone as _timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -46,7 +49,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from ..core.db import create_items, create_measurement
+from ..core.db import create_measurement_with_items
 from ..instruments.omicron import (
     CompanoXMLReader,
     FallOfPotentialData,
@@ -65,6 +68,9 @@ HGT1_INPUT_IMPEDANCE_OHM: float = 1000.0
 
 HGT1_ADDITIONAL_RESISTANCE_OHM: Dict[str, float] = {"1k": 0.0, "2x1k": 1000.0}
 """Additional resistance in series with the body resistance per termination (Ω)."""
+
+HGT1_HIGH_IMPEDANCE = re.compile(r"hi(?:gh)?[\s_-]*z|200\s*k(?:ohm|Ω)?", re.IGNORECASE)
+"""Termination of a high-impedance (open-circuit) reading of the HGT1."""
 
 _TIMESTAMP_FORMATS = ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
 
@@ -197,6 +203,12 @@ def fall_of_potential_items(
         Item payloads for :func:`groundmeas.create_items`.
     """
     nominal = nominal_frequency_hz or data.nominal_frequency_hz or 50.0
+    if per_frequency and not data.has_test_frequency_values:
+        logger.info(
+            "The export contains no values at the test frequencies; only the "
+            "power-frequency result is stored"
+        )
+        per_frequency = False
     impedance = data.impedance()
     footing = data.footing_resistance()
     if footing is not None and np.allclose(
@@ -314,10 +326,21 @@ def step_touch_items(
         Item payloads for :func:`groundmeas.create_items`.
     """
     items: List[Dict[str, Any]] = []
+    unknown: List[str] = []
     for _, row in readings.iterrows():
         termination = str(row["Termination"]).strip()
+        item_type = measurement_type
+        input_impedance: Optional[float] = None
+        if termination in HGT1_ADDITIONAL_RESISTANCE_OHM:
+            input_impedance = HGT1_INPUT_IMPEDANCE_OHM
+        elif HGT1_HIGH_IMPEDANCE.fullmatch(termination):
+            # open-circuit voltage: the prospective touch voltage
+            if measurement_type == "touch_voltage":
+                item_type = "prospective_touch_voltage"
+        elif termination not in unknown:
+            unknown.append(termination)
         fields = {
-            "input_impedance_ohm": HGT1_INPUT_IMPEDANCE_OHM,
+            "input_impedance_ohm": input_impedance,
             "additional_resistance_ohm": HGT1_ADDITIONAL_RESISTANCE_OHM.get(
                 termination
             ),
@@ -326,7 +349,7 @@ def step_touch_items(
         }
         items.append(
             _item(
-                measurement_type,
+                item_type,
                 float(row["Level50"]),
                 "V",
                 frequency_hz=nominal_frequency_hz,
@@ -337,13 +360,19 @@ def step_touch_items(
             for f_col, u_col in (("f1", "Level1"), ("f2", "Level2")):
                 items.append(
                     _item(
-                        measurement_type,
+                        item_type,
                         float(row[u_col]),
                         "V",
                         frequency_hz=float(row[f_col]),
                         **fields,
                     )
                 )
+    if unknown:
+        logger.warning(
+            "Unknown HGT1 termination %s; the readings are stored without input "
+            "impedance and additional resistance",
+            ", ".join(repr(t) for t in unknown),
+        )
     currents = [float(c) for c in reference_currents_a]
     if currents:
         items.append(
@@ -477,7 +506,7 @@ def import_fall_of_potential(
         reduction=reduction,
     )
     stamp = data.timestamps[0] if data.timestamps else reader.get_report_timestamp()
-    measurement_id = create_measurement(
+    measurement_id, _item_ids = create_measurement_with_items(
         _measurement_payload(
             location=location,
             asset_type=asset_type,
@@ -487,9 +516,9 @@ def import_fall_of_potential(
             or f"Fall-of-potential test, OMICRON COMPANO 100 ({path.name})",
             operator=operator,
             voltage_level_kv=voltage_level_kv,
-        )
+        ),
+        items,
     )
-    create_items(items, measurement_id=measurement_id)
     logger.info(
         "Imported %s as measurement %d (%d items)",
         path.name,
@@ -572,7 +601,7 @@ def import_step_touch(
     first = readings.iloc[0]
     stamp = f"{str(first['Date']).strip()} {str(first['Time']).strip()}".strip()
     kind = "Transferred potential" if transferred else "Touch voltages"
-    measurement_id = create_measurement(
+    measurement_id, _item_ids = create_measurement_with_items(
         _measurement_payload(
             location=location,
             asset_type=asset_type,
@@ -581,9 +610,9 @@ def import_step_touch(
             description=description or f"{kind}, OMICRON HGT1 ({path.name})",
             operator=operator,
             voltage_level_kv=voltage_level_kv,
-        )
+        ),
+        items,
     )
-    create_items(items, measurement_id=measurement_id)
     logger.info(
         "Imported %s as measurement %d (%d items)",
         path.name,
@@ -638,7 +667,7 @@ def import_soil_resistivity(
         raise ValueError(f"{path.name}: no soil-resistivity readings in the export")
     method, items = soil_resistivity_items(data)
     stamp = data.timestamps[0] if data.timestamps else reader.get_report_timestamp()
-    measurement_id = create_measurement(
+    measurement_id, _item_ids = create_measurement_with_items(
         _measurement_payload(
             location=location,
             asset_type=asset_type,
@@ -648,9 +677,9 @@ def import_soil_resistivity(
             or f"Soil resistivity ({method}), OMICRON COMPANO 100 ({path.name})",
             operator=operator,
             voltage_level_kv=voltage_level_kv,
-        )
+        ),
+        items,
     )
-    create_items(items, measurement_id=measurement_id)
     logger.info(
         "Imported %s as measurement %d (%d items)",
         path.name,

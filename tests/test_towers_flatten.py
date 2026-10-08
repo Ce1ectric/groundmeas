@@ -187,3 +187,11 @@ def test_flatten_does_not_create_a_database(delivery, tmp_path, monkeypatch):
     monkeypatch.setattr(main_cli, "CONFIG_PATH", tmp_path / "no_config.json")
     assert run(str(delivery), str(tmp_path / "flat")).exit_code == 0
     assert not (tmp_path / "groundmeas.db").exists()
+
+
+def test_only_accepts_trailing_separators_and_whole_folder_names(delivery, tmp_path):
+    for only in ("LH-01-0815/Mast 015/", "LH-01-0815\\Mast 015", "Mast 015/"):
+        rows = plan_flatten(delivery, only=[only])
+        assert {Path(row["src"]).parent.name for row in rows} == {"Mast 015"}, only
+    # a folder name is matched as a whole, not as a suffix
+    assert plan_flatten(delivery, only=["015"]) == []
