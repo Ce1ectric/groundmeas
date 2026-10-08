@@ -11,7 +11,7 @@ CRUD operations on Location, Measurement, and MeasurementItem models.
 import logging
 import os
 import threading
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy import and_, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -130,6 +130,57 @@ def connect_db(path: str, echo: bool = False, *, force: bool = False) -> None:
             raise RuntimeError(f"Could not initialize database: {e}") from e
 
 
+def create_items(data: Sequence[Dict[str, Any]], measurement_id: int) -> List[int]:
+    """
+    Insert several MeasurementItems for one Measurement in a single transaction.
+
+    Equivalent to calling :func:`create_item` for every payload, but uses one
+    session and one commit, which is much faster for distance profiles and
+    file imports with hundreds of items. Either all items are stored or none.
+
+    Parameters
+    ----------
+    data : sequence of dict
+        MeasurementItem fields (excluding ``measurement_id``), one dict per item.
+    measurement_id : int
+        Parent Measurement ID.
+
+    Returns
+    -------
+    list[int]
+        Primary keys of the created items, in the order of ``data``.
+
+    Raises
+    ------
+    RuntimeError
+        On any database error during insertion (nothing is stored).
+    ValueError
+        If an item carries neither ``value`` nor ``value_real``/``value_imag``.
+    """
+    payloads: List[Dict[str, Any]] = []
+    for entry in data:
+        payload = dict(entry)
+        payload["measurement_id"] = measurement_id
+        payloads.append(payload)
+    if not payloads:
+        return []
+    try:
+        with _get_session() as session:
+            items = [MeasurementItem(**payload) for payload in payloads]
+            session.add_all(items)
+            session.flush()
+            ids = [int(item.id) for item in items]  # type: ignore[arg-type]
+            session.commit()
+            return ids
+    except SQLAlchemyError as e:
+        logger.exception(
+            "Failed to create %d MeasurementItems for measurement_id=%s",
+            len(payloads),
+            measurement_id,
+        )
+        raise RuntimeError(f"Could not create MeasurementItems: {e}") from e
+
+
 def disconnect_db() -> None:
     """
     Dispose of the active database engine.
@@ -226,7 +277,7 @@ def _find_existing_location(
         try:
             lat_f = float(lat)
             lon_f = float(lon)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         name_only_fallback: Optional[Location] = None
         for cand in candidates:

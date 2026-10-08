@@ -37,6 +37,7 @@ try:
         disconnect_db,
         create_measurement,
         create_item,
+        create_items,
         read_measurements,
         read_measurements_by,
         read_items_by,
@@ -71,6 +72,10 @@ try:
         export_measurements_to_csv,
         export_measurements_to_xml,
     )
+    from .services.json_import import (
+        import_measurements,
+        import_measurements_from_json,
+    )
     from .services.vision_import import import_items_from_images
 
     # visualization
@@ -101,6 +106,7 @@ __all__ = [
     "disconnect_db",
     "create_measurement",
     "create_item",
+    "create_items",
     "read_measurements",
     "read_measurements_by",
     "read_items_by",
@@ -124,6 +130,8 @@ __all__ = [
     "export_measurements_to_json",
     "export_measurements_to_csv",
     "export_measurements_to_xml",
+    "import_measurements",
+    "import_measurements_from_json",
     "soil_resistivity_profile",
     "soil_resistivity_profile_detailed",
     "soil_resistivity_curve",

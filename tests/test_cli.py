@@ -617,8 +617,10 @@ def test_import_json_single(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
     monkeypatch.setattr(
         cli,
-        "create_item",
-        lambda it, measurement_id: created.__setitem__("items", created["items"] + 1),
+        "create_items",
+        lambda items, measurement_id: created.__setitem__(
+            "items", created["items"] + len(items)
+        ),
     )
 
     cli.import_json(file_path)
@@ -636,8 +638,10 @@ def test_import_json_directory_merge(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
     monkeypatch.setattr(
         cli,
-        "create_item",
-        lambda it, measurement_id: created.__setitem__("items", created["items"] + 1),
+        "create_items",
+        lambda items, measurement_id: created.__setitem__(
+            "items", created["items"] + len(items)
+        ),
     )
 
     cli.import_json(tmp_path)
@@ -676,6 +680,55 @@ def test_import_json_unsupported_structure(tmp_path, monkeypatch, capsys):
 
     err = capsys.readouterr().err
     assert "Unsupported JSON structure" in err
+
+
+def test_import_json_parses_timestamp_and_drops_db_keys(tmp_path, monkeypatch, capsys):
+    import datetime as _dt
+
+    payload = {
+        "id": 7,
+        "location_id": 3,
+        "timestamp": "2026-05-12T11:00:00+02:00",
+        "method": "wenner",
+        "asset_type": "substation",
+        "location": {"id": 3, "name": "Site"},
+        "items": [{"id": 9, "measurement_id": 7, "value": 1.0, "unit": "Ω"}],
+    }
+    file_path = tmp_path / "export.json"
+    file_path.write_text(json.dumps([payload]))
+
+    seen = {}
+    monkeypatch.setattr(
+        cli, "create_measurement", lambda m: seen.setdefault("m", m) and 1
+    )
+    monkeypatch.setattr(
+        cli,
+        "create_items",
+        lambda items, measurement_id: seen.setdefault("items", items),
+    )
+
+    cli.import_json(file_path)
+    assert "Successfully imported 1" in capsys.readouterr().out
+    assert seen["m"]["timestamp"] == _dt.datetime(2026, 5, 12, 9, 0)
+    assert "id" not in seen["m"] and "location_id" not in seen["m"]
+    assert seen["m"]["location"] == {"name": "Site"}
+    assert seen["items"] == [{"value": 1.0, "unit": "Ω"}]
+
+
+def test_import_json_invalid_timestamp(tmp_path, monkeypatch, capsys):
+    import typer as _typer
+
+    bad = tmp_path / "bad_ts.json"
+    bad.write_text(
+        json.dumps(
+            {"method": "wenner", "asset_type": "substation", "timestamp": "12.05.2026"}
+        )
+    )
+    monkeypatch.setattr(cli, "create_measurement", lambda m: 1)
+
+    with pytest.raises(_typer.Exit):
+        cli.import_json(bad)
+    assert "Invalid timestamp" in capsys.readouterr().err
 
 
 def test_export_json(monkeypatch, tmp_path):

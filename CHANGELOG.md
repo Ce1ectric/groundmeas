@@ -30,6 +30,34 @@ During regular work, add your entry under the matching category in
 
 ## [Unreleased]
 
+### Added (Tower-grounding integration — 2026-10)
+
+> Integration of the overhead-line tower evaluation of the former
+> companion package `tower-grounding-measurement` (TGM) into
+> `groundmeas`; `groundmeas` becomes the single maintained program.
+
+- **`gm.create_items(payloads, measurement_id)`** inserts many
+  `MeasurementItem`s in one transaction (one session, one commit;
+  all-or-nothing). Closes the `gm.bulk_create_items` idea from the
+  inbox; profiles and file imports no longer pay one commit per row.
+- **`gm.import_measurements(...)` / `gm.import_measurements_from_json(path)`**
+  — Python API for the JSON import (file, directory or
+  `X_measurement.json` + `X_items.json` pair) that round-trips with
+  `export_measurements_to_json`.
+
+### Fixed (Tower-grounding integration — 2026-10)
+
+- **`gm-cli import-json` could not import JSON with timestamps** — the
+  ISO string was passed unparsed to SQLite (`SQLite DateTime type only
+  accepts Python datetime`), so even files written by `export-json`
+  failed. Timestamps are now parsed (offsets converted to UTC).
+- **`gm-cli import-json` re-used the exported database keys** (`id`,
+  `location_id`, `measurement_id`, `location.id`) and failed with
+  `UNIQUE constraint failed` on a non-empty database. The keys are now
+  dropped; locations are matched by name/coordinates as for new data.
+- **`gm-cli import-json` committed every item separately**; it now uses
+  `create_items` (one transaction per measurement).
+
 ### Fixed (Audit pass 8 — implemented 2026-05-24)
 
 > The bugs in this block were *implemented* on 2026-05-24 from the

@@ -25,6 +25,7 @@ from prompt_toolkit.completion import WordCompleter
 from ..core.db import (
     connect_db,
     create_item,
+    create_items,
     create_measurement,
     delete_item,
     delete_measurement,
@@ -34,6 +35,7 @@ from ..core.db import (
     update_measurement,
 )
 from ..services.export import export_measurements_to_json
+from ..services.json_import import prepare_measurement_for_import
 from ..core.models import MeasurementType
 from ..services.analytics import (
     calculate_split_factor,
@@ -1462,6 +1464,11 @@ def import_json(
       - Single JSON file containing a measurement or list of measurements.
       - Directory of JSON files.
       - Automatic merging of paired files: 'X_measurement.json' + 'X_items.json'.
+
+    Files written by export-json can be imported again: ISO 8601 timestamps
+    are parsed (offsets converted to UTC) and the database keys of the export
+    (id, location_id, measurement_id) are ignored, so the target database
+    assigns new ones and matches locations by name/coordinates.
     """
     files_to_process: List[Tuple[Path, Optional[Path]]] = []
 
@@ -1538,10 +1545,9 @@ def import_json(
 
         for m in measurements:
             try:
-                items = m.pop("items", [])
-                mid = create_measurement(m)
-                for it in items:
-                    create_item(it, measurement_id=mid)
+                measurement, items = prepare_measurement_for_import(m)
+                mid = create_measurement(measurement)
+                create_items(items, measurement_id=mid)
                 total_created.append((mid, len(items)))
             except Exception as e:
                 typer.echo(
