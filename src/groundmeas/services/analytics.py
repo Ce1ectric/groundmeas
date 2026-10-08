@@ -72,14 +72,33 @@ def _resolve_math_backend(
 
 def impedance_over_frequency(
     measurement_ids: Union[int, List[int]],
+    *,
+    profile_algorithm: str = "62_percent",
+    conservative: bool = False,
 ) -> Union[Dict[float, float], Dict[int, Dict[float, float]]]:
     """
     Map frequency (Hz) to impedance magnitude (Ω) for one or many measurements.
+
+    One value is returned per frequency:
+
+    * a single ``earthing_impedance`` item at that frequency: its magnitude;
+    * a fall-of-potential profile (several items with
+      ``measurement_distance_m`` at the same frequency): the profile reduced
+      with ``profile_algorithm`` (see :func:`distance_profile_value`);
+    * several items without distance: their mean (with a ``UserWarning``).
 
     Parameters
     ----------
     measurement_ids : int or list[int]
         Measurement ID or list of IDs to query for ``earthing_impedance`` items.
+    profile_algorithm : str, default "62_percent"
+        Reduction algorithm for distance profiles (``"maximum"``,
+        ``"62_percent"``, ``"minimum_gradient"``, ``"minimum_stddev"``,
+        ``"inverse"``). If it cannot be applied (e.g. the 62 % method without
+        current-electrode distance), the profile maximum is used with a
+        ``UserWarning``.
+    conservative : bool, default False
+        Passed to the 62 % method (see :func:`value_at_62_percent`).
 
     Returns
     -------
@@ -115,7 +134,7 @@ def impedance_over_frequency(
             all_results[mid] = {}
             continue
 
-        freq_imp_map: Dict[float, float] = {}
+        groups: Dict[float, List[Dict[str, Any]]] = {}
         for item in items:
             freq = item.get("frequency_hz")
             value = item.get("value")
@@ -126,11 +145,36 @@ def impedance_over_frequency(
                 )
                 continue
             try:
-                freq_imp_map[float(freq)] = float(value)
+                key = float(freq)
+                float(value)
             except Exception:
                 warnings.warn(
                     f"Could not convert item {item.get('id')} to floats; skipping",
                     UserWarning,
+                )
+                continue
+            groups.setdefault(key, []).append(item)
+
+        freq_imp_map: Dict[float, float] = {}
+        for freq_key, group in groups.items():
+            if len(group) == 1:
+                freq_imp_map[freq_key] = float(group[0]["value"])
+            elif any(it.get("measurement_distance_m") is not None for it in group):
+                freq_imp_map[freq_key] = _profile_value_from_items(
+                    group,
+                    profile_algorithm,
+                    conservative=conservative,
+                    measurement_id=mid,
+                    measurement_type="earthing_impedance",
+                )
+            else:
+                warnings.warn(
+                    f"Measurement {mid}: {len(group)} earthing_impedance items at "
+                    f"{freq_key:g} Hz without distance; using the mean of their values.",
+                    UserWarning,
+                )
+                freq_imp_map[freq_key] = float(
+                    np.mean([float(it["value"]) for it in group])
                 )
 
         all_results[mid] = freq_imp_map
@@ -187,6 +231,22 @@ def real_imag_over_frequency(
             continue
 
         freq_map: Dict[float, Dict[str, Optional[float]]] = {}
+        counts: Dict[float, int] = {}
+        for item in items:
+            try:
+                key = float(item.get("frequency_hz"))  # type: ignore[arg-type]
+            except TypeError, ValueError:
+                continue
+            counts[key] = counts.get(key, 0) + 1
+        repeated = sorted(f for f, n in counts.items() if n > 1)
+        if repeated:
+            warnings.warn(
+                f"Measurement {mid}: several earthing_impedance items at "
+                f"{', '.join(f'{f:g}' for f in repeated)} Hz; the last one is used. "
+                "Evaluate distance profiles with distance_profile_value(..., "
+                "frequency_hz=...) instead.",
+                UserWarning,
+            )
         for item in items:
             freq = item.get("frequency_hz")
             r = item.get("value_real")
@@ -213,59 +273,160 @@ def real_imag_over_frequency(
     return all_results[ids[0]] if single else all_results
 
 
-def distance_profile_value(
-    measurement_id: int,
-    measurement_type: str = "earthing_impedance",
-    algorithm: Literal[
-        "maximum",
-        "62_percent",
-        "minimum_gradient",
-        "minimum_stddev",
-        "inverse",
-    ] = "maximum",
-    window: int = 3,
+SIXTY_TWO_PERCENT: float = 0.62
+r"""Fraction of the current-electrode distance used by the 62 % method.
+
+For a hemispherical electrode in homogeneous soil the potential probe shows
+the true earthing resistance at $0.618\,D$; in practice $0.62\,D$ is used.
+"""
+
+ProfileAlgorithm = Literal[
+    "maximum",
+    "62_percent",
+    "minimum_gradient",
+    "minimum_stddev",
+    "inverse",
+]
+
+
+def value_at_62_percent(
+    distances: Sequence[float],
+    values: Sequence[float],
+    injection_distance_m: float,
+    *,
+    conservative: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Reduce a distance–value profile (impedance or voltage) to a single characteristic value.
+    r"""
+    Evaluate a fall-of-potential profile with the 62 % method.
+
+    The target distance is $d_{62} = 0.62\,D$ with the distance $D$ of the
+    current electrode. The value at $d_{62}$ is interpolated linearly between
+    the three profile points closest to $d_{62}$.
+
+    Two variants are available:
+
+    * ``conservative=False`` (default, the behaviour of
+      :func:`distance_profile_value` since 1.3): ``numpy.interp`` over the
+      nearest points; outside their range the end value is kept.
+    * ``conservative=True`` (the procedure of the tower evaluation,
+      formerly ``tower-grounding-measurement``): linear interpolation with
+      extrapolation outside the nearest points, followed by two
+      conservative corrections:
+
+      1. if $d_{62}$ lies beyond the profile and a higher value was
+         measured, the profile maximum is used (``"beyond_profile"``);
+      2. if a point closer than $d_{62}$ shows a higher value, the highest
+         such value is used (``"closer_point_higher"``).
 
     Parameters
     ----------
-    measurement_id : int
-        Measurement ID to read items from.
-    measurement_type : str, default "earthing_impedance"
-        MeasurementItem type to filter by.
-    algorithm : {"maximum", "62_percent", "minimum_gradient", "minimum_stddev", "inverse"}, default "maximum"
-        Reduction algorithm.
-    window : int, default 3
-        Window size for the ``minimum_stddev`` algorithm.
+    distances : sequence of float
+        Probe distances in m (same unit as ``injection_distance_m``). For
+        ``conservative=False`` they must be sorted ascending.
+    values : sequence of float
+        Profile values (impedance, resistance or voltage) at ``distances``.
+    injection_distance_m : float
+        Distance $D$ of the current electrode in m.
+    conservative : bool, default False
+        Apply extrapolation and the conservative corrections (see above).
 
     Returns
     -------
     dict
-        Computed value, distance, unit, injection distance, data points, and algorithm details.
+        ``value`` (float), ``target_distance_m`` (float), ``used_indices``
+        (indices of the points used for the interpolation, ascending by
+        distance) and ``corrections`` (list of applied corrections; empty
+        for ``conservative=False``).
 
     Raises
     ------
-    RuntimeError
-        On database read failures.
     ValueError
-        On missing data or unsupported algorithm.
-    """
-    try:
-        items, _ = read_items_by(
-            measurement_id=measurement_id, measurement_type=measurement_type
-        )
-    except Exception as exc:
-        logger.error(
-            "Error reading %s items for measurement %s: %s",
-            measurement_type,
-            measurement_id,
-            exc,
-        )
-        raise RuntimeError(
-            f"Failed to load {measurement_type} data for measurement {measurement_id}"
-        ) from exc
+        If the inputs are empty or of different length, the injection
+        distance is not positive, or (``conservative=False``) fewer than two
+        distinct distances are available.
 
+    Examples
+    --------
+    >>> value_at_62_percent([50.0, 60.0, 70.0], [1.0, 2.0, 3.0], 100.0)["value"]
+    2.2
+    >>> out = value_at_62_percent(
+    ...     [10.0, 30.0, 60.0, 70.0], [2.5, 2.0, 2.1, 2.2], 100.0, conservative=True
+    ... )
+    >>> out["value"], out["corrections"]
+    (2.5, ['closer_point_higher'])
+    """
+    dist = np.asarray(distances, dtype=float)
+    vals = np.asarray(values, dtype=float)
+    if dist.ndim != 1 or dist.shape != vals.shape:
+        raise ValueError("distances and values must be 1-D sequences of equal length")
+    if dist.size == 0:
+        raise ValueError("the profile contains no points")
+    injection = float(injection_distance_m)
+    if not math.isfinite(injection) or injection <= 0:
+        raise ValueError(
+            f"injection_distance_m must be a positive number, got {injection_distance_m!r}"
+        )
+    target = SIXTY_TWO_PERCENT * injection
+
+    if not conservative:
+        # stable sort keeps the ascending-distance order for equal offsets
+        order = sorted(range(dist.size), key=lambda i: abs(dist[i] - target))[:3]
+        used: List[int] = []
+        seen: set[float] = set()
+        for i in sorted(order, key=lambda i: dist[i]):
+            if dist[i] in seen:
+                continue
+            seen.add(float(dist[i]))
+            used.append(i)
+        if len(used) < 2:
+            raise ValueError(
+                "Need at least two unique distances for 62_percent interpolation"
+            )
+        value = float(np.interp(target, dist[used], vals[used]))
+        return {
+            "value": value,
+            "target_distance_m": target,
+            "used_indices": used,
+            "corrections": [],
+        }
+
+    from scipy import interpolate  # local import: scipy is optional elsewhere
+
+    n_points = dist.size
+    offsets = np.abs(dist - target)
+    if n_points > 3:
+        nearest = np.argpartition(offsets, 3)[:3]
+    else:
+        nearest = np.arange(n_points)
+    if n_points >= 2:
+        interpolation = interpolate.interp1d(
+            dist[nearest], vals[nearest], kind="linear", fill_value="extrapolate"
+        )
+        value = float(interpolation(target))
+    else:
+        value = float(vals[0])
+
+    corrections: List[str] = []
+    profile_max = float(vals.max())
+    if target > dist.max() and value < profile_max:
+        value = profile_max
+        corrections.append("beyond_profile")
+    closer_and_higher = (dist < target) & (vals > value)
+    if closer_and_higher.any() and target <= dist.max():
+        value = float(vals[closer_and_higher].max())
+        corrections.append("closer_point_higher")
+    return {
+        "value": value,
+        "target_distance_m": target,
+        "used_indices": sorted((int(i) for i in nearest), key=lambda i: dist[i]),
+        "corrections": corrections,
+    }
+
+
+def _profile_points(
+    items: Sequence[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[float], List[str]]:
+    """Convert MeasurementItem dicts into profile points (sorted by distance)."""
     points: List[Dict[str, Any]] = []
     injection_candidates: List[float] = []
     units: List[str] = []
@@ -310,96 +471,109 @@ def distance_profile_value(
             continue
         points.append(point)
 
-    if not points:
-        raise ValueError(
-            f"No {measurement_type} items with distance/value found for measurement {measurement_id}"
+    points.sort(key=lambda p: p["distance_m"])
+    return points, injection_candidates, units
+
+
+def _dedupe_profile_points(
+    raw_points: List[Dict[str, Any]],
+    measurement_id: Any,
+    measurement_type: str,
+) -> List[Dict[str, Any]]:
+    """For duplicate distances, keep the point closest to linear interpolation.
+
+    Emits a single :class:`UserWarning` listing all duplicate distances
+    encountered so silent data reductions become visible in downstream
+    analyses.
+    """
+    by_dist: Dict[float, List[Dict[str, Any]]] = {}
+    for p in raw_points:
+        by_dist.setdefault(p["distance_m"], []).append(p)
+    distances = sorted(by_dist.keys())
+
+    duplicate_distances = [d for d in distances if len(by_dist[d]) > 1]
+    if duplicate_distances:
+        preview = ", ".join(f"{d:g}" for d in duplicate_distances[:5])
+        ellipsis = "..." if len(duplicate_distances) > 5 else ""
+        warnings.warn(
+            "distance_profile_value: duplicate measurement distances "
+            f"{preview}{ellipsis} were collapsed by interpolation-based "
+            "dedup. Inspect the input data if this was unexpected "
+            f"(measurement_id={measurement_id}, "
+            f"measurement_type={measurement_type!r}).",
+            UserWarning,
+            stacklevel=3,
         )
 
-    points.sort(key=lambda p: p["distance_m"])
+    def _mean_val(d: float) -> float:
+        vals = [pp["value"] for pp in by_dist[d] if pp.get("value") is not None]
+        return float(sum(vals) / len(vals)) if vals else 0.0
 
-    def _dedupe_by_interpolation(
-        raw_points: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """For duplicate distances, keep the point closest to linear interpolation.
+    selected: List[Dict[str, Any]] = []
+    for idx, dist in enumerate(distances):
+        group = by_dist[dist]
+        if len(group) == 1:
+            selected.append(group[0])
+            continue
 
-        Emits a single :class:`UserWarning` listing all duplicate distances
-        encountered so silent data reductions become visible in downstream
-        analyses.
-        """
-        by_dist: Dict[float, List[Dict[str, Any]]] = {}
-        for p in raw_points:
-            by_dist.setdefault(p["distance_m"], []).append(p)
-        distances = sorted(by_dist.keys())
-
-        duplicate_distances = [d for d in distances if len(by_dist[d]) > 1]
-        if duplicate_distances:
-            preview = ", ".join(f"{d:g}" for d in duplicate_distances[:5])
-            ellipsis = "..." if len(duplicate_distances) > 5 else ""
-            warnings.warn(
-                "distance_profile_value: duplicate measurement distances "
-                f"{preview}{ellipsis} were collapsed by interpolation-based "
-                "dedup. Inspect the input data if this was unexpected "
-                f"(measurement_id={measurement_id}, "
-                f"measurement_type={measurement_type!r}).",
-                UserWarning,
-                stacklevel=3,
-            )
-
-        def _mean_val(d: float) -> float:
-            vals = [pp["value"] for pp in by_dist[d] if pp.get("value") is not None]
-            return float(sum(vals) / len(vals)) if vals else 0.0
-
-        selected: List[Dict[str, Any]] = []
-        for idx, dist in enumerate(distances):
-            group = by_dist[dist]
-            if len(group) == 1:
-                selected.append(group[0])
-                continue
-
-            try:
-                if idx == 0 and len(distances) > 1:
-                    x1, y1 = 0.0, 0.0
-                    x2 = distances[idx + 1]
-                    y2 = _mean_val(x2)
-                elif idx == len(distances) - 1 and len(distances) >= 2:
-                    x2 = distances[idx - 1]
-                    y2 = _mean_val(x2)
-                    if idx >= 2:
-                        x1 = distances[idx - 2]
-                        y1 = _mean_val(x1)
-                    else:
-                        x1, y1 = x2, y2
-                else:
-                    x1 = distances[idx - 1]
+        try:
+            if idx == 0 and len(distances) > 1:
+                x1, y1 = 0.0, 0.0
+                x2 = distances[idx + 1]
+                y2 = _mean_val(x2)
+            elif idx == len(distances) - 1 and len(distances) >= 2:
+                x2 = distances[idx - 1]
+                y2 = _mean_val(x2)
+                if idx >= 2:
+                    x1 = distances[idx - 2]
                     y1 = _mean_val(x1)
-                    x2 = distances[idx + 1]
-                    y2 = _mean_val(x2)
-
-                if x2 == x1:
-                    expected = _mean_val(dist)
                 else:
-                    expected = y1 + (dist - x1) * (y2 - y1) / (x2 - x1)
-            except Exception:
+                    x1, y1 = x2, y2
+            else:
+                x1 = distances[idx - 1]
+                y1 = _mean_val(x1)
+                x2 = distances[idx + 1]
+                y2 = _mean_val(x2)
+
+            if x2 == x1:
                 expected = _mean_val(dist)
+            else:
+                expected = y1 + (dist - x1) * (y2 - y1) / (x2 - x1)
+        except Exception:
+            expected = _mean_val(dist)
 
-            best = min(group, key=lambda p: abs(p["value"] - expected))
-            selected.append(best)
+        best = min(group, key=lambda p: abs(p["value"] - expected))
+        selected.append(best)
 
-        selected.sort(key=lambda p: p["distance_m"])
-        return selected
+    selected.sort(key=lambda p: p["distance_m"])
+    return selected
 
-    points = _dedupe_by_interpolation(points)
 
-    # Determine a consistent injection distance if provided
-    injection_distance = None
-    if injection_candidates:
-        uniq = {round(val, 6) for val in injection_candidates}
-        injection_distance = injection_candidates[0]
-        if len(uniq) > 1:
-            warnings.warn(
-                "distance_to_current_injection_m is not consistent across items; using the first value",
-                UserWarning,
-            )
+def _injection_distance(injection_candidates: List[float]) -> Optional[float]:
+    """Return a consistent injection distance (first value, warn if they differ)."""
+    if not injection_candidates:
+        return None
+    uniq = {round(val, 6) for val in injection_candidates}
+    if len(uniq) > 1:
+        warnings.warn(
+            "distance_to_current_injection_m is not consistent across items; using the first value",
+            UserWarning,
+        )
+    return injection_candidates[0]
+
+
+def _reduce_profile(
+    points: List[Dict[str, Any]],
+    algorithm: str,
+    *,
+    window: int = 3,
+    injection_distance: Optional[float] = None,
+    conservative: bool = False,
+) -> Tuple[str, float, float, Dict[str, Any]]:
+    """Apply one reduction algorithm to sorted, de-duplicated profile points.
+
+    Returns ``(algorithm_key, value, distance_m, details)``.
+    """
 
     def _algo_maximum() -> Tuple[float, float, Dict[str, Any]]:
         best = max(points, key=lambda p: p["value"])
@@ -410,29 +584,21 @@ def distance_profile_value(
             raise ValueError(
                 "distance_to_current_injection_m is required for the 62_percent algorithm"
             )
-        target = 0.62 * float(injection_distance)
-        nearest = sorted(points, key=lambda p: abs(p["distance_m"] - target))[:3]
-        # ensure strictly increasing x for np.interp
-        ordered = []
-        seen: set[float] = set()
-        for p in sorted(nearest, key=lambda p: p["distance_m"]):
-            if p["distance_m"] in seen:
-                continue
-            seen.add(p["distance_m"])
-            ordered.append(p)
-        if len(ordered) < 2:
-            raise ValueError(
-                "Need at least two unique distances for 62_percent interpolation"
-            )
-        xs = [p["distance_m"] for p in ordered]
-        ys = [p["value"] for p in ordered]
-        interpolated = float(np.interp(target, xs, ys))
+        result = value_at_62_percent(
+            [p["distance_m"] for p in points],
+            [p["value"] for p in points],
+            injection_distance,
+            conservative=conservative,
+        )
+        target = result["target_distance_m"]
         return (
-            interpolated,
+            result["value"],
             target,
             {
                 "target_distance_m": target,
-                "used_points": ordered,
+                "used_points": [points[i] for i in result["used_indices"]],
+                "conservative": conservative,
+                "corrections": result["corrections"],
             },
         )
 
@@ -515,6 +681,109 @@ def distance_profile_value(
         raise ValueError(f"Unsupported algorithm '{algorithm}'")
 
     result_value, result_distance, details = algo_map[algo_key]()
+    return algo_key, float(result_value), float(result_distance), details
+
+
+def _warn_mixed_frequencies(
+    items: Sequence[Dict[str, Any]], measurement_id: Any, measurement_type: str
+) -> None:
+    frequencies = sorted(
+        {float(f) for f in (i.get("frequency_hz") for i in items) if f is not None}
+    )
+    if len(frequencies) > 1:
+        listed = ", ".join(f"{f:g}" for f in frequencies)
+        warnings.warn(
+            f"Measurement {measurement_id}: {measurement_type} items at several "
+            f"frequencies ({listed} Hz) are combined into one profile; pass "
+            "frequency_hz to evaluate one frequency.",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
+def distance_profile_value(
+    measurement_id: int,
+    measurement_type: str = "earthing_impedance",
+    algorithm: ProfileAlgorithm = "maximum",
+    window: int = 3,
+    *,
+    frequency_hz: Optional[float] = None,
+    conservative: bool = False,
+) -> Dict[str, Any]:
+    """
+    Reduce a distance–value profile (impedance or voltage) to a single characteristic value.
+
+    Parameters
+    ----------
+    measurement_id : int
+        Measurement ID to read items from.
+    measurement_type : str, default "earthing_impedance"
+        MeasurementItem type to filter by.
+    algorithm : {"maximum", "62_percent", "minimum_gradient", "minimum_stddev", "inverse"}, default "maximum"
+        Reduction algorithm.
+    window : int, default 3
+        Window size for the ``minimum_stddev`` algorithm.
+    frequency_hz : float, optional
+        Only use items at this frequency. Profiles stored at several
+        frequencies (e.g. the two test frequencies and the interpolated
+        power-frequency value of a COMPANO 100 export) must be evaluated per
+        frequency; without this argument such items are combined and a
+        ``UserWarning`` is emitted.
+    conservative : bool, default False
+        For ``62_percent`` only: extrapolate outside the nearest points and
+        apply the conservative corrections of the tower evaluation (see
+        :func:`value_at_62_percent`).
+
+    Returns
+    -------
+    dict
+        Computed value, distance, unit, injection distance, data points, and algorithm details.
+
+    Raises
+    ------
+    RuntimeError
+        On database read failures.
+    ValueError
+        On missing data or unsupported algorithm.
+    """
+    filters: Dict[str, Any] = {
+        "measurement_id": measurement_id,
+        "measurement_type": measurement_type,
+    }
+    if frequency_hz is not None:
+        filters["frequency_hz"] = frequency_hz
+    try:
+        items, _ = read_items_by(**filters)
+    except Exception as exc:
+        logger.error(
+            "Error reading %s items for measurement %s: %s",
+            measurement_type,
+            measurement_id,
+            exc,
+        )
+        raise RuntimeError(
+            f"Failed to load {measurement_type} data for measurement {measurement_id}"
+        ) from exc
+
+    if frequency_hz is None:
+        _warn_mixed_frequencies(items, measurement_id, measurement_type)
+
+    points, injection_candidates, units = _profile_points(items)
+    if not points:
+        raise ValueError(
+            f"No {measurement_type} items with distance/value found for measurement {measurement_id}"
+        )
+
+    points = _dedupe_profile_points(points, measurement_id, measurement_type)
+    injection_distance = _injection_distance(injection_candidates)
+
+    algo_key, result_value, result_distance, details = _reduce_profile(
+        points,
+        algorithm,
+        window=window,
+        injection_distance=injection_distance,
+        conservative=conservative,
+    )
 
     unit = units[0] if units else None
     if units and len(set(units)) > 1:
@@ -531,9 +800,41 @@ def distance_profile_value(
         "result_distance_m": float(result_distance),
         "unit": unit,
         "distance_to_current_injection_m": injection_distance,
+        "frequency_hz": frequency_hz,
         "data_points": points,
         "details": details,
     }
+
+
+def _profile_value_from_items(
+    items: Sequence[Dict[str, Any]],
+    algorithm: str,
+    *,
+    conservative: bool,
+    measurement_id: Any,
+    measurement_type: str,
+) -> float:
+    """Reduce already loaded profile items; fall back to the maximum with a warning."""
+    points, injection_candidates, _units = _profile_points(items)
+    if not points:
+        raise ValueError(f"No {measurement_type} items with distance/value found")
+    points = _dedupe_profile_points(points, measurement_id, measurement_type)
+    try:
+        _key, value, _dist, _details = _reduce_profile(
+            points,
+            algorithm,
+            injection_distance=_injection_distance(injection_candidates),
+            conservative=conservative,
+        )
+    except ValueError as exc:
+        warnings.warn(
+            f"Measurement {measurement_id}: {measurement_type} profile could not be "
+            f"evaluated with {algorithm!r} ({exc}); using the profile maximum.",
+            UserWarning,
+            stacklevel=3,
+        )
+        value = max(p["value"] for p in points)
+    return float(value)
 
 
 # --- Layered earth soil modeling (Wenner/Schlumberger) -----------------------
@@ -1974,6 +2275,10 @@ def rho_f_model(
 def voltage_vt_epr(
     measurement_ids: Union[int, List[int]],
     frequency: float = 50.0,
+    *,
+    profile_algorithm: str = "62_percent",
+    conservative: bool = False,
+    additional_resistance_ohm: Optional[float] = None,
 ) -> Union[Dict[str, float], Dict[int, Dict[str, float]]]:
     """
     Calculate per-ampere touch voltages and earthing impedance at a frequency.
@@ -1988,18 +2293,34 @@ def voltage_vt_epr(
     carries the same impedance value; callers must multiply by the actual
     earthing current to obtain the EPR in volts.
 
+    If the ``earthing_impedance`` items form a fall-of-potential profile
+    (several items with ``measurement_distance_m``), ``z_per_amp`` is the
+    profile reduced with ``profile_algorithm`` instead of the mean of all
+    profile points.
+
     Parameters
     ----------
     measurement_ids : int or list[int]
         Measurement ID or list of IDs.
     frequency : float, default 50.0
         Frequency in Hz.
+    profile_algorithm : str, default "62_percent"
+        Reduction algorithm for an impedance profile (see
+        :func:`distance_profile_value`); falls back to the profile maximum
+        with a ``UserWarning`` if it cannot be applied.
+    conservative : bool, default False
+        Passed to the 62 % method (see :func:`value_at_62_percent`).
+    additional_resistance_ohm : float, optional
+        Only use ``touch_voltage`` items measured with this additional
+        resistance (e.g. ``0`` or ``1000`` for the two terminations of an
+        OMICRON HGT1). By default all touch-voltage items are used.
 
     Returns
     -------
     dict
         If single ID: mapping with keys ``z_per_amp`` (alias ``epr``),
-        optional ``vtp_min/max`` and ``vt_min/max`` (each in V/A).
+        optional ``vtp_min/max`` and ``vt_min/max`` (each in V/A); an empty
+        dict if the measurement was skipped.
         If multiple IDs: nested dict keyed by measurement_id.
 
     Raises
@@ -2026,7 +2347,17 @@ def voltage_vt_epr(
                 UserWarning,
             )
             continue
-        if len(imp_items) > 1:
+        if len(imp_items) > 1 and any(
+            it.get("measurement_distance_m") is not None for it in imp_items
+        ):
+            Z = _profile_value_from_items(
+                imp_items,
+                profile_algorithm,
+                conservative=conservative,
+                measurement_id=mid,
+                measurement_type="earthing_impedance",
+            )
+        elif len(imp_items) > 1:
             warnings.warn(
                 (
                     f"Measurement {mid}: {len(imp_items)} earthing_impedance rows "
@@ -2050,6 +2381,12 @@ def voltage_vt_epr(
                 UserWarning,
             )
             continue
+        if len(cur_items) > 1:
+            warnings.warn(
+                f"Measurement {mid}: {len(cur_items)} earthing_current rows matched "
+                f"at {frequency}Hz; using the first one as reference.",
+                UserWarning,
+            )
         I = float(cur_items[0]["value"])
         if I == 0:
             warnings.warn(
@@ -2089,6 +2426,17 @@ def voltage_vt_epr(
             measurement_type="touch_voltage",
             frequency_hz=frequency,
         )
+        if additional_resistance_ohm is not None:
+            vt_items = [
+                it
+                for it in vt_items
+                if it.get("additional_resistance_ohm") is not None
+                and math.isclose(
+                    float(it["additional_resistance_ohm"]),
+                    float(additional_resistance_ohm),
+                    abs_tol=1e-9,
+                )
+            ]
         if vt_items:
             vt_vals = [float(it["value"]) / I for it in vt_items]
             entry["vt_min"] = min(vt_vals)
@@ -2102,7 +2450,7 @@ def voltage_vt_epr(
         results[mid] = entry
 
     # if single measurement, return its dict directly (or empty dict if skipped)
-    return results[ids[0]] if single else results
+    return results.get(ids[0], {}) if single else results
 
 
 def _current_item_to_complex(item: Dict[str, Any]) -> complex:

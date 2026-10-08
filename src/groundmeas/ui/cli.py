@@ -900,6 +900,19 @@ def cli_distance_profile_value(
     window: int = typer.Option(
         3, "--window", "-w", help="Window size for minimum_stddev (>=2)"
     ),
+    frequency: Optional[float] = typer.Option(
+        None,
+        "--frequency",
+        "-f",
+        help="Only use items at this frequency (Hz); needed for profiles stored "
+        "at several frequencies",
+    ),
+    conservative: bool = typer.Option(
+        False,
+        "--conservative",
+        help="62_percent only: extrapolate and apply the conservative corrections "
+        "of the tower evaluation",
+    ),
     json_out: Optional[Path] = typer.Option(
         None, "--json-out", help="Write result to JSON file"
     ),
@@ -913,6 +926,8 @@ def cli_distance_profile_value(
         measurement_type=measurement_type,
         algorithm=algorithm,
         window=window,
+        frequency_hz=frequency,
+        conservative=conservative,
     )
 
     if json_out:
@@ -1015,13 +1030,18 @@ def cli_import_from_images(
 @app.command("impedance-over-frequency")
 def cli_impedance_over_frequency(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
+    profile_algorithm: str = typer.Option(
+        "62_percent",
+        "--profile-algorithm",
+        help="Reduction of distance profiles (one value per frequency)",
+    ),
     json_out: Optional[Path] = typer.Option(
         None, "--json-out", help="Write result to JSON file"
     ),
 ) -> None:
     """Return impedance over frequency for the given measurement IDs."""
     ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
-    data = impedance_over_frequency(ids)
+    data = impedance_over_frequency(ids, profile_algorithm=profile_algorithm)
     _dump_or_print(data, json_out)
 
 
@@ -1249,13 +1269,28 @@ def cli_rho_f_model(
 def cli_voltage_vt_epr(
     measurement_ids: List[int] = typer.Argument(..., help="Measurement ID(s)"),
     frequency: float = typer.Option(50.0, "--frequency", "-f", help="Frequency in Hz"),
+    additional_resistance: Optional[float] = typer.Option(
+        None,
+        "--additional-resistance",
+        help="Only touch voltages measured with this additional resistance (Ω)",
+    ),
+    profile_algorithm: str = typer.Option(
+        "62_percent",
+        "--profile-algorithm",
+        help="Reduction of an earthing-impedance profile",
+    ),
     json_out: Optional[Path] = typer.Option(
         None, "--json-out", help="Write result to JSON file"
     ),
 ) -> None:
     """Calculate per-ampere touch voltages and EPR for measurements."""
     ids = measurement_ids if len(measurement_ids) > 1 else measurement_ids[0]
-    data = voltage_vt_epr(ids, frequency=frequency)
+    data = voltage_vt_epr(
+        ids,
+        frequency=frequency,
+        profile_algorithm=profile_algorithm,
+        additional_resistance_ohm=additional_resistance,
+    )
     _dump_or_print(data, json_out)
 
 

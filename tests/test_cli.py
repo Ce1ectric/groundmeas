@@ -441,7 +441,7 @@ def test_cli_import_from_images_skipped(monkeypatch, tmp_path, capsys):
 
 def test_cli_impedance_over_frequency(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "impedance_over_frequency", lambda ids: {"a": 1})
+    monkeypatch.setattr(cli, "impedance_over_frequency", lambda ids, **kwargs: {"a": 1})
     monkeypatch.setattr(
         cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
     )
@@ -495,7 +495,9 @@ def test_cli_rho_f_model(monkeypatch):
 
 def test_cli_voltage_vt_epr(monkeypatch):
     seen = {}
-    monkeypatch.setattr(cli, "voltage_vt_epr", lambda ids, frequency=50.0: {"epr": 1.0})
+    monkeypatch.setattr(
+        cli, "voltage_vt_epr", lambda ids, frequency=50.0, **kwargs: {"epr": 1.0}
+    )
     monkeypatch.setattr(
         cli, "_dump_or_print", lambda data, json_out: seen.setdefault("data", data)
     )
@@ -796,3 +798,62 @@ def test_set_default_db(tmp_path, monkeypatch, capsys):
     cli.set_default_db(tmp_path / "db.sqlite")
     assert cfg.exists()
     assert "Default DB path saved" in capsys.readouterr().out
+
+
+def test_cli_distance_profile_frequency_and_conservative(tmp_path):
+    import datetime as _dt
+
+    from typer.testing import CliRunner
+
+    import groundmeas as gm
+
+    db_path = tmp_path / "ground.db"
+    gm.connect_db(str(db_path))
+    mid = gm.create_measurement(
+        {
+            "timestamp": _dt.datetime(2026, 5, 12),
+            "method": "injection_earth_electrode",
+            "asset_type": "overhead_line_tower",
+            "location": {"name": "Tower 3"},
+        }
+    )
+    profile = {10.0: 0.40, 30.0: 0.50, 60.0: 0.55, 65.0: 0.56, 70.0: 0.58}
+    gm.create_items(
+        [
+            {
+                "measurement_type": "earthing_impedance",
+                "value": z * scale,
+                "unit": "Ω",
+                "frequency_hz": f,
+                "measurement_distance_m": d,
+                "distance_to_current_injection_m": 100.0,
+            }
+            for f, scale in ((50.0, 1.0), (70.0, 1.1))
+            for d, z in profile.items()
+        ],
+        measurement_id=mid,
+    )
+    gm.disconnect_db()
+
+    out = tmp_path / "result.json"
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "--db",
+            str(db_path),
+            "distance-profile",
+            str(mid),
+            "-a",
+            "62_percent",
+            "-f",
+            "50",
+            "--conservative",
+            "--json-out",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(out.read_text())
+    assert data["frequency_hz"] == 50.0
+    assert data["details"]["conservative"] is True
+    assert data["result_value"] == pytest.approx(0.55 + 0.4 * 0.01)

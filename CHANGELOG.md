@@ -44,6 +44,32 @@ During regular work, add your entry under the matching category in
   — Python API for the JSON import (file, directory or
   `X_measurement.json` + `X_items.json` pair) that round-trips with
   `export_measurements_to_json`.
+- **`gm.value_at_62_percent(distances, values, injection_distance_m,
+  conservative=False)`** — the 62 % method as a pure function. With
+  `conservative=True` it applies the procedure of the tower evaluation:
+  linear extrapolation outside the three nearest points, the profile
+  maximum when 0.62 D lies beyond the profile, and the highest value of a
+  closer point when that exceeds the interpolated value. Verified
+  bit-identical to `tower-grounding-measurement` on 160 measured and
+  20 000 random profiles.
+- **`distance_profile_value(..., frequency_hz=None, conservative=False)`**
+  and `gm-cli distance-profile --frequency/-f --conservative`: evaluate
+  one frequency of a profile stored at several frequencies (e.g. the
+  30/50/70 Hz values of a COMPANO 100 export).
+- **`voltage_vt_epr(..., profile_algorithm="62_percent", conservative=False,
+  additional_resistance_ohm=None)`** and `gm-cli voltage-vt-epr
+  --profile-algorithm --additional-resistance`;
+  **`impedance_over_frequency(..., profile_algorithm="62_percent",
+  conservative=False)`** and `gm-cli impedance-over-frequency
+  --profile-algorithm`.
+
+### Changed (Tower-grounding integration — 2026-10)
+
+- **`impedance_over_frequency` returns one value per frequency from all
+  items at that frequency**: a distance profile is reduced with
+  `profile_algorithm`, several items without distance are averaged (with a
+  `UserWarning`). Before, the last item silently won — for a profile that
+  was the value at the largest probe distance.
 
 ### Fixed (Tower-grounding integration — 2026-10)
 
@@ -57,6 +83,19 @@ During regular work, add your entry under the matching category in
   dropped; locations are matched by name/coordinates as for new data.
 - **`gm-cli import-json` committed every item separately**; it now uses
   `create_items` (one transaction per measurement).
+- **`voltage_vt_epr` averaged a fall-of-potential profile** — with a
+  profile stored in the measurement, `z_per_amp` was the mean of all
+  probe distances (e.g. 0.098 Ω instead of Z_E = 0.121 Ω). Profiles are
+  now reduced with `profile_algorithm` (62 % by default).
+- **`voltage_vt_epr(single_id)` raised `KeyError`** when the measurement
+  was skipped (missing impedance or current) instead of returning the
+  documented empty dict.
+- **`distance_profile_value` mixed frequencies silently**; it now warns
+  when the items span several frequencies and accepts `frequency_hz`.
+- `voltage_vt_epr` warns when several `earthing_current` rows match the
+  frequency (the first one is used, as before); `real_imag_over_frequency`
+  warns when several items share a frequency (the last one is used, as
+  before).
 
 ### Fixed (Audit pass 8 — implemented 2026-05-24)
 

@@ -65,6 +65,7 @@ try:
         invert_layered_earth,
         invert_soil_resistivity_layers,
         multilayer_soil_model,
+        value_at_62_percent,
         voltage_vt_epr,
     )
     from .services.export import (
@@ -125,6 +126,7 @@ __all__ = [
     "rho_f_model",
     "shield_currents_for_location",
     "distance_profile_value",
+    "value_at_62_percent",
     "voltage_vt_epr",
     "import_items_from_images",
     "export_measurements_to_json",
