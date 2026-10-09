@@ -23,13 +23,14 @@ This project makes use of the following third-party open-source software.
 | click-default-group | 1.2.4 | Public Domain |
 | colorama | 0.4.6 | BSD License |
 | comm | 0.2.2 | BSD License |
-| contourpy | 1.3.2 | BSD License |
+| contourpy | 1.4.0 | BSD-3-Clause |
 | coverage | 7.8.0 | Apache-2.0 |
 | cycler | 0.12.1 | BSD License |
 | debugpy | 1.8.14 | MIT License |
 | decorator | 5.2.1 | BSD License |
 | distlib | 0.4.0 | Python Software Foundation License |
 | docopt | 0.6.2 | MIT License |
+| et_xmlfile | 2.0.0 | MIT License |
 | executing | 2.2.0 | MIT License |
 | filelock | 3.29.0 | MIT |
 | folium | 0.20.0 | MIT License |
@@ -37,6 +38,7 @@ This project makes use of the following third-party open-source software.
 | ghp-import | 2.1.0 | Apache Software License |
 | gitdb | 4.0.12 | BSD License |
 | GitPython | 3.1.45 | BSD-3-Clause |
+| greenlet | 3.3.0 | MIT AND Python-2.0 |
 | griffe | 1.15.0 | ISC |
 | identify | 2.6.19 | MIT |
 | idna | 3.11 | BSD-3-Clause |
@@ -50,7 +52,7 @@ This project makes use of the following third-party open-source software.
 | jsonschema-specifications | 2025.9.1 | MIT |
 | jupyter_client | 8.6.3 | BSD License |
 | jupyter_core | 5.7.2 | BSD License |
-| kiwisolver | 1.4.8 | BSD License |
+| kiwisolver | 1.5.1 | BSD License |
 | Markdown | 3.10 | BSD-3-Clause |
 | markdown-it-py | 3.0.0 | MIT License |
 | MarkupSafe | 3.0.3 | BSD-3-Clause |
@@ -69,16 +71,18 @@ This project makes use of the following third-party open-source software.
 | narwhals | 2.14.0 | MIT License |
 | nest-asyncio | 1.6.0 | BSD License |
 | nodeenv | 1.10.0 | BSD License |
-| numpy | 2.2.5 | BSD License |
-| opencv-python-headless | 4.12.0.88 | Apache Software License |
+| numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |
+| opencv-python-headless | 4.14.0.94 | Apache Software License |
+| openpyxl | 3.1.5 | MIT License |
 | packaging | 25.0 | Apache Software License; BSD License |
 | paginate | 0.5.7 | MIT License |
-| pandas | 2.2.3 | BSD License |
+| pandas | 2.3.3 | BSD License |
 | parso | 0.8.4 | MIT License |
 | pathspec | 0.12.1 | Mozilla Public License 2.0 (MPL 2.0) |
 | pexpect | 4.9.0 | ISC License (ISCL) |
-| pillow | 11.2.1 | MIT-CMU |
+| pillow | 12.3.0 | MIT-CMU |
 | platformdirs | 4.3.7 | MIT |
+| playwright | 1.63.0 | Apache-2.0 |
 | plotly | 6.5.0 | MIT License |
 | pluggy | 1.5.0 | MIT License |
 | pre_commit | 4.6.0 | MIT |
@@ -91,6 +95,7 @@ This project makes use of the following third-party open-source software.
 | pydantic | 2.12.5 | MIT |
 | pydantic_core | 2.41.5 | MIT |
 | pydeck | 0.9.1 | Apache License 2.0 |
+| pyee | 13.0.1 | MIT License |
 | Pygments | 2.19.1 | BSD License |
 | pykwalify | 1.8.0 | MIT License |
 | pymdown-extensions | 10.19.1 | MIT |
@@ -104,7 +109,7 @@ This project makes use of the following third-party open-source software.
 | pytz | 2025.2 | MIT License |
 | PyYAML | 6.0.3 | MIT License |
 | pyyaml_env_tag | 1.1 | MIT |
-| pyzmq | 26.4.0 | BSD License |
+| pyzmq | 27.2.0 | BSD-3-Clause |
 | referencing | 0.37.0 | MIT |
 | requests | 2.32.5 | Apache Software License |
 | rich | 14.0.0 | MIT License |
