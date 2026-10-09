@@ -15,7 +15,8 @@ items that have repeatedly been flagged across passes 6 and 7:
 3. ``groundmeas.db`` shim does *not* warn on private attributes
    (``_get_session``) — closes the pass-6 finding.
 4. ``__version__`` parity between ``pyproject.toml`` and
-   ``groundmeas.__version__`` (both pinned to ``1.5.2``).
+   ``groundmeas.__version__`` (no fixed version, so the check survives
+   ``poetry run release``).
 5. ``ui.dashboard.init_db()`` is rerun-aware and reconnects when the
    resolved DB path changes (pass-6/7 footgun).
 6. ``invert_layered_earth`` emits a ``UserWarning`` when the damped
@@ -204,13 +205,6 @@ def test_db_shim_does_not_warn_on_private_attribute():
 # ---------------------------------------------------------------------------
 # 3) __version__ parity
 # ---------------------------------------------------------------------------
-
-
-def test_version_bumped_to_1_5_2():
-    """``__version__`` must be ``1.5.2`` after the pass-6/7 bump."""
-    import groundmeas
-
-    assert groundmeas.__version__ == "1.5.2"
 
 
 def test_pyproject_version_matches_package_version():

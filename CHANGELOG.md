@@ -284,6 +284,10 @@ During regular work, add your entry under the matching category in
   (re-included in `.gitignore`, kept byte-exact via `.gitattributes`).
   The tower tests (`tests/test_towers_*.py`) build their campaigns with
   the demo generator; no measured data is part of the repository.
+- The audit test `test_version_bumped_to_1_5_2` is removed: it pinned
+  `__version__` to `1.5.2`, so `poetry run release` aborted at its test
+  step. The parity check between `pyproject.toml` and `__version__`
+  stays.
 
 ### Fixed (Audit pass 8 — implemented 2026-05-24)
 
