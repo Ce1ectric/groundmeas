@@ -412,6 +412,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#units" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Units
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#soil-resistivity-data-conventions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1494,6 +1505,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#units" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Units
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#soil-resistivity-data-conventions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1615,13 +1637,66 @@
 - Value fields (polar): <code>value</code>, <code>value_angle_deg</code>
 - Value fields (rectangular): <code>value_real</code>, <code>value_imag</code>
 - Metadata: <code>unit</code>, <code>frequency_hz</code>, <code>measurement_distance_m</code>, <code>distance_to_current_injection_m</code>, <code>additional_resistance_ohm</code>, <code>input_impedance_ohm</code>, <code>description</code></p>
+<h3 id="units">Units<a class="headerlink" href="#units" title="Permanent link">&para;</a></h3>
+<p><code>unit</code> is free text, and the value is stored exactly as entered
+(<code>118.1</code> with <code>mΩ</code>, <code>2.5</code> with <code>kA</code>). The analytics convert every item to
+the SI base unit of its quantity before calculating, so one measurement may
+mix <code>Ω</code> and <code>mΩ</code>, or <code>A</code> and <code>kA</code>. Results are always in base units.</p>
+<table>
+<thead>
+<tr>
+<th><code>measurement_type</code></th>
+<th>quantity</th>
+<th>base unit</th>
+<th>accepted units (examples)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>earthing_impedance</code>, <code>earthing_resistance</code></td>
+<td>resistance</td>
+<td>Ω</td>
+<td><code>µΩ</code>, <code>mΩ</code>, <code>Ω</code>, <code>kΩ</code>, <code>MΩ</code>, <code>ohm</code>, <code>mOhm</code>, <code>kOhm</code>, <code>V/A</code></td>
+</tr>
+<tr>
+<td><code>earth_fault_current</code>, <code>earthing_current</code>, <code>shield_current</code></td>
+<td>current</td>
+<td>A</td>
+<td><code>µA</code>, <code>mA</code>, <code>A</code>, <code>kA</code></td>
+</tr>
+<tr>
+<td><code>prospective_touch_voltage</code>, <code>touch_voltage</code>, <code>earth_potential_rise</code>, <code>step_voltage</code>, <code>transferred_potential</code></td>
+<td>voltage</td>
+<td>V</td>
+<td><code>µV</code>, <code>mV</code>, <code>V</code>, <code>kV</code></td>
+</tr>
+<tr>
+<td><code>soil_resistivity</code></td>
+<td>resistivity or resistance</td>
+<td>Ωm or Ω</td>
+<td><code>Ωm</code>, <code>Ω·m</code>, <code>ohm-m</code>, <code>kΩm</code>, <code>Ωcm</code>; resistances as above</td>
+</tr>
+</tbody>
+</table>
+<p>Spelling is tolerant: micro may be written <code>µ</code> (micro sign), <code>μ</code> (Greek
+mu) or <code>u</code>; ohm as <code>Ω</code>, <code>Ω</code> (ohm sign), <code>Ohm</code>, <code>ohm</code> or <code>ohms</code>; products
+with or without separator (<code>Ω m</code>, <code>Ω·m</code>, <code>Ohm-m</code>, <code>Ohmm</code>). SI prefixes are
+case-sensitive (<code>m</code> milli, <code>M</code> mega); <code>MA</code> and <code>MV</code> are rejected because
+they are almost certainly a typing error for <code>mA</code> / <code>mV</code>.</p>
+<p>An item without unit is taken to be in the base unit. An item whose unit is
+unknown or belongs to another quantity (for example <code>A</code> on a
+<code>touch_voltage</code>) is used as stored, and the analytics emit a
+<code>groundmeas.core.units.UnitWarning</code>. Fix such items with
+<code>gm-cli edit-item</code>. The CLI suggests the base unit of the measurement type and
+warns about units it cannot convert. The rules are implemented in
+<code>groundmeas.core.units</code>. For example, <code>parse_unit("mOhm").factor</code> is <code>0.001</code>.</p>
 <h3 id="soil-resistivity-data-conventions">Soil resistivity data conventions<a class="headerlink" href="#soil-resistivity-data-conventions" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Wenner: store spacing <code>a</code> in <code>measurement_distance_m</code>.</li>
 <li>Schlumberger: by default store AB/2 in <code>measurement_distance_m</code> and MN/2 in <code>distance_to_current_injection_m</code>.</li>
 <li>If you store full AB or full MN, set <code>ab_is_full=True</code> or <code>mn_is_full=True</code> in analytics and CLI.</li>
-<li>If the stored value is resistivity, use a unit like <code>ohm-m</code>.</li>
-<li>If the stored value is resistance, use a unit like <code>ohm</code> and set <code>value_kind="resistance"</code> when analyzing.</li>
+<li>If the stored value is resistivity, use a resistivity unit such as <code>ohm-m</code>, <code>Ωm</code> or <code>kΩm</code>.</li>
+<li>If the stored value is resistance, use a resistance unit such as <code>ohm</code>, <code>Ω</code> or <code>mΩ</code>. With the default <code>value_kind="auto"</code> the unit decides; <code>value_kind="resistance"</code> / <code>"resistivity"</code> overrides it.</li>
 </ul>
 <h2 id="consistency-rules">Consistency rules<a class="headerlink" href="#consistency-rules" title="Permanent link">&para;</a></h2>
 <ul>

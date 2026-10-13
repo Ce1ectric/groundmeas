@@ -3455,7 +3455,9 @@ mismatch).</p>
 <h3 id="additional-notes_3">Additional notes<a class="headerlink" href="#additional-notes_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>If current or impedance data is missing, outputs will be incomplete.</li>
-<li>Use consistent units for current and impedance values.</li>
+<li>Values are converted from their stored unit (<code>mΩ</code>, <code>mA</code>, <code>kA</code>, <code>mV</code>, …) to Ω, A and V
+  before the per-ampere values are formed; items with a unit of another quantity
+  are used as stored and reported with a <code>UnitWarning</code> (see <a href="../01_datamodels/#units">Units</a>).</li>
 </ul>
 <h2 id="shield-currents-and-split-factor">Shield currents and split factor<a class="headerlink" href="#shield-currents-and-split-factor" title="Permanent link">&para;</a></h2>
 <h3 id="physical-background_4">Physical background<a class="headerlink" href="#physical-background_4" title="Permanent link">&para;</a></h3>
@@ -3539,7 +3541,8 @@ Callers that need the vector residual itself find it under the
 <h3 id="additional-notes_4">Additional notes<a class="headerlink" href="#additional-notes_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Use consistent reference direction and frequency across shield current items.</li>
-<li>Mixed polar and rectangular values are supported, but avoid mixing units.</li>
+<li>Mixed polar and rectangular values are supported; mixed units (<code>A</code> and <code>kA</code>) are
+  converted to A before the split factor is formed.</li>
 </ul>
 <h2 id="value-over-distance-mappings">Value over distance mappings<a class="headerlink" href="#value-over-distance-mappings" title="Permanent link">&para;</a></h2>
 <h3 id="physical-background_5">Physical background<a class="headerlink" href="#physical-background_5" title="Permanent link">&para;</a></h3>
@@ -3701,7 +3704,10 @@ Callers that need the vector residual itself find it under the
 <h3 id="additional-notes_6">Additional notes<a class="headerlink" href="#additional-notes_6" title="Permanent link">&para;</a></h3>
 <ul>
 <li>By default, Schlumberger spacing uses AB/2 and MN/2. Set <code>ab_is_full</code> or <code>mn_is_full</code> if you store full spacings.</li>
-<li>If units are missing, <code>value_kind=auto</code> assumes resistance.</li>
+<li>With <code>value_kind=auto</code> the unit decides: resistivity units (<code>Ωm</code>, <code>ohm-m</code>, <code>kΩm</code>,
+  <code>Ωcm</code>) give resistivities, resistance units (<code>Ω</code>, <code>ohm</code>, <code>mΩ</code>, <code>µΩ</code>, <code>kΩ</code>)
+  resistances; values are converted to Ωm or Ω first. Items without unit are
+  treated as resistances.</li>
 </ul>
 <h2 id="layered-earth-model-and-inversion">Layered earth model and inversion<a class="headerlink" href="#layered-earth-model-and-inversion" title="Permanent link">&para;</a></h2>
 <h3 id="physical-background_7">Physical background<a class="headerlink" href="#physical-background_7" title="Permanent link">&para;</a></h3>

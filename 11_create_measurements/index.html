@@ -1852,7 +1852,10 @@ form still works but emits a <code>DeprecationWarning</code>.</p>
 </code></pre></div>
 <h2 id="additional-notes">Additional notes<a class="headerlink" href="#additional-notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Use consistent units (ohm, ohm-m) across a survey.</li>
+<li>Enter values in the unit shown by the instrument (<code>mΩ</code>, <code>mA</code>, <code>kA</code>, <code>mV</code>, <code>kΩm</code>, …);
+  the analytics convert them to Ω, A, V and Ωm (see <a href="../01_datamodels/#units">Units</a>).
+  The CLI suggests the base unit of the measurement type and warns about units it
+  cannot convert.</li>
 <li>For Schlumberger, confirm whether you store full or half spacings.</li>
 <li>If you accidentally mix resistivity and resistance values, set <code>value_kind</code> later when analyzing.</li>
 </ul>

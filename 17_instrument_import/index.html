@@ -1566,7 +1566,9 @@ metadata from the measurement description) use
 </tr>
 </tbody>
 </table>
-<p>Units are converted to SI (<code>mA</code>, <code>mV</code>, <code>kV</code>, <code>cm</code>, <code>km</code>, <code>ft</code>, <code>kΩm</code>, …). An
+<p>Units are converted to SI: every SI prefix that occurs (<code>µA</code>/<code>μA</code>/<code>uA</code>, <code>mA</code>, <code>mV</code>,
+<code>kV</code>, <code>mΩ</code>, <code>µΩ</code>, <code>kΩ</code>, <code>kΩm</code>, <code>Ωcm</code>, …), the ohm as <code>Ω</code>, <code>Ω</code> or <code>Ohm</code>, and the
+lengths <code>cm</code>, <code>km</code>, <code>ft</code> (see <a href="../01_datamodels/#units">Units</a>). An
 export that contains only the instrument results (no values at the test
 frequencies) is stored at the power frequency. A file that lacks required
 elements raises <code>MeasurementFileError</code> with the file name. Each test is

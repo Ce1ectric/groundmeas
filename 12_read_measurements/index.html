@@ -1811,7 +1811,9 @@
 <h2 id="additional-notes">Additional notes<a class="headerlink" href="#additional-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Missing <code>measurement_distance_m</code> causes distance-based analytics to skip items.</li>
-<li>If units are inconsistent, <code>value_kind="auto"</code> can misclassify resistance vs resistivity.</li>
+<li>With <code>value_kind="auto"</code> the unit of each item decides between resistance (<code>Ω</code>, <code>mΩ</code>, …)
+  and resistivity (<code>Ωm</code>, <code>ohm-m</code>, <code>kΩm</code>, …); items with an unknown unit are reported
+  with a <code>UnitWarning</code>.</li>
 <li>For Schlumberger, confirm whether spacing is AB or AB/2 before interpreting results.</li>
 <li>For QA, compare multiple reduction algorithms (maximum, 62_percent, minimum_gradient, minimum_stddev, inverse); see <a href="../15_analytics/#distance-profile-reduction">Distance profile reduction</a>.</li>
 </ul>

@@ -1172,6 +1172,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#units-groundmeascoreunits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Units (groundmeas.core.units)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#analytics-groundmeas-groundmeasservicesanalytics" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1511,6 +1522,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#units-groundmeascoreunits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Units (groundmeas.core.units)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#analytics-groundmeas-groundmeasservicesanalytics" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1813,7 +1835,54 @@ emits a spurious deprecation warning.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="units-groundmeascoreunits">Units (<code>groundmeas.core.units</code>)<a class="headerlink" href="#units-groundmeascoreunits" title="Permanent link">&para;</a></h2>
+<p>Used by the analytics, the instrument readers, the OCR import and the CLI; see
+<a href="../01_datamodels/#units">Data models → Units</a>.</p>
+<table>
+<thead>
+<tr>
+<th>function / class</th>
+<th>input</th>
+<th>output</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_unit</code></td>
+<td>unit string, optional quantity</td>
+<td><code>Unit</code></td>
+<td>Canonical symbol, quantity and factor to the SI base unit (<code>"mOhm"</code> → <code>mΩ</code>, 0.001). Raises <code>UnitError</code> for unknown units or another quantity.</td>
+</tr>
+<tr>
+<td><code>to_base_unit</code></td>
+<td>value, unit, optional quantity</td>
+<td>float</td>
+<td>Value in the SI base unit.</td>
+</tr>
+<tr>
+<td><code>items_to_base_units</code></td>
+<td>item dicts, measurement type</td>
+<td>list of dicts</td>
+<td>Copies with <code>value</code>, <code>value_real</code>, <code>value_imag</code> in the base unit; one <code>UnitWarning</code> for items whose unit cannot be used.</td>
+</tr>
+<tr>
+<td><code>check_unit</code>, <code>default_unit</code>, <code>common_units</code></td>
+<td>unit, measurement type</td>
+<td>str / list</td>
+<td>Validation and suggestions as used by the CLI.</td>
+</tr>
+<tr>
+<td><code>UnitError</code>, <code>UnitWarning</code></td>
+<td>–</td>
+<td>–</td>
+<td>Subclasses of <code>ValueError</code> and <code>UserWarning</code>.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="analytics-groundmeas-groundmeasservicesanalytics">Analytics (<code>groundmeas</code> / <code>groundmeas.services.analytics</code>)<a class="headerlink" href="#analytics-groundmeas-groundmeasservicesanalytics" title="Permanent link">&para;</a></h2>
+<p>All values are converted to the SI base unit of their quantity (Ω, A, V, Ωm)
+before calculating; items in <code>mΩ</code>, <code>kA</code>, <code>mV</code>, … can be combined.</p>
 <table>
 <thead>
 <tr>
