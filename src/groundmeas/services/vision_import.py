@@ -23,8 +23,73 @@ import numpy as np
 import pytesseract
 
 from ..core.db import create_item
+from ..core.units import UnitError, parse_unit, prefix_factor
 
 logger = logging.getLogger(__name__)
+
+_OCR_PREFIX = r"[nuµμmkKM]"
+"""SI prefixes in OCR text (micro as ``µ``, ``μ`` or ``u``; ``K`` for kilo)."""
+
+_OCR_OHM = r"(?i:ohms?)|[ΩΩ]"
+"""The ohm symbol (U+03A9 or U+2126 OHM SIGN) or word in OCR text."""
+
+
+def _ocr_symbol(symbol: Optional[str]) -> Optional[tuple[str, str]]:
+    """Base symbol and quantity of a unit symbol read by OCR (``0``/``o`` = Ω)."""
+    if not symbol:
+        return None
+    if symbol in ("Ω", "Ω", "0", "o", "O") or symbol.lower().startswith("ohm"):
+        return "Ω", "resistance"
+    if symbol.upper() == "A":
+        return "A", "current"
+    if symbol.upper() == "V":
+        return "V", "voltage"
+    return None
+
+
+def _ocr_unit_factor(prefix: str, symbol: Optional[str]) -> tuple[float, Optional[str]]:
+    """
+    Factor to the SI base unit and canonical unit of an OCR unit token.
+
+    Parameters
+    ----------
+    prefix : str
+        SI prefix as read (``""``, ``"m"``, ``"µ"``, ``"μ"``, ``"u"``, ``"k"``,
+        ``"K"``, ``"M"``, ``"n"``).
+    symbol : str or None
+        Unit symbol as read (``"Ω"``, ``"ohm"``, ``"A"``, ``"V"``, ``"0"``,
+        ``"o"``) or ``None`` if only a prefix was read; then only ``m``,
+        ``k`` and ``µ`` are applied.
+
+    Returns
+    -------
+    tuple[float, str | None]
+        Factor (e.g. ``1e-3`` for ``mΩ``) and canonical unit (``"mΩ"``) or
+        ``None`` without symbol.
+
+    Notes
+    -----
+    An upper-case ``M`` is mega for Ω (``1.2 MΩ``) but milli for currents
+    and voltages and without symbol: mega-amperes and megavolts do not occur
+    on the displays of earthing-measurement instruments, while OCR confuses
+    the case of ``m``.
+    """
+    base_quantity = _ocr_symbol(symbol)
+    if base_quantity is None or base_quantity[1] != "resistance":
+        prefix = "m" if prefix == "M" else prefix
+    if base_quantity is None:
+        # symbol lost: only unambiguous prefixes apply ("n" and "u" may be
+        # the start of "n/a" or a word)
+        if prefix in ("m", "k", "K", "µ", "μ"):
+            return prefix_factor(prefix), None
+        return 1.0, None
+    base, quantity = base_quantity
+    try:
+        unit = parse_unit(f"{prefix}{base}", quantity)
+    except UnitError:
+        # prefix not used for this quantity (e.g. "nV"): apply it anyway
+        return prefix_factor(prefix), f"{prefix}{base}"
+    return unit.factor, unit.symbol
 
 
 @dataclass
@@ -76,7 +141,7 @@ def _normalize_ocr_text(text: str) -> str:
     # whitespace between ``rn`` and the unit letter to cover Megger
     # OCR output where the unit symbol is space-separated.
     cleaned = re.sub(
-        r"(?<=\d)(?:[.,]\d+)?\s*rn(?=\s*[AVΩ0oO])",
+        r"(?<=\d)(?:[.,]\d+)?\s*rn(?=\s*[AVΩΩ0oO])",
         lambda m: m.group(0).replace("rn", "m"),
         cleaned,
     )
@@ -91,10 +156,15 @@ def _parse_value_angle_unit(
     """
     Parse a token string containing value, unit, and optional phase angle.
 
+    The unit may follow the number directly (``118.1mΩ``) or after a blank;
+    every SI prefix that occurs on instrument displays is converted (``m``,
+    ``µ``/``μ``/``u``, ``k``, ``M`` for MΩ; see :func:`_ocr_unit_factor`).
+
     Examples
     --------
     - '114.0 mA 0.00°' -> (0.114, 0.0, 'mA')
     - '118.1 mΩ -136.56°' -> (0.1181, -136.56, 'mΩ')
+    - '250 µV' -> (0.00025, None, 'μV')
 
     Parameters
     ----------
@@ -104,33 +174,25 @@ def _parse_value_angle_unit(
     Returns
     -------
     tuple[float | None, float | None, str | None]
-        Magnitude in base SI units, angle in degrees, and original unit string.
+        Magnitude in base SI units, angle in degrees, and the unit read
+        (canonical symbol, e.g. ``"mΩ"``; ``None`` if none was read).
     """
     if not chunk:
         return None, None, None
-    # split into parts: value, unit, angle
-    # Accept unit immediately after number (e.g., 118.1mΩ) or separated by space
     val_unit_match = re.search(
-        r"(-?\d+(?:[.,]\d+)?)(?:\s*)?([mk]?)(A|V|Ω|ohm|ohms|0|o)?",
+        rf"(?P<num>-?\d+(?:[.,]\d+)?)\s*(?P<prefix>{_OCR_PREFIX}?)\s?"
+        rf"(?P<symbol>{_OCR_OHM}|[AaVv](?![A-Za-z])|0|[oO])?",
         chunk,
-        re.IGNORECASE,
     )
     angle_match = re.search(r"(-?\d+(?:[.,]\d+)?)\s*°", chunk)
     if not val_unit_match:
         return None, None, None
-    raw_val = _normalize_number(val_unit_match.group(1))
-    prefix = (val_unit_match.group(2) or "").lower()
-    unit_base = val_unit_match.group(3) or ""
-    scale = 1.0
-    if prefix == "m":
-        scale = 1e-3
-    if prefix == "k":
-        scale = 1e3
-    if unit_base in {"0", "o"}:
-        unit_base = "Ω"
-    value = raw_val * scale
+    raw_val = _normalize_number(val_unit_match.group("num"))
+    factor, unit = _ocr_unit_factor(
+        val_unit_match.group("prefix") or "", val_unit_match.group("symbol")
+    )
+    value = raw_val * factor
     angle = _normalize_number(angle_match.group(1)) if angle_match else None
-    unit = f"{prefix}{unit_base}".strip() or None
     return value, angle, unit
 
 
@@ -400,14 +462,14 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
         r"(?P<dist>-?\d+(?:[.,]\d+)?)\s*m"
         r".*?(?P<cur>-?\d+(?:[.,]\d+)?)\s*mA\s*(?P<ang1>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
         r".*?(?P<volt>-?\d+(?:[.,]\d+)?)\s*mV\s*(?P<ang2>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
-        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]\s*(?P<ang3>-?\d+(?:[.,]\d+)?)?\s*[°º]?",
+        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*(?-i:m)[ΩΩ0oOQq]\s*(?P<ang3>-?\d+(?:[.,]\d+)?)?\s*[°º]?",
         re.IGNORECASE,
     )
     full_pattern = re.compile(
         r"(?P<dist>-?\d+(?:[.,]\d+)?)\s*m"
         r".*?(?P<cur>-?\d+(?:[.,]\d+)?)\s*mA\s*(?P<ang1>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
         r".*?(?P<volt>-?\d+(?:[.,]\d+)?)\s*mV\s*(?P<ang2>-?\d+(?:[.,]\d+)?)?\s*[°º]?"
-        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]\s*(?P<ang3>-?\d+(?:[.,]\d+)?)?\s*[°º]?",
+        r".*?(?P<imp>-?\d+(?:[.,]\d+)?)\s*(?-i:m)[ΩΩ0oOQq]\s*(?P<ang3>-?\d+(?:[.,]\d+)?)?\s*[°º]?",
         re.IGNORECASE | re.DOTALL,
     )
     distance_pattern = re.compile(
@@ -425,12 +487,15 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
     voltage_pattern = re.compile(r"(?:volt|vtp|vt)\b", re.IGNORECASE)
     voltage_value_pattern = re.compile(r"(-?\d+(?:[.,]\d+)?)\s*v\b", re.IGNORECASE)
 
+    # number after a label, optionally with its unit (the prefix is
+    # case-sensitive: 2.5 kΩ, 118.1 mΩ, 1.2 MΩ, 350 µΩ)
     impedance_label_pattern = re.compile(
-        r"(?:impedance|resistance|z|r)\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)",
-        re.IGNORECASE,
+        r"(?i:impedance|resistance|z|r)\s*[:=]?\s*(?P<num>-?\d+(?:[.,]\d+)?)"
+        rf"(?:\s*(?P<prefix>{_OCR_PREFIX}?)\s?(?P<symbol>{_OCR_OHM})(?![^\W\d_]))?"
     )
     impedance_unit_pattern = re.compile(
-        r"(-?\d+(?:[.,]\d+)?)\s*(?:ohm|Ω|ohms)\b", re.IGNORECASE
+        rf"(?P<num>-?\d+(?:[.,]\d+)?)\s*(?P<prefix>{_OCR_PREFIX}?)\s?"
+        rf"(?P<symbol>{_OCR_OHM})(?![^\W\d_])"
     )
 
     angle_pattern = re.compile(r"(?:angle|phi|∠)\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)")
@@ -558,28 +623,63 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
                 rows.append(row)
             continue
 
-        # Sequential token extraction: dist, current (mA), voltage (mV), impedance (mΩ/Ω)
+        # Sequential token extraction: dist, current (mA, µA, kA),
+        # voltage (mV, µV, kV), impedance (mΩ, µΩ, kΩ, MΩ, Ω)
         dist_match_seq = distance_pattern.search(line) or distance_unit_pattern.search(
             line
         )
-        cur_match_seq = re.search(r"(-?\d+(?:[.,]\d+)?)\s*mA", line, re.IGNORECASE)
-        volt_match_seq = re.search(r"(-?\d+(?:[.,]\d+)?)\s*mV", line, re.IGNORECASE)
-        imp_match_m = re.search(
-            r"(-?\d+(?:[.,]\d+)?)\s*m[Ω0oOQqAa]", line, re.IGNORECASE
+        # mA/mV in any case as before; µ, u, n and k only with an upper-case
+        # symbol that does not start a word ("4 Kabel" is no current)
+        cur_match_seq = re.search(
+            r"(?P<num>-?\d+(?:[.,]\d+)?)\s*"
+            r"(?:(?P<milli>(?i:m))(?i:a)|(?P<prefix>[µμunkK])A(?![^\W\d_]))",
+            line,
         )
-        imp_match_O = re.search(r"(-?\d+(?:[.,]\d+)?)\s*Ω", line, re.IGNORECASE)
+        volt_match_seq = re.search(
+            r"(?P<num>-?\d+(?:[.,]\d+)?)\s*"
+            r"(?:(?P<milli>(?i:m))(?i:v)|(?P<prefix>[µμukK])V(?![^\W\d_]))",
+            line,
+        )
+        # "m" + Ω or an OCR misreading of Ω (0, o, O, Q, q) - but not "mA"
+        imp_match_m = re.search(
+            r"(-?\d+(?:[.,]\d+)?)\s*(?-i:m)[ΩΩ0oOQq]", line, re.IGNORECASE
+        )
+        imp_match_prefixed = re.search(
+            rf"(?P<num>-?\d+(?:[.,]\d+)?)\s*(?P<prefix>[µμukKMG])\s?"
+            rf"(?P<symbol>{_OCR_OHM})(?![^\W\d_])",
+            line,
+        )
+        imp_match_O = re.search(r"(-?\d+(?:[.,]\d+)?)\s*[ΩΩ]", line, re.IGNORECASE)
         degs = list(degree_pattern.finditer(line))
 
         if dist_match_seq and (
-            cur_match_seq or volt_match_seq or imp_match_m or imp_match_O
+            cur_match_seq
+            or volt_match_seq
+            or imp_match_m
+            or imp_match_prefixed
+            or imp_match_O
         ):
             row = ParsedRow(distance_m=_normalize_number(dist_match_seq.group(1)))
             if cur_match_seq:
-                row.current_a = _normalize_number(cur_match_seq.group(1)) * 1e-3
+                factor, _unit = _ocr_unit_factor(
+                    cur_match_seq.group("milli") or cur_match_seq.group("prefix"), "A"
+                )
+                row.current_a = _normalize_number(cur_match_seq.group("num")) * factor
             if volt_match_seq:
-                row.voltage_v = _normalize_number(volt_match_seq.group(1)) * 1e-3
+                factor, _unit = _ocr_unit_factor(
+                    volt_match_seq.group("milli") or volt_match_seq.group("prefix"), "V"
+                )
+                row.voltage_v = _normalize_number(volt_match_seq.group("num")) * factor
             if imp_match_m:
                 row.impedance_ohm = _normalize_number(imp_match_m.group(1)) * 1e-3
+            elif imp_match_prefixed:
+                factor, _unit = _ocr_unit_factor(
+                    imp_match_prefixed.group("prefix"),
+                    imp_match_prefixed.group("symbol"),
+                )
+                row.impedance_ohm = (
+                    _normalize_number(imp_match_prefixed.group("num")) * factor
+                )
             elif imp_match_O:
                 row.impedance_ohm = _normalize_number(imp_match_O.group(1))
             # If we have V and I but no Z, compute Z = V/I
@@ -685,15 +785,20 @@ def parse_measurement_rows(text: str) -> List[ParsedRow]:
             line
         ) or impedance_unit_pattern.search(line)
         if imp_match:
-            row.impedance_ohm = _normalize_number(imp_match.group(1))
+            factor, _unit = _ocr_unit_factor(
+                imp_match.group("prefix") or "", imp_match.group("symbol") or "Ω"
+            )
+            row.impedance_ohm = _normalize_number(imp_match.group("num")) * factor
         else:
             mo_matches = re.findall(
-                r"(-?\d+(?:[.,]\d+)?)\s*m[Ω0o]", line, re.IGNORECASE
+                r"(-?\d+(?:[.,]\d+)?)\s*(?-i:m)[ΩΩ0o]", line, re.IGNORECASE
             )
             if mo_matches:
                 row.impedance_ohm = _normalize_number(mo_matches[-1]) * 1e-3
             else:
-                o_matches = re.findall(r"(-?\d+(?:[.,]\d+)?)\s*Ω", line, re.IGNORECASE)
+                o_matches = re.findall(
+                    r"(-?\d+(?:[.,]\d+)?)\s*[ΩΩ]", line, re.IGNORECASE
+                )
                 if o_matches:
                     row.impedance_ohm = _normalize_number(o_matches[-1])
 

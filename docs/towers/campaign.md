@@ -106,8 +106,8 @@ The tool reads
 - for soil-resistivity exports the apparent **specific resistances** and the
   electrode distances a, b, c (`SoilResistanceReport`).
 
-Units are converted to A, V and m (`mA`, `kV`, `cm`, `km` and `ft` are
-accepted). A file that lacks one of the required elements is reported with
+Units are converted to A, V and m (`mA`, `µA`/`μA`/`uA`, `mV`, `µV`, `kV`,
+`cm`, `km` and `ft` are accepted, see [Units](../01_datamodels.md#units)). A file that lacks one of the required elements is reported with
 its name and skipped. The readers are available as
 `groundmeas.instruments.CompanoXMLReader` and `Hgt1TXTReader`, see
 [Import from OMICRON instruments](../17_instrument_import.md).
@@ -116,7 +116,8 @@ its name and skipped. The readers are available as
 
 The HGT1 *StepTouch* report is a tab-separated text file with a header row
 `Location  Meas. ID  Date  Time  f1  Level1  f2  Level2  Termination` followed
-by a unit row and one row per reading. Each reading contains the voltage at two
+by a unit row (levels in `[V]`, `[mV]`, `[µV]` or `[kV]`, frequencies in `[Hz]`)
+and one row per reading. Each reading contains the voltage at two
 frequencies next to the power frequency (for example 30 Hz and 70 Hz); the
 value at the nominal frequency is interpolated linearly (see
 [Physical background](physics.md#touch-voltage)).

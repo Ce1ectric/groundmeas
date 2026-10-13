@@ -66,7 +66,22 @@ emits a spurious deprecation warning.
 | `delete_measurement` | measurement id | bool | Delete a measurement and its items. |
 | `delete_item` | item id | bool | Delete a single item. |
 
+## Units (`groundmeas.core.units`)
+Used by the analytics, the instrument readers, the OCR import and the CLI; see
+[Data models → Units](01_datamodels.md#units).
+
+| function / class | input | output | description |
+| --- | --- | --- | --- |
+| `parse_unit` | unit string, optional quantity | `Unit` | Canonical symbol, quantity and factor to the SI base unit (`"mOhm"` → `mΩ`, 0.001). Raises `UnitError` for unknown units or another quantity. |
+| `to_base_unit` | value, unit, optional quantity | float | Value in the SI base unit. |
+| `items_to_base_units` | item dicts, measurement type | list of dicts | Copies with `value`, `value_real`, `value_imag` in the base unit; one `UnitWarning` for items whose unit cannot be used. |
+| `check_unit`, `default_unit`, `common_units` | unit, measurement type | str / list | Validation and suggestions as used by the CLI. |
+| `UnitError`, `UnitWarning` | – | – | Subclasses of `ValueError` and `UserWarning`. |
+
 ## Analytics (`groundmeas` / `groundmeas.services.analytics`)
+All values are converted to the SI base unit of their quantity (Ω, A, V, Ωm)
+before calculating; items in `mΩ`, `kA`, `mV`, … can be combined.
+
 | function | input | output | description |
 | --- | --- | --- | --- |
 | `impedance_over_frequency` | measurement id or list, `profile_algorithm`, `conservative` | dict | Frequency to impedance map (profiles reduced per frequency). |

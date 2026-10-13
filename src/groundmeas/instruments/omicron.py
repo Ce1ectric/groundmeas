@@ -15,7 +15,10 @@ Readers for OMICRON COMPANO 100 XML exports and OMICRON HGT1 reports.
 
 Both readers raise :class:`MeasurementFileError` (a ``ValueError``) with a
 descriptive message when a file is incomplete or malformed. Values are
-returned in SI base units (V, A, m, Ω, Ωm).
+returned in SI base units (V, A, m, Ω, Ωm); the units of the export are
+interpreted by :func:`groundmeas.core.units.parse_unit` (all SI prefixes
+that occur, micro as ``µ``, ``μ`` or ``u``, ohm as ``Ω``, ``Ω`` or
+``Ohm``).
 
 The readers are independent of the database; :mod:`groundmeas.services.omicron_import`
 turns their results into measurements, and :mod:`groundmeas.towers` uses
@@ -35,6 +38,8 @@ from typing import Any, ClassVar
 import numpy as np
 import pandas as pd
 
+from ..core.units import BASE_UNITS, UnitError, known_units, parse_unit
+
 __all__ = [
     "CompanoXMLReader",
     "FallOfPotentialData",
@@ -48,25 +53,28 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-UNIT_FACTORS: dict[str, dict[str, float]] = {
-    "current": {"A": 1.0, "mA": 1e-3, "kA": 1e3, "µA": 1e-6, "uA": 1e-6},
-    "voltage": {"V": 1.0, "mV": 1e-3, "kV": 1e3, "µV": 1e-6, "uV": 1e-6},
-    "distance": {"m": 1.0, "cm": 1e-2, "km": 1e3, "ft": 0.3048},
-    "resistance": {"Ω": 1.0, "Ohm": 1.0, "mΩ": 1e-3, "kΩ": 1e3, "MΩ": 1e6},
-    "resistivity": {
-        "Ωm": 1.0,
-        "Ω m": 1.0,
-        "Ω·m": 1.0,
-        "Ohm m": 1.0,
-        "Ohmm": 1.0,
-        "mΩm": 1e-3,
-        "kΩm": 1e3,
-        "kΩ m": 1e3,
-        "kΩ·m": 1e3,
-        "MΩm": 1e6,
-    },
+_LEGACY_SPELLINGS: dict[str, tuple[str, ...]] = {
+    "current": ("µA", "uA"),
+    "voltage": ("µV", "uV"),
+    "distance": (),
+    "resistance": ("Ohm",),
+    "resistivity": ("Ω m", "Ω·m", "Ohm m", "Ohmm", "kΩ m", "kΩ·m"),
 }
-"""Accepted units per quantity and their factor to the SI base unit (A, V, m, Ω, Ωm)."""
+
+UNIT_FACTORS: dict[str, dict[str, float]] = {
+    quantity: {
+        **known_units(quantity),
+        **{s: parse_unit(s, quantity).factor for s in spellings},
+    }
+    for quantity, spellings in _LEGACY_SPELLINGS.items()
+}
+"""Units per quantity and their factor to the SI base unit (A, V, m, Ω, Ωm).
+
+Kept for compatibility: the canonical symbols of
+:mod:`groundmeas.core.units` plus the spellings listed here before 1.6.1.
+The readers accept every spelling understood by
+:func:`groundmeas.core.units.parse_unit` (e.g. ``μA``, ``mOhm``, ``Ohm-m``).
+"""
 
 _FALL_OF_POTENTIAL = "FallOfPotentialReport/FallOfPotentialWidgetData/FallOfPotentialMeasurementScreenData"
 _REDUCTION_FACTOR = (
@@ -106,14 +114,16 @@ def _float(text: str | None, what: str) -> float:
 def _to_base_unit(
     values: np.ndarray, units: list[str], quantity: str, source: str
 ) -> np.ndarray:
-    """Convert ``values`` to the SI base unit of ``quantity`` (A, V or m).
+    """Convert ``values`` to the SI base unit of ``quantity`` (A, V, m, Ω or Ωm).
 
     Parameters
     ----------
     values : numpy.ndarray
         Values in the units given by ``units`` (one unit per value).
     units : list of str
-        Unit of every value as written in the export.
+        Unit of every value as written in the export; any spelling of
+        :func:`groundmeas.core.units.parse_unit` (``mA``, ``µA``, ``μA``,
+        ``uA``, ``mΩ``, ``mOhm``, ``Ω``, ``Ohm-m``, ...).
     quantity : {"current", "voltage", "distance", "resistance", "resistivity"}
         Physical quantity, used to check that the units are compatible.
     source : str
@@ -124,15 +134,25 @@ def _to_base_unit(
     numpy.ndarray
         Converted values. Values already in the base unit are returned
         unchanged (bit-identical).
+
+    Raises
+    ------
+    MeasurementFileError
+        If a unit is unknown or of another quantity, or if the number of
+        units differs from the number of values.
     """
-    accepted = UNIT_FACTORS[quantity]
+    if len(units) != len(values):
+        raise MeasurementFileError(
+            f"{source}: {len(values)} {quantity} values but {len(units)} units"
+        )
     factors = []
     for unit in units:
-        # U+2126 OHM SIGN and U+03A9 GREEK CAPITAL OMEGA look the same
-        unit = (unit or "").strip().replace("\u2126", "\u03a9")
-        if unit not in accepted:
-            raise MeasurementFileError(f"{source}: unexpected {quantity} unit {unit!r}")
-        factors.append(accepted[unit])
+        try:
+            factors.append(parse_unit(unit, quantity).factor)
+        except UnitError as exc:
+            raise MeasurementFileError(
+                f"{source}: unexpected {quantity} unit {(unit or '').strip()!r}"
+            ) from exc
     if all(f == 1.0 for f in factors):
         return values
     return values * np.asarray(factors, dtype=float)
@@ -981,12 +1001,14 @@ class Hgt1TXTReader:
     )
     """Columns of the parsed data frame (in this order)."""
     _NUMERIC = ("f1", "Level1", "f2", "Level2")
-    _UNIT_OK: ClassVar[dict[str, tuple[str, ...]]] = {
-        "f1": ("[Hz]",),
-        "f2": ("[Hz]",),
-        "Level1": ("[V]", "[mV]"),
-        "Level2": ("[V]", "[mV]"),
+    _UNIT_QUANTITY: ClassVar[dict[str, str]] = {
+        "f1": "frequency",
+        "f2": "frequency",
+        "Level1": "voltage",
+        "Level2": "voltage",
     }
+    """Quantity of the numeric columns; their unit row (``[V]``, ``[mV]``,
+    ``[µV]``, ``[Hz]``, ...) is converted to V and Hz."""
 
     def __init__(
         self,
@@ -1043,14 +1065,15 @@ class Hgt1TXTReader:
             else []
         )
         scale = dict.fromkeys(self._NUMERIC, 1.0)
-        for column, accepted in self._UNIT_OK.items():
+        for column, quantity in self._UNIT_QUANTITY.items():
             unit = units[position[column]] if position[column] < len(units) else ""
-            if unit not in accepted:
+            try:
+                scale[column] = parse_unit(unit, quantity).factor
+            except UnitError as exc:
                 raise MeasurementFileError(
-                    f"{self._name}: unexpected unit {unit!r} for {column} (expected {accepted[0]})"
-                )
-            if unit == "[mV]":
-                scale[column] = 1e-3
+                    f"{self._name}: unexpected unit {unit!r} for {column} "
+                    f"(expected [{BASE_UNITS[quantity]}])"
+                ) from exc
 
         rows: list[dict[str, Any]] = []
         for number, line in enumerate(

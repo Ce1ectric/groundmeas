@@ -93,6 +93,8 @@ gm-cli soil-profile SOIL_MEAS_ID --method wenner
 
 ## Additional notes
 - Missing `measurement_distance_m` causes distance-based analytics to skip items.
-- If units are inconsistent, `value_kind="auto"` can misclassify resistance vs resistivity.
+- With `value_kind="auto"` the unit of each item decides between resistance (`Ω`, `mΩ`, …)
+  and resistivity (`Ωm`, `ohm-m`, `kΩm`, …); items with an unknown unit are reported
+  with a `UnitWarning`.
 - For Schlumberger, confirm whether spacing is AB or AB/2 before interpreting results.
 - For QA, compare multiple reduction algorithms (maximum, 62_percent, minimum_gradient, minimum_stddev, inverse); see [Distance profile reduction](15_analytics.md#distance-profile-reduction).

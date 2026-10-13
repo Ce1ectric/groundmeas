@@ -30,6 +30,110 @@ During regular work, add your entry under the matching category in
 
 ## [Unreleased]
 
+### Fixed (Unit-conversion audit — 2026-10-13)
+
+> Every path that turns a value with a unit into a number was checked
+> against the same data in SI base units and against a hand conversion
+> (`tests/test_audit_units_2026_10_13.py`; 73 of the 132 initial checks
+> failed on 1.6.0). Values are still stored as entered; what changed is how
+> they are read.
+
+- **The analytics ignored `MeasurementItem.unit`.** `impedance_over_frequency`,
+  `real_imag_over_frequency`, `distance_profile_value`,
+  `value_over_distance(_detailed)`, `voltage_vt_epr`,
+  `calculate_split_factor`, `shield_currents_for_location` and
+  `rho_f_model` used `value` as stored. Examples:
+  - an impedance of `118.1 mΩ` was returned as 118.1 Ω;
+  - an earth-fault current in `kA` against shield currents in `A` gave a
+    split factor of 495 instead of 0.51;
+  - impedances in `mΩ` scaled the rho–f coefficients by 1000;
+  - a profile mixing `Ω` and `mΩ` was only warned about ("Mixed units").
+
+  All of them now convert the items to the SI base unit of their
+  quantity (Ω, A, V, Ωm) first. Results are in base units, and
+  `distance_profile_value(...)["unit"]` is the base unit.
+- **`soil_resistivity_profile(value_kind="auto")` misread units.**
+  - It took `mΩ`, `mOhm` and `MΩ` for resistivities: a Wenner reading of
+    159 mΩ at 10 m gave 159 Ωm instead of 10 Ωm.
+  - It never scaled `kΩ`, `µΩ`, `kΩm` or `Ωcm`.
+
+  The unit now decides between resistance and resistivity, and the value
+  is converted. Unknown units fall back to the former substring rule and
+  raise a `UnitWarning`. This closes the backlog item on bare `"Ω"` and
+  `value_kind` auto-detection.
+- **`rho_f_model` converts soil resistivities** (`kΩm`, `Ωcm`, …). Items
+  with a resistance unit are still used as stored but are now reported
+  with a `UnitWarning` (backlog item "rho_f_model reads raw stored
+  soil_resistivity values").
+- **OMICRON readers rejected common spellings.** This broke the import
+  with `MeasurementFileError`; no value was wrong.
+  - Rejected spellings: the Greek mu `μ` (U+03BC) in `μA` / `μV`;
+    `µΩ`, `μΩ`, `uΩ`; `mOhm`, `kOhm`, `MOhm`, `ohm`, `Ohms`; `Ohm·m`,
+    `ohm-m`, `Ω*m`, `kOhm m`, `Ωcm`.
+  - A soil export with resistances in `µΩ` or `mOhm` failed completely,
+    although the resistances are optional.
+  - HGT1 reports with levels in `[µV]`, `[μV]`, `[uV]` or `[kV]` were
+    rejected.
+
+  An export whose number of units does not match its number of values
+  now raises `MeasurementFileError` instead of a NumPy broadcasting
+  error. Exports in base units, `mA` or `mV` give bit-identical results
+  (demo campaign compared field by field).
+- **OCR import (`import_items_from_images`) converted units wrongly.**
+  - `µ`/`μ`/`u` were ignored: `250 µV` was read as 250 V.
+  - `MΩ` was read as mΩ.
+  - `114.0 mA` was taken for an impedance in mΩ, because `A` was in the
+    character class for a misread Ω.
+  - A labelled impedance (`Z = 2.5 kΩ`, `R = 350 µΩ`) ignored its unit.
+
+  The line parser now also converts `µA`, `kA`, `µV`, `kV`, `µΩ`, `kΩ`
+  and `MΩ`.
+- **`gm-cli add-measurement`, `add-item` and `edit-item` suggested the
+  unit `A` for every voltage type and for `soil_resistivity`.** They now
+  suggest the base unit of the type (`V`, `Ωm`, `Ω`, `A`) and the usual
+  prefixed units. Units of another quantity already in the database are
+  no longer offered, and a unit that cannot be converted gets a warning;
+  it is still stored as entered. Items stored with the former default
+  keep their values in the analytics and are reported with a
+  `UnitWarning`.
+
+### Internal (Unit-conversion audit — 2026-10-13)
+
+- New module `groundmeas.core.units` is the single place for units:
+  - `parse_unit`, `to_base_unit` and `items_to_base_units`;
+  - `check_unit`, `default_unit` and `common_units`;
+  - the exception `UnitError` and the warning category `UnitWarning`.
+
+  It accepts all SI prefixes that occur in earthing measurements,
+  normalises the micro sign / Greek mu and the ohm sign / omega (NFKC),
+  and knows the words `ohm`, `volt`, `ampere`, `milli`, …. It rejects
+  `MA` / `MV` rather than scaling by 10⁹. The instrument readers, the
+  OCR import, the analytics and the CLI use it.
+- `groundmeas.instruments.omicron.UNIT_FACTORS` is kept with all its
+  former entries, now derived from `groundmeas.core.units`.
+- `MeasurementItem.unit`: docstring and field description say that values
+  are stored as entered and converted by the analytics (no schema change).
+
+### Docs (Unit-conversion audit — 2026-10-13)
+
+- New section *Units* in [Data models](docs/01_datamodels.md#units): the
+  base unit per measurement type, accepted spellings and the behaviour for
+  unknown units. The API reference describes `groundmeas.core.units`.
+- Analytics, tutorial, OMICRON-import and tower-campaign pages: the old
+  advice "use consistent units" and the old lists of accepted units are
+  replaced.
+
+### Tests (Unit-conversion audit — 2026-10-13)
+
+- `tests/test_units.py` covers parsing, conversion, item conversion and
+  warnings (100 % of `groundmeas.core.units`).
+- `tests/test_audit_units_2026_10_13.py` holds the audit cases (readers,
+  OCR, analytics on an in-memory database, CLI). Each case is compared
+  against SI data and against a hand calculation, plus the behaviour kept
+  for stored data. The tests cover the backlog gaps on `value_kind="auto"`
+  with a bare `"Ω"` and on `distance_profile_value` for
+  `soil_resistivity` (unit Ωm).
+
 ---
 
 ## [1.6.0] — 2026-10-09

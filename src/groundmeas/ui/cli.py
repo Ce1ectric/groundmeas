@@ -43,6 +43,7 @@ from ..services.omicron_import import (
     import_step_touch,
 )
 from ..core.models import MeasurementType
+from ..core.units import check_unit, common_units, default_unit
 from ..services.analytics import (
     calculate_split_factor,
     distance_profile_value,
@@ -254,6 +255,49 @@ def _existing_item_units(measurement_type: str) -> List[str]:
         return []
     vals = [it.get("unit") for it in items if it.get("unit")]
     return sorted({str(v) for v in vals})
+
+
+def _unit_choices(measurement_type: str) -> List[str]:
+    """Units offered for an item of ``measurement_type``.
+
+    Units of this type already in the database that can be converted come
+    first, then the usual units (base unit first, e.g. ``V``, ``mV``,
+    ``kV``). Units of another quantity -- such as the ``A`` that groundmeas
+    up to 1.6.0 suggested for voltages -- are not offered.
+    """
+    existing = [
+        unit
+        for unit in _existing_item_units(measurement_type)
+        if check_unit(unit, measurement_type) is None
+    ]
+    return existing + [u for u in common_units(measurement_type) if u not in existing]
+
+
+def _prompt_unit(measurement_type: str, current: Optional[str] = None) -> str:
+    """Ask for the unit of an item and warn if it cannot be converted.
+
+    Parameters
+    ----------
+    measurement_type : str
+        Type of the item.
+    current : str, optional
+        Unit of the item being edited (the default answer).
+
+    Returns
+    -------
+    str
+        The unit as entered; it is stored even if it is not convertible.
+    """
+    choices = _unit_choices(measurement_type)
+    default = current or (choices[0] if choices else default_unit(measurement_type))
+    unit = _prompt_text("Unit", default=default, completer=_word_choice(choices))
+    problem = check_unit(unit, measurement_type)
+    if problem:
+        typer.secho(
+            f"Warning: {problem}; analyses use the values of this item as stored.",
+            fg=typer.colors.YELLOW,
+        )
+    return unit
 
 
 def _existing_item_values(field: str, measurement_type: str | None = None) -> List[str]:
@@ -537,14 +581,7 @@ def add_measurement() -> None:
                 suggestions=add_res_choices,
             )
 
-        suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
-        unit_choices = _existing_item_units(mtype)
-        unit_default = unit_choices[0] if unit_choices else suggested_unit
-        item["unit"] = _prompt_text(
-            "Unit",
-            default=unit_default,
-            completer=_word_choice(unit_choices or [suggested_unit]),
-        )
+        item["unit"] = _prompt_unit(mtype)
         item["description"] = _prompt_text("Item description (optional)", default="")
 
         iid = create_item(item, measurement_id=mid)
@@ -723,14 +760,7 @@ def add_item(
             suggestions=add_res_choices,
         )
 
-    suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
-    unit_choices = _existing_item_units(mtype)
-    unit_default = unit_choices[0] if unit_choices else suggested_unit
-    item["unit"] = _prompt_text(
-        "Unit",
-        default=unit_default,
-        completer=_word_choice(unit_choices or [suggested_unit]),
-    )
+    item["unit"] = _prompt_unit(mtype)
     item["description"] = _prompt_text("Item description (optional)", default="")
 
     iid = create_item(item, measurement_id=measurement_id)
@@ -908,16 +938,7 @@ def edit_item(
             suggestions=add_res_choices,
         )
 
-    suggested_unit = "Ω" if "impedance" in mtype or "resistance" in mtype else "A"
-    unit_choices = _existing_item_units(mtype)
-    unit_default = item.get("unit") or (
-        unit_choices[0] if unit_choices else suggested_unit
-    )
-    unit = _prompt_text(
-        "Unit",
-        default=unit_default,
-        completer=_word_choice(unit_choices or [suggested_unit]),
-    )
+    unit = _prompt_unit(mtype, current=item.get("unit"))
     desc = _prompt_text(
         "Item description (optional)", default=item.get("description") or ""
     )

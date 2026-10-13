@@ -35,12 +35,40 @@ Fields:
 - Value fields (rectangular): `value_real`, `value_imag`
 - Metadata: `unit`, `frequency_hz`, `measurement_distance_m`, `distance_to_current_injection_m`, `additional_resistance_ohm`, `input_impedance_ohm`, `description`
 
+### Units
+
+`unit` is free text, and the value is stored exactly as entered
+(`118.1` with `mΩ`, `2.5` with `kA`). The analytics convert every item to
+the SI base unit of its quantity before calculating, so one measurement may
+mix `Ω` and `mΩ`, or `A` and `kA`. Results are always in base units.
+
+| `measurement_type` | quantity | base unit | accepted units (examples) |
+| --- | --- | --- | --- |
+| `earthing_impedance`, `earthing_resistance` | resistance | Ω | `µΩ`, `mΩ`, `Ω`, `kΩ`, `MΩ`, `ohm`, `mOhm`, `kOhm`, `V/A` |
+| `earth_fault_current`, `earthing_current`, `shield_current` | current | A | `µA`, `mA`, `A`, `kA` |
+| `prospective_touch_voltage`, `touch_voltage`, `earth_potential_rise`, `step_voltage`, `transferred_potential` | voltage | V | `µV`, `mV`, `V`, `kV` |
+| `soil_resistivity` | resistivity or resistance | Ωm or Ω | `Ωm`, `Ω·m`, `ohm-m`, `kΩm`, `Ωcm`; resistances as above |
+
+Spelling is tolerant: micro may be written `µ` (micro sign), `μ` (Greek
+mu) or `u`; ohm as `Ω`, `Ω` (ohm sign), `Ohm`, `ohm` or `ohms`; products
+with or without separator (`Ω m`, `Ω·m`, `Ohm-m`, `Ohmm`). SI prefixes are
+case-sensitive (`m` milli, `M` mega); `MA` and `MV` are rejected because
+they are almost certainly a typing error for `mA` / `mV`.
+
+An item without unit is taken to be in the base unit. An item whose unit is
+unknown or belongs to another quantity (for example `A` on a
+`touch_voltage`) is used as stored, and the analytics emit a
+`groundmeas.core.units.UnitWarning`. Fix such items with
+`gm-cli edit-item`. The CLI suggests the base unit of the measurement type and
+warns about units it cannot convert. The rules are implemented in
+`groundmeas.core.units`. For example, `parse_unit("mOhm").factor` is `0.001`.
+
 ### Soil resistivity data conventions
 - Wenner: store spacing `a` in `measurement_distance_m`.
 - Schlumberger: by default store AB/2 in `measurement_distance_m` and MN/2 in `distance_to_current_injection_m`.
 - If you store full AB or full MN, set `ab_is_full=True` or `mn_is_full=True` in analytics and CLI.
-- If the stored value is resistivity, use a unit like `ohm-m`.
-- If the stored value is resistance, use a unit like `ohm` and set `value_kind="resistance"` when analyzing.
+- If the stored value is resistivity, use a resistivity unit such as `ohm-m`, `Ωm` or `kΩm`.
+- If the stored value is resistance, use a resistance unit such as `ohm`, `Ω` or `mΩ`. With the default `value_kind="auto"` the unit decides; `value_kind="resistance"` / `"resistivity"` overrides it.
 
 ## Consistency rules
 - If only `value_real` and `value_imag` are provided, magnitude and angle are computed automatically.

@@ -54,7 +54,9 @@ metadata from the measurement description) use
 | transferred potential (`injection_earth_electrode`) | `transferred_potential` per reading, reference current as above |
 | soil resistivity (`wenner` or `schlumberger`) | `soil_resistivity` per reading; Wenner (`c = a`): spacing `a` in `measurement_distance_m`; Schlumberger: `AB/2 = c + a/2` in `measurement_distance_m` and `MN/2 = a/2` in `distance_to_current_injection_m` (COMPANO: `a` = MN spacing, `b` = electrode depth, `c` = distance current – potential electrode) |
 
-Units are converted to SI (`mA`, `mV`, `kV`, `cm`, `km`, `ft`, `kΩm`, …). An
+Units are converted to SI: every SI prefix that occurs (`µA`/`μA`/`uA`, `mA`, `mV`,
+`kV`, `mΩ`, `µΩ`, `kΩ`, `kΩm`, `Ωcm`, …), the ohm as `Ω`, `Ω` or `Ohm`, and the
+lengths `cm`, `km`, `ft` (see [Units](01_datamodels.md#units)). An
 export that contains only the instrument results (no values at the test
 frequencies) is stored at the power frequency. A file that lacks required
 elements raises `MeasurementFileError` with the file name. Each test is

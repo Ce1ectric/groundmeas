@@ -5,6 +5,14 @@ groundmeas.analytics
 Analytics functions for the groundmeas package. Provides routines to fetch and
 process impedance and resistivity data for earthing measurements, and to fit
 and evaluate rho–f models.
+
+Items are stored with the unit they were entered in (``118.1`` ``mΩ``,
+``2.5`` ``kA``); every function converts them to the SI base unit of their
+quantity (Ω, A, V, Ωm) before calculating, see :mod:`groundmeas.core.units`.
+Results are therefore always in base units, also when one measurement
+mixes, for example, ``Ω`` and ``mΩ``. Items whose unit cannot be converted
+(unknown, or of another quantity) are used as stored and reported with a
+:class:`~groundmeas.core.units.UnitWarning`.
 """
 
 import itertools
@@ -18,9 +26,39 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 import numpy as np
 
 from ..core.db import read_items_by, read_measurements_by
+from ..core.units import (
+    Unit,
+    UnitError,
+    UnitWarning,
+    items_to_base_units,
+    parse_unit,
+)
 
 # configure module‐level logger
 logger = logging.getLogger(__name__)
+
+
+def _in_base_units(
+    items: Sequence[Dict[str, Any]],
+    measurement_type: str,
+    measurement_id: Any,
+    *,
+    quantities: Optional[Sequence[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Copies of ``items`` with their values in the SI base unit.
+
+    Wraps :func:`groundmeas.core.units.items_to_base_units` so that its
+    :class:`~groundmeas.core.units.UnitWarning` points at the caller of the
+    public analytics function.
+    """
+    return items_to_base_units(
+        items,
+        measurement_type,
+        quantities=quantities,
+        context=f"Measurement {measurement_id}",
+        stacklevel=4,
+    )
+
 
 try:
     import mlx.core as mx  # type: ignore
@@ -79,7 +117,8 @@ def impedance_over_frequency(
     """
     Map frequency (Hz) to impedance magnitude (Ω) for one or many measurements.
 
-    One value is returned per frequency:
+    Items stored in ``mΩ``, ``kΩ``, ... are converted to Ω first. One value
+    is returned per frequency:
 
     * a single ``earthing_impedance`` item at that frequency: its magnitude;
     * a fall-of-potential profile (several items with
@@ -136,6 +175,7 @@ def impedance_over_frequency(
             )
             all_results[mid] = {}
             continue
+        items = _in_base_units(items, "earthing_impedance", mid)
 
         groups: Dict[float, List[Dict[str, Any]]] = {}
         for item in items:
@@ -192,7 +232,9 @@ def real_imag_over_frequency(
     Dict[int, Dict[float, Dict[str, Optional[float]]]],
 ]:
     """
-    Map frequency to real/imag components of impedance.
+    Map frequency to real/imag components of impedance (Ω).
+
+    Items stored in ``mΩ``, ``kΩ``, ... are converted to Ω.
 
     Parameters
     ----------
@@ -232,6 +274,7 @@ def real_imag_over_frequency(
             )
             all_results[mid] = {}
             continue
+        items = _in_base_units(items, "earthing_impedance", mid)
 
         freq_map: Dict[float, Dict[str, Optional[float]]] = {}
         counts: Dict[float, int] = {}
@@ -817,7 +860,9 @@ def distance_profile_value(
     Returns
     -------
     dict
-        Computed value, distance, unit, injection distance, data points, and algorithm details.
+        Computed value, distance, unit, injection distance, data points, and
+        algorithm details. Values and ``unit`` are in the SI base unit of the
+        items (Ω, V, A or Ωm), whatever unit the items were stored in.
 
     Raises
     ------
@@ -847,6 +892,7 @@ def distance_profile_value(
 
     if frequency_hz is None:
         _warn_mixed_frequencies(items, measurement_id, measurement_type)
+    items = _in_base_units(items, measurement_type, measurement_id)
 
     points, injection_candidates, units = _profile_points(items)
     if not points:
@@ -873,8 +919,10 @@ def distance_profile_value(
 
     unit = units[0] if units else None
     if units and len(set(units)) > 1:
+        # only units that could not be converted to the base unit remain here
         warnings.warn(
-            "Mixed units across items; using the first one for output",
+            f"Mixed units across items ({', '.join(sorted(set(units)))}) that "
+            "cannot be converted to one unit; using the first one for output",
             UserWarning,
         )
 
@@ -1336,7 +1384,11 @@ def soil_resistivity_profile_detailed(
         Array method used for the resistivity survey.
     value_kind : {"auto", "resistance", "resistivity"}, default "auto"
         Interpret ``value`` as resistance (ohms) or resistivity (ohm-m). In auto
-        mode, units containing "ohm" and "m" are treated as resistivity.
+        mode the unit decides: a resistivity unit (``Ωm``, ``ohm-m``, ``kΩm``,
+        ``Ωcm``, ...) gives a resistivity, a resistance unit (``Ω``, ``ohm``,
+        ``mΩ``, ``µΩ``, ``kΩ``, ...) a resistance; items without unit are
+        resistances. Values are converted from their unit to Ω or Ωm first
+        (see :mod:`groundmeas.core.units`).
     depth_factor : float, optional
         Override the depth multiplier applied to spacing. Must be > 0.
     ab_is_full : bool, default False
@@ -1389,6 +1441,7 @@ def soil_resistivity_profile_detailed(
         raise ValueError(f"No soil_resistivity data for measurement {measurement_id}")
 
     raw_points: List[Dict[str, Any]] = []
+    unit_problems: Dict[str, List[str]] = {}
 
     for item in items:
         spacing = item.get("measurement_distance_m")
@@ -1420,17 +1473,36 @@ def soil_resistivity_profile_detailed(
             )
             continue
 
-        unit = item.get("unit")
+        unit_text = "" if item.get("unit") is None else str(item.get("unit")).strip()
+        parsed: Optional[Unit] = None
+        if unit_text:
+            try:
+                parsed = parse_unit(unit_text, ("resistivity", "resistance"))
+            except UnitError as exc:
+                unit_problems.setdefault(str(exc), []).append(str(item.get("id")))
         local_kind = kind
         if kind == "auto":
-            local_kind = "resistivity"
-            if unit:
-                unit_text = str(unit)
+            if parsed is not None:
+                local_kind = parsed.quantity
+            elif unit_text:
+                # unknown unit: the substring rule of groundmeas <= 1.6.0
                 unit_str = unit_text.lower()
-                if not (("ohm" in unit_str or "Ω" in unit_text) and "m" in unit_str):
-                    local_kind = "resistance"
+                local_kind = (
+                    "resistivity"
+                    if ("ohm" in unit_str or "Ω" in unit_text) and "m" in unit_str
+                    else "resistance"
+                )
             else:
                 local_kind = "resistance"
+        if parsed is not None:
+            if parsed.quantity == local_kind:
+                value = parsed.to_base(value)
+            else:
+                unit_problems.setdefault(
+                    f"{unit_text!r} is a {parsed.quantity} unit but "
+                    f"value_kind={kind!r}",
+                    [],
+                ).append(str(item.get("id")))
 
         effective_spacing_m = spacing_m
         if method_key == "schlumberger" and ab_is_full:
@@ -1508,6 +1580,18 @@ def soil_resistivity_profile_detailed(
                 "mn_is_full": bool(mn_is_full),
                 "item_id": item.get("id"),
             }
+        )
+
+    if unit_problems:
+        details = "; ".join(
+            f"{problem} (item{'s' if len(ids) > 1 else ''} {', '.join(ids)})"
+            for problem, ids in unit_problems.items()
+        )
+        warnings.warn(
+            f"Measurement {measurement_id}: soil_resistivity unit not converted: "
+            f"{details}; the values are used as stored",
+            UnitWarning,
+            stacklevel=2,
         )
 
     if not raw_points:
@@ -2288,6 +2372,11 @@ def rho_f_model(
             raise RuntimeError(
                 f"Failed to load soil_resistivity for measurement {mid}"
             ) from e
+        # the fit needs resistivities: Ωm, kΩm, ... are converted; items with
+        # a resistance unit are used as stored and reported (UnitWarning)
+        items = _in_base_units(
+            items, "soil_resistivity", mid, quantities=("resistivity",)
+        )
 
         depth_rho = {
             float(it["measurement_distance_m"]): float(it["value"])
@@ -2440,6 +2529,7 @@ def voltage_vt_epr(
                 UserWarning,
             )
             continue
+        imp_items = _in_base_units(imp_items, "earthing_impedance", mid)
         if len(imp_items) > 1 and any(
             it.get("measurement_distance_m") is not None for it in imp_items
         ):
@@ -2474,6 +2564,7 @@ def voltage_vt_epr(
                 UserWarning,
             )
             continue
+        cur_items = _in_base_units(cur_items, "earthing_current", mid)
         if len(cur_items) > 1:
             warnings.warn(
                 f"Measurement {mid}: {len(cur_items)} earthing_current rows matched "
@@ -2504,6 +2595,7 @@ def voltage_vt_epr(
             frequency_hz=frequency,
         )
         if vtp_items:
+            vtp_items = _in_base_units(vtp_items, "prospective_touch_voltage", mid)
             vtp_vals = [float(it["value"]) / I for it in vtp_items]
             entry["vtp_min"] = min(vtp_vals)
             entry["vtp_max"] = max(vtp_vals)
@@ -2531,6 +2623,7 @@ def voltage_vt_epr(
                 )
             ]
         if vt_items:
+            vt_items = _in_base_units(vt_items, "touch_voltage", mid)
             vt_vals = [float(it["value"]) / I for it in vt_items]
             entry["vt_min"] = min(vt_vals)
             entry["vt_max"] = max(vt_vals)
@@ -2594,7 +2687,8 @@ def shield_currents_for_location(
     Returns
     -------
     list[dict]
-        Shield-current items with ``measurement_id`` included.
+        Shield-current items with ``measurement_id`` included; values in A
+        (converted from ``mA``, ``kA``, ... of the stored items).
 
     Raises
     ------
@@ -2614,6 +2708,7 @@ def shield_currents_for_location(
     candidates: List[Dict[str, Any]] = []
     for meas in measurements:
         mid = meas.get("id")
+        shield_items: List[Dict[str, Any]] = []
         for item in meas.get("items", []):
             if item.get("measurement_type") != "shield_current":
                 continue
@@ -2624,6 +2719,8 @@ def shield_currents_for_location(
                         continue
                 except Exception:
                     continue
+            shield_items.append(item)
+        for item in _in_base_units(shield_items, "shield_current", mid):
             candidate = {
                 "id": item.get("id"),
                 "measurement_id": mid,
@@ -2664,7 +2761,8 @@ def calculate_split_factor(
     -------
     dict
         Contains ``split_factor``, ``shield_current_sum``, ``local_earthing_current``,
-        and ``earth_fault_current`` (each with magnitude/angle/real/imag).
+        and ``earth_fault_current`` (each with magnitude/angle/real/imag in A;
+        the items may be stored in ``A``, ``kA``, ``mA``, ...).
 
     Raises
     ------
@@ -2708,6 +2806,14 @@ def calculate_split_factor(
         warnings.warn(
             f"shield_current IDs not found and skipped: {missing}", UserWarning
         )
+
+    # e.g. the fault current in kA and the shield currents in A
+    earth_items = items_to_base_units(
+        earth_items, "earth_fault_current", context="calculate_split_factor"
+    )
+    shield_items = items_to_base_units(
+        shield_items, "shield_current", context="calculate_split_factor"
+    )
 
     earth_current = _current_item_to_complex(earth_items[0])
     if abs(earth_current) == 0:
@@ -2773,6 +2879,7 @@ def value_over_distance(
     -------
     dict
         If single ID: ``{distance_m: value}``; if multiple: ``{measurement_id: {distance_m: value}}``.
+        Values in the SI base unit of the items (Ω, V, A or Ωm).
     """
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)
@@ -2786,6 +2893,7 @@ def value_over_distance(
         except Exception as e:
             logger.error("Error reading items for measurement %s: %s", mid, e)
             raise RuntimeError(f"Failed to load data for measurement {mid}") from e
+        items = _in_base_units(items, measurement_type, mid)
 
         dist_val_map: Dict[float, float] = {}
         for item in items:
@@ -2824,6 +2932,7 @@ def value_over_distance_detailed(
     list[dict] or dict[int, list[dict]]
         If single ID: list of ``{"distance": d, "value": v, "frequency": f}``;
         if multiple: dict keyed by measurement_id with lists of points.
+        Values in the SI base unit of the items (Ω, V, A or Ωm).
     """
     single = isinstance(measurement_ids, int)
     ids: List[int] = [measurement_ids] if single else list(measurement_ids)
@@ -2837,6 +2946,7 @@ def value_over_distance_detailed(
         except Exception as e:
             logger.error("Error reading items for measurement %s: %s", mid, e)
             raise RuntimeError(f"Failed to load data for measurement {mid}") from e
+        items = _in_base_units(items, measurement_type, mid)
 
         data_points: List[Dict[str, Any]] = []
         for item in items:

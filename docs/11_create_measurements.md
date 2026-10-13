@@ -145,6 +145,9 @@ done
 ```
 
 ## Additional notes
-- Use consistent units (ohm, ohm-m) across a survey.
+- Enter values in the unit shown by the instrument (`mΩ`, `mA`, `kA`, `mV`, `kΩm`, …);
+  the analytics convert them to Ω, A, V and Ωm (see [Units](01_datamodels.md#units)).
+  The CLI suggests the base unit of the measurement type and warns about units it
+  cannot convert.
 - For Schlumberger, confirm whether you store full or half spacings.
 - If you accidentally mix resistivity and resistance values, set `value_kind` later when analyzing.

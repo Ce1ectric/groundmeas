@@ -160,7 +160,10 @@ class MeasurementItem(SQLModel, table=True):
     value_angle_deg : float, optional
         Phase angle in degrees.
     unit : str
-        Unit string, e.g., "Ω", "m".
+        Unit of ``value`` / ``value_real`` / ``value_imag`` as entered, e.g.
+        "Ω", "mΩ", "kA", "mV", "Ωm". Values are stored unchanged; the
+        analytics convert them to the SI base unit (see
+        :mod:`groundmeas.core.units`).
     description : str, optional
         Free-text notes.
     frequency_hz : float, optional
@@ -189,7 +192,9 @@ class MeasurementItem(SQLModel, table=True):
         None, description="Imaginary part of complex value"
     )
     value_angle_deg: Optional[float] = Field(None, description="Phase angle in degrees")
-    unit: str = Field(..., description="Unit of the measurement")
+    unit: str = Field(
+        ..., description="Unit of the value as entered (e.g. Ω, mΩ, kA, mV, Ωm)"
+    )
     description: Optional[str] = Field(None, description="Item notes")
     frequency_hz: Optional[float] = Field(None, description="Frequency (Hz)")
     additional_resistance_ohm: Optional[float] = Field(

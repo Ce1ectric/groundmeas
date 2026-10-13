@@ -342,7 +342,9 @@ gm-cli voltage-vt-epr 1 2 --frequency 50 --json-out vt.json
 
 ### Additional notes
 - If current or impedance data is missing, outputs will be incomplete.
-- Use consistent units for current and impedance values.
+- Values are converted from their stored unit (`mΩ`, `mA`, `kA`, `mV`, …) to Ω, A and V
+  before the per-ampere values are formed; items with a unit of another quantity
+  are used as stored and reported with a `UnitWarning` (see [Units](01_datamodels.md#units)).
 
 ## Shield currents and split factor
 
@@ -420,7 +422,8 @@ gm-cli calculate-split-factor --earth-fault-id 100 --shield-id 201 --shield-id 2
 
 ### Additional notes
 - Use consistent reference direction and frequency across shield current items.
-- Mixed polar and rectangular values are supported, but avoid mixing units.
+- Mixed polar and rectangular values are supported; mixed units (`A` and `kA`) are
+  converted to A before the split factor is formed.
 
 ## Value over distance mappings
 
@@ -561,7 +564,10 @@ gm-cli soil-profile 3 --method schlumberger --value-kind resistance
 
 ### Additional notes
 - By default, Schlumberger spacing uses AB/2 and MN/2. Set `ab_is_full` or `mn_is_full` if you store full spacings.
-- If units are missing, `value_kind=auto` assumes resistance.
+- With `value_kind=auto` the unit decides: resistivity units (`Ωm`, `ohm-m`, `kΩm`,
+  `Ωcm`) give resistivities, resistance units (`Ω`, `ohm`, `mΩ`, `µΩ`, `kΩ`)
+  resistances; values are converted to Ωm or Ω first. Items without unit are
+  treated as resistances.
 
 ## Layered earth model and inversion
 

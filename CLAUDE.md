@@ -4,7 +4,7 @@ Python-Paket zur Erfassung, Speicherung, Analyse und Visualisierung von Erdungsm
 
 - Repo: https://github.com/Ce1ectric/groundmeas
 - Doku: https://ce1ectric.github.io/groundmeas/
-- Aktuelle Version: `1.5.2` in Arbeit (siehe `pyproject.toml`, `CITATION.cff`, `src/groundmeas/__init__.py`; PyPI: 1.5.1)
+- Aktuelle Version: siehe `pyproject.toml`, `CITATION.cff`, `src/groundmeas/__init__.py` (Stand 2026-10-13: PyPI 1.6.0, Patch 1.6.1 mit dem Einheiten-Fix in Vorbereitung)
 - Branch: `main`
 
 ## Toolchain
@@ -24,7 +24,8 @@ Python-Paket zur Erfassung, Speicherung, Analyse und Visualisierung von Erdungsm
 src/groundmeas/
 ├── core/                 # DB-Engine und SQLModel-Datenmodelle
 │   ├── db.py             # connect_db, CRUD (create/read/update/delete_*)
-│   └── models.py         # Location, Measurement, MeasurementItem + Literal-Typen
+│   ├── models.py         # Location, Measurement, MeasurementItem + Literal-Typen
+│   └── units.py          # Einheiten: parse_unit, items_to_base_units, UnitWarning
 ├── services/
 │   ├── analytics.py      # Impedanz/Frequenz, rho–f-Modell, Distance-Profile,
 │   │                     # 62 % (value_at_62_percent, conservative), Soil-Resistivity,
@@ -80,7 +81,14 @@ Drei SQLModel-Tabellen, SQLite als Backend:
 - **`Measurement`** — Messkampagne / -ereignis mit `timestamp` (UTC), `method`, `asset_type`, optional `voltage_level_kv`, `fault_resistance_ohm`, `operator`, `description`, Relation zu `Location` und `items`.
 - **`MeasurementItem`** — Einzelmesspunkt, trägt entweder `value` (+ optional `value_angle_deg`) oder `value_real`/`value_imag`; ein SQLAlchemy-`before_insert`/`before_update`-Listener in `models.py` hält Polar- und Rechteck-Darstellung konsistent. Weitere Felder: `unit`, `frequency_hz`, `measurement_distance_m`, `distance_to_current_injection_m`, `additional_resistance_ohm`, `input_impedance_ohm`.
 
-Zulässige Werte für `measurement_type`, `method`, `asset_type` sind als `Literal[...]` in `core/models.py` definiert — bei Erweiterung dort anpassen **und** die relevanten CLI/Dashboard-Completer mitziehen.
+Zulässige Werte für `measurement_type`, `method`, `asset_type` sind als `Literal[...]` in `core/models.py` definiert — bei Erweiterung dort anpassen **und** die relevanten CLI/Dashboard-Completer mitziehen. Ein neuer `measurement_type` braucht außerdem seine Größe in `core/units.py:MEASUREMENT_TYPE_QUANTITIES` (`tests/test_units.py` erzwingt das).
+
+## Einheiten (`core/units.py`)
+
+- `MeasurementItem.unit` ist Freitext; Werte werden **wie eingegeben** gespeichert (`118.1` + `mΩ`), keine Umrechnung beim Schreiben, keine Migration.
+- Jede Rechnung rechnet beim Lesen auf SI-Basiseinheiten um (Ω, A, V, Ωm) — in `services/analytics.py` über `_in_base_units(...)` direkt nach jedem `read_items_by`. Neue Analytics-Funktionen müssen das ebenso tun.
+- `parse_unit` ist die einzige Quelle für Schreibweisen (µ/μ/u, Ω/Ω/Ohm, Ω·m/ohm-m/Ωcm, `[mV]`); die OMICRON-Reader, der OCR-Import und die CLI nutzen sie. Präfixe sind case-sensitiv; `MA`/`MV` werden abgelehnt.
+- Nicht umrechenbare Einheiten (unbekannt oder falsche Größe, z. B. das alte CLI-Default `A` bei Spannungen) → Wert roh + eine `UnitWarning` pro Aufruf.
 
 ## DB-Pfad-Auflösung
 
